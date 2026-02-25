@@ -1,5 +1,7 @@
 # edgar-diff: SEC Filing Comparison Tool
 
+*Created: 2026-02-24*
+
 ## Press Release
 
 ### Investor Research Tool Turns Hours of Filing Comparison Into Seconds
