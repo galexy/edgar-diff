@@ -1,3 +1,9 @@
+---
+bead-id: edgar-diff-vda
+title: SEC Filing Diff Library
+created: "2026-02-26"
+---
+
 # Epic 1: SEC Filing Diff Library
 
 ## Overview
