@@ -1,0 +1,26 @@
+{
+  "cli_version": "0.4.7",
+  "checkpoint_id": "47c73091a557",
+  "strategy": "manual-commit",
+  "branch": "specs/epic-1-prd",
+  "checkpoints_count": 0,
+  "files_touched": [
+    ".specs/epic-1-library/PRD.md"
+  ],
+  "sessions": [
+    {
+      "metadata": "/47/c73091a557/0/metadata.json",
+      "transcript": "/47/c73091a557/0/full.jsonl",
+      "context": "/47/c73091a557/0/context.md",
+      "content_hash": "/47/c73091a557/0/content_hash.txt",
+      "prompt": "/47/c73091a557/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 69,
+    "cache_creation_tokens": 10112,
+    "cache_read_tokens": 162761,
+    "output_tokens": 2102,
+    "api_call_count": 7
+  }
+}
