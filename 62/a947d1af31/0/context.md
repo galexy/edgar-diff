@@ -18,3 +18,7 @@ okay. Let's create three epics. I want us to start writing PRDs for each the epi
 
 let's create a branch for this and a PR
 
+### Prompt 5
+
+but i think the commit message isn't quite right. only epic 1 prd is written
+
