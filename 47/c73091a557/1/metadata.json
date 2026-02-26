@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.7",
+  "checkpoint_id": "47c73091a557",
+  "session_id": "4bbcb272-589b-4419-b2f3-6cb917e58005",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-26T18:36:46.470384Z",
+  "branch": "specs/epic-1-prd",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".specs/epic-1-library/PRD.md"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "f3d49e8b8245",
+  "token_usage": {
+    "input_tokens": 53,
+    "cache_creation_tokens": 23178,
+    "cache_read_tokens": 940318,
+    "output_tokens": 7541,
+    "api_call_count": 31
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-26T18:36:46.377659Z",
+    "agent_lines": 0,
+    "human_added": 15,
+    "human_modified": 66,
+    "human_removed": 0,
+    "total_committed": 15,
+    "agent_percentage": 0
+  }
+}

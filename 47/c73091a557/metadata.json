@@ -3,7 +3,7 @@
   "checkpoint_id": "47c73091a557",
   "strategy": "manual-commit",
   "branch": "specs/epic-1-prd",
-  "checkpoints_count": 0,
+  "checkpoints_count": 1,
   "files_touched": [
     ".specs/epic-1-library/PRD.md"
   ],
@@ -14,13 +14,20 @@
       "context": "/47/c73091a557/0/context.md",
       "content_hash": "/47/c73091a557/0/content_hash.txt",
       "prompt": "/47/c73091a557/0/prompt.txt"
+    },
+    {
+      "metadata": "/47/c73091a557/1/metadata.json",
+      "transcript": "/47/c73091a557/1/full.jsonl",
+      "context": "/47/c73091a557/1/context.md",
+      "content_hash": "/47/c73091a557/1/content_hash.txt",
+      "prompt": "/47/c73091a557/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 69,
-    "cache_creation_tokens": 10112,
-    "cache_read_tokens": 162761,
-    "output_tokens": 2102,
-    "api_call_count": 7
+    "input_tokens": 122,
+    "cache_creation_tokens": 33290,
+    "cache_read_tokens": 1103079,
+    "output_tokens": 9643,
+    "api_call_count": 38
   }
 }
