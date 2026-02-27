@@ -30,8 +30,8 @@ edgar-diff/
 │       │   │   ├── edgar-client.ts   # HTTP fetcher + rate limiter
 │       │   │   └── types.ts
 │       │   ├── parser/
-│       │   │   ├── parser.ts             # Orchestrator
-│       │   │   ├── section-extractor.ts
+│       │   │   ├── parser.ts              # Orchestrator
+│       │   │   ├── section-extractor.ts   # Heuristic heading detection
 │       │   │   ├── table-extractor.ts
 │       │   │   └── types.ts
 │       │   ├── diff/
@@ -152,8 +152,8 @@ export { createEdgarClient } from './client/edgar-client';
 export { parseFiling } from './parser/parser';
 export { diffFilings } from './diff/diff-engine';
 export type {
-  EdgarClientOptions, RawFiling, FormType, StructuredDocument, StructuredDiff,
-  FilingSection, SectionDiff, SourceLocation,
+  EdgarClientOptions, RawFiling, FormType, StructuredDocument,
+  StructuredDiff, FilingSection, SectionDiff, SourceLocation,
 } from './types';
 ```
 
@@ -194,8 +194,6 @@ export interface RawFiling {
 
 // ---- Parser ----
 
-export type FilingAgent = 'dfin' | 'toppan-merrill' | 'workiva' | 'unknown';
-
 export interface Paragraph extends SourceMapped { type: 'paragraph'; text: string; }
 
 export interface TableCell extends SourceMapped {
@@ -216,7 +214,6 @@ export interface FilingSection extends SourceMapped {
 
 export interface StructuredDocument {
   filing: RawFiling;
-  agent: FilingAgent;
   sections: FilingSection[];
   parseWarnings: string[];
 }
@@ -283,19 +280,18 @@ export interface Logger { warn(msg: string): void; }
 
 ---
 
-## 6. Filing Agent Pattern Analysis Plan
+## 6. HTML Pattern Catalog
 
-DFIN, Toppan Merrill, and Workiva cover the vast majority of large-cap 10-K filings. Their HTML templates are undocumented; the approach is empirical.
+SEC filings are produced by various filing agents (DFIN, Toppan Merrill, Workiva, and others) whose HTML templates are undocumented. Rather than attempting to detect and branch on the filing agent, the parser uses a single heuristic-based approach that handles all observed heading patterns generically.
 
-**Steps:**
+**Cataloging steps:**
 
-1. Collect 5 filings each from DFIN, Toppan Merrill, Workiva (15 total). Source via EDGAR full-text search (`efts.sec.gov`) for known large-cap filers tied to each agent.
-2. For each filing, document: (a) how section headings appear in HTML — element type, CSS classes, inline styles, font attributes, all-caps convention; (b) table-of-contents structure; (c) page-break representation; (d) agent-identifying signals — meta generator tags, CSS class naming patterns, document encoding.
-3. Commit findings to `.specs/epic-1-library/agent-patterns.md` as structured tables, one per agent.
-4. Implement `agent-detector.ts` as a scored signature check: each agent has weighted positive and negative signals. The highest-scoring agent wins; ties resolve to `'unknown'`.
-5. Implement a `SectionExtractorStrategy` interface with concrete implementations per agent. The `'unknown'` strategy uses heuristic scanning: find all bold or uppercase block elements matching `ITEM \d+[A-Z]?\.?` and use them as section boundaries.
+1. Collect 10-15 sample 10-K filings from a variety of large-cap filers. Aim for diversity in HTML structure rather than targeting specific agents.
+2. For each filing, document the HTML patterns used for section headings — element types (`<h1>`–`<h4>`, `<p>`, `<div>`), inline styles (bold, uppercase, font-size), CSS classes, and structural conventions (table-of-contents presence, page breaks).
+3. Commit findings to `.specs/epic-1-library/html-patterns.md` as a structured catalog of observed heading patterns.
+4. Build a single `section-extractor.ts` that applies a ranked set of heuristics: (a) scan for elements matching `ITEM \d+[A-Z]?` in normalized text, (b) weight matches by heading signals (h-tag > bold > uppercase > plain), (c) use scoring to break ties when multiple candidates match.
 
-**Risk gate (per PRD):** If more than 3 distinct HTML pattern families emerge within a single agent, or if agent-specific logic is required in table parsing for more than 2 agents, escalate to a separate parser epic.
+**Risk gate (per PRD):** If more than 3 distinct HTML pattern families are needed and the heuristic approach can't cover them reliably (< 80% section detection accuracy across sample filings), escalate the parser to its own epic.
 
 ---
 
@@ -324,7 +320,7 @@ export class EdgarNetworkError extends Error {
 
 ### Unit Tests (`tests/unit/`)
 
-Test individual pure functions. HTML fixtures are inline tagged-template strings inside each test file — no external files for unit tests. Keep each fixture under 30 lines of HTML. Cover: section heading detection per agent pattern, agent fingerprinting signal scoring, table cell colspan/rowspan normalization, Jaro-Winkler threshold calibration, source offset arithmetic edge cases (empty elements, self-closing tags, comments).
+Test individual pure functions. HTML fixtures are inline tagged-template strings inside each test file — no external files for unit tests. Keep each fixture under 30 lines of HTML. Cover: section heading detection across HTML pattern variations (h-tags, bold, uppercase, font tags), table cell colspan/rowspan normalization, Jaro-Winkler threshold calibration, source offset arithmetic edge cases (empty elements, self-closing tags, comments).
 
 ### Integration Tests (`tests/integration/`)
 
@@ -356,7 +352,7 @@ A `FilingHtmlGenerator` generates structurally plausible but randomized 10-K HTM
 
 **Goal:** Validate section alignment quality and patience-diff output on real filing pairs before committing the algorithm.
 
-**Scope:** Two consecutive 10-K filing pairs (minimum; use two different companies/agents). Implement custom section aligner with Jaro-Winkler similarity. For matched sections, apply patience diff at the paragraph level via the `diff` npm package. Compare output against naive Myers on the full document text. Manually review alignment and diff output readability.
+**Scope:** Two consecutive 10-K filing pairs (minimum; use two different companies). Implement custom section aligner with Jaro-Winkler similarity. For matched sections, apply patience diff at the paragraph level via the `diff` npm package. Compare output against naive Myers on the full document text. Manually review alignment and diff output readability.
 
 **Deliverable:** `spikes/diff-algorithm/` with runnable TypeScript and `NOTES.md` documenting: (a) section alignment accuracy per filing pair (correctly matched / total), (b) optimal Jaro-Winkler threshold, (c) paragraph diff quality (subjective: does it highlight meaningful changes?), (d) full-pair performance, (e) cases where patience performs worse than Myers.
 
