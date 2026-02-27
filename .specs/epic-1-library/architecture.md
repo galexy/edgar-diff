@@ -324,7 +324,7 @@ Test individual pure functions. HTML fixtures are inline tagged-template strings
 
 ### Integration Tests (`tests/integration/`)
 
-Real SEC HTML files committed to `tests/integration/fixtures/`. Naming: `{agent}-{formtype}-{ticker}-{year}.html`. Start with 6 files (2 per agent). Assertions: (a) correct section count for a known filing, (b) specific section IDs present (`item-1a`, `item-7`), (c) source offset round-trip: `html.slice(section.source.start, section.source.end)` contains the section heading text. Diff integration tests: parse two consecutive annual filings for the same company, run `diffFilings`, assert summary counts are non-zero and no exception is thrown.
+Real SEC HTML files committed to `tests/integration/fixtures/`. Naming: `{formtype}-{ticker}-{year}.html` (e.g., `10k-aapl-2023.html`). Start with 6-8 files covering diverse HTML structures. Assertions: (a) correct section count for a known filing, (b) specific section IDs present (`item-1a`, `item-7`), (c) source offset round-trip: `html.slice(section.source.start, section.source.end)` contains the section heading text. Diff integration tests: parse two consecutive annual filings for the same company, run `diffFilings`, assert summary counts are non-zero and no exception is thrown.
 
 ### Fuzz / Structural Variation Tests (`tests/fuzz/`)
 
