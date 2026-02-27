@@ -1,0 +1,37 @@
+Review PRD for epic edgar-diff-vda @.specs/epic-1-library/PRD.md and create bead tasks. Also create a precursor task to write up the architecture doc
+
+---
+
+is there enough context in vda.1 for a clean session or is there a better prompt?
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+Give me a prompt to give to a clean session to work effectively on vda.1
+
+---
+
+Give this prompt to a feature-dev:code-architect subagent to run
+
+---
+
+[Request interrupted by user for tool use]
+
+---
+
+stop the agent
+
+---
+
+is it possible for the subagent to have a discussion with me and ask me clarifying quesitons
+
+---
+
+let's go with option 1
+
+---
+
+create PR so I can review it
