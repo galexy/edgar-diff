@@ -151,8 +151,8 @@ export { createEdgarClient } from './client/edgar-client';
 export { parseFiling } from './parser/parser';
 export { diffFilings } from './diff/diff-engine';
 export type {
-  EdgarClientOptions, RawFiling, StructuredDocument, StructuredDiff,
-  FilingSection, SectionDiff, SourceLocation, FilingAgent,
+  EdgarClientOptions, RawFiling, FormType, StructuredDocument, StructuredDiff,
+  FilingSection, SectionDiff, SourceLocation,
 } from './types';
 ```
 
@@ -172,10 +172,19 @@ export interface EdgarClientOptions {
   fetch?: typeof globalThis.fetch; // Override for testing
 }
 
+export type FormType =
+  | '10-K' | '10-K/A'
+  | '10-Q' | '10-Q/A'
+  | '8-K'  | '8-K/A'
+  | '20-F' | '20-F/A'
+  | 'S-1'  | 'S-1/A'
+  | 'DEF 14A'
+  | 'SC 13D' | 'SC 13D/A';
+
 export interface RawFiling {
   accessionNumber: string;         // "0000320193-23-000106"
   cik: string;                     // "0000320193"
-  formType: string;                // "10-K"
+  formType: FormType;
   filingDate: string;              // ISO 8601
   primaryDocumentFilename: string;
   html: string;
