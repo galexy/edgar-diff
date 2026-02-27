@@ -11,6 +11,7 @@ status: draft
 
 - Language: TypeScript on Node.js
 - Package manager: pnpm
+- Monorepo tooling: Nx
 - Testing framework: vitest
 
 ---
@@ -19,8 +20,9 @@ status: draft
 
 ```
 edgar-diff/
-├── packages/
-│   └── edgar-diff-lib/
+├── apps/                             # Applications (Epic 2 web app, etc.)
+├── libs/
+│   └── edgar-diff-lib/               # Core library (Epic 1)
 │       ├── src/
 │       │   ├── index.ts              # Public API re-exports only
 │       │   ├── client/
@@ -28,7 +30,6 @@ edgar-diff/
 │       │   │   └── types.ts
 │       │   ├── parser/
 │       │   │   ├── parser.ts             # Orchestrator
-│       │   │   ├── agent-detector.ts     # Fingerprint DFIN/Toppan/Workiva
 │       │   │   ├── section-extractor.ts
 │       │   │   ├── table-extractor.ts
 │       │   │   └── types.ts
@@ -49,11 +50,16 @@ edgar-diff/
 │       │   └── diff-algorithm/
 │       ├── package.json
 │       ├── tsconfig.json
-│       └── vitest.config.ts
-└── pnpm-workspace.yaml
+│       ├── vitest.config.ts
+│       └── project.json              # Nx project configuration
+├── nx.json                           # Nx workspace configuration
+├── pnpm-workspace.yaml
+└── package.json                      # Root package.json
 ```
 
-Module boundary rules: `client` has no dependency on `parser` or `diff`. `parser` imports only from `client/types`. `diff` imports only from `parser/types`. The barrel `src/index.ts` is the sole public surface — no internal module paths are exported.
+The repo is an Nx monorepo managed with pnpm. `libs/` contains shared libraries (starting with `edgar-diff-lib`). `apps/` will contain applications (Epic 2 web app, etc.). Nx handles task orchestration (build, test, lint) with caching and dependency-aware execution order.
+
+Module boundary rules: `client` has no dependency on `parser` or `diff`. `parser` imports only from `client/types`. `diff` imports only from `parser/types`. The barrel `src/index.ts` is the sole public surface — no internal module paths are exported. Nx enforce-module-boundaries lint rule should be configured to enforce these constraints.
 
 ---
 
