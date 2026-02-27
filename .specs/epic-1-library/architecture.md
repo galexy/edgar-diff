@@ -362,15 +362,3 @@ A `FilingHtmlGenerator` generates structurally plausible but randomized 10-K HTM
 
 **Time box:** 2 days.
 
----
-
-## 10. Implementation Phases
-
-- [ ] **Phase 0 — Spikes.** Spike A and Spike B. Update this document with findings before Phase 1.
-- [ ] **Phase 1 — Scaffold.** pnpm workspace, `packages/edgar-diff-lib`, tsconfig, vitest config, CI pipeline.
-- [ ] **Phase 2 — Client.** `edgar-client.ts`, token-bucket rate limiter, retry logic. Unit tests with injected fetch mock. Live integration test gated on `CI_INTEGRATION=true`.
-- [ ] **Phase 3 — Agent cataloging.** 15 real filings (5/agent). Document patterns. Commit fixture HTML. Write `agent-patterns.md`.
-- [ ] **Phase 4 — Parser.** `agent-detector.ts`, `section-extractor.ts`, `table-extractor.ts`, `parser.ts`. Unit + integration tests. Validate 80% section detection accuracy gate.
-- [ ] **Phase 5 — Diff engine.** `section-aligner.ts`, `paragraph-differ.ts`, `table-differ.ts`, `diff-engine.ts`. Unit + integration tests with two-filing scenarios.
-- [ ] **Phase 6 — Fuzz harness.** `FilingHtmlGenerator`, fuzz test suite, CI integration.
-- [ ] **Phase 7 — API review.** Review public types against Epic 2 (web app) and Epic 3 (LLM chat) consumer needs before those epics begin.
