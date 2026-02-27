@@ -83,5 +83,6 @@
   },
   "enabledPlugins": {
     "feature-dev@claude-plugins-official": true
-  }
+  },
+  "skipDangerousModePermissionPrompt": true
 }
