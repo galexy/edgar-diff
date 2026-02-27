@@ -12,6 +12,7 @@ status: draft
 - Language: TypeScript on Node.js
 - Package manager: pnpm
 - Monorepo tooling: Nx
+- Date/time: Temporal API (via `@js-temporal/polyfill` until native support ships)
 - Testing framework: vitest
 
 ---
@@ -185,10 +186,10 @@ export interface RawFiling {
   accessionNumber: string;         // "0000320193-23-000106"
   cik: string;                     // "0000320193"
   formType: FormType;
-  filingDate: string;              // ISO 8601
+  filingDate: Temporal.PlainDate;  // e.g., Temporal.PlainDate.from("2023-11-03")
   primaryDocumentFilename: string;
   html: string;
-  fetchedAt: string;               // ISO 8601
+  fetchedAt: Temporal.Instant;     // e.g., Temporal.Now.instant()
 }
 
 // ---- Parser ----
@@ -260,7 +261,7 @@ export interface StructuredDiff {
   newFiling: RawFiling;
   sectionDiffs: SectionDiff[];
   summary: { added: number; removed: number; modified: number; unchanged: number; reordered: number };
-  generatedAt: string;
+  generatedAt: Temporal.Instant;
 }
 
 // ---- Function signatures ----
