@@ -1,0 +1,31 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "dd8c09f44e51",
+  "session_id": "1c90d952-100d-4e84-a6da-dbeb38432b93",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T04:16:01.064459608Z",
+  "branch": "skills-experiment",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".devcontainer/Dockerfile",
+    "skills/story-grooming/SKILL.md"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "d320ce1e10e0",
+  "token_usage": {
+    "input_tokens": 10,
+    "cache_creation_tokens": 7328,
+    "cache_read_tokens": 143128,
+    "output_tokens": 678,
+    "api_call_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T04:16:01.03306339Z",
+    "agent_lines": 216,
+    "human_added": 0,
+    "human_modified": 1,
+    "human_removed": 0,
+    "total_committed": 217,
+    "agent_percentage": 99.53917050691244
+  }
+}
