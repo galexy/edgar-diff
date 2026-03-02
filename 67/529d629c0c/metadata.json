@@ -3,7 +3,7 @@
   "checkpoint_id": "67529d629c0c",
   "strategy": "manual-commit",
   "branch": "vda10/monorepo-scaffold-design",
-  "checkpoints_count": 7,
+  "checkpoints_count": 40,
   "files_touched": [
     ".beads/issues.jsonl"
   ],
@@ -35,13 +35,20 @@
       "context": "/67/529d629c0c/3/context.md",
       "content_hash": "/67/529d629c0c/3/content_hash.txt",
       "prompt": "/67/529d629c0c/3/prompt.txt"
+    },
+    {
+      "metadata": "/67/529d629c0c/4/metadata.json",
+      "transcript": "/67/529d629c0c/4/full.jsonl",
+      "context": "/67/529d629c0c/4/context.md",
+      "content_hash": "/67/529d629c0c/4/content_hash.txt",
+      "prompt": "/67/529d629c0c/4/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 866,
-    "cache_creation_tokens": 79576,
-    "cache_read_tokens": 1375564,
-    "output_tokens": 12823,
-    "api_call_count": 44
+    "input_tokens": 1040,
+    "cache_creation_tokens": 416007,
+    "cache_read_tokens": 12983390,
+    "output_tokens": 48457,
+    "api_call_count": 150
   }
 }
