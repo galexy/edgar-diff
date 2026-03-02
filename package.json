@@ -1,0 +1,21 @@
+{
+  "name": "@edgar-diff/source",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.30.3",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.3",
+    "@nx/eslint": "22.5.3",
+    "@nx/eslint-plugin": "22.5.3",
+    "@nx/js": "22.5.3",
+    "@nx/vitest": "22.5.3",
+    "eslint": "^9.0.0",
+    "eslint-plugin-import-x": "^4.16.1",
+    "nx": "22.5.3",
+    "typescript": "~5.7.0",
+    "typescript-eslint": "^8.56.1"
+  }
+}
