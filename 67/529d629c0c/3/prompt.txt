@@ -1,0 +1,13 @@
+what skills do you have available
+
+---
+
+what about conversation-export?
+
+---
+
+what about in ~/.claude/skills?
+
+---
+
+why wasn't it loaded if its a user-level skill?
