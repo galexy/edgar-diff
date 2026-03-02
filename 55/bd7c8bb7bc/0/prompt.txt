@@ -1,0 +1,50 @@
+What are the current stories that are ready to work on
+
+---
+
+Let’s start working on vda-10. Start by doing research on how to scaffold a monorepo. Write your research in the epic planning directory. What’s you’ve completed that research put together a document explaining your design keep it at a conceptual level explaining things, and only date dive into examples and code and operational details in order to a eludicate the design more clearly.
+
+Once you have done so create a pull request for me to review the design document.
+
+---
+
+Continue from where you left off.
+
+---
+
+continue
+
+---
+
+is beads using dolt for the backend?
+
+---
+
+I’ve merged the pr for the design doc. Update beads tasks for this story
+
+---
+
+What are the child tasks?
+
+---
+
+Based on the design create child tasks
+
+---
+
+Just working on them. Do the work of each task in a subagent. Commit frequently. When a subagent is complete, kick off another series on subagents in parallel to do the following review the changes for the following
+
+1. Check for style
+2. Check that efficiency or algorithmic appropriateness
+3. Check if there are warnings or errors that need cleanup
+4. Check if error handling is good
+5. Check if there is debugging or logging cruft
+6. Check that formatting is consistent 
+
+Send this feedback to another subagent for implementation. Iterate until feedback is all positive or only nitpick items show up. Don’t forget to create beads tasks along the way as new tasks and issues are discovered. All suntacks must be complete. 
+
+Once all reviews are passing. Notify me for PR
+
+---
+
+i've logged in. try again
