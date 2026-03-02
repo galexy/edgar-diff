@@ -17,7 +17,7 @@
       }
     },
     {
-      "plugin": "@nx/vitest/plugin",
+      "plugin": "./node_modules/@nx/vitest/src/plugins/plugin.js",
       "options": {
         "targetName": "test"
       }
@@ -25,7 +25,10 @@
   ],
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
-    "sharedGlobals": ["{workspaceRoot}/tsconfig.base.json"],
+    "sharedGlobals": [
+      "{workspaceRoot}/tsconfig.base.json",
+      "{workspaceRoot}/eslint.config.mjs"
+    ],
     "production": [
       "default",
       "!{projectRoot}/**/*.spec.ts",
@@ -40,6 +43,7 @@
       "cache": true
     },
     "test": {
+      "dependsOn": ["^build"],
       "inputs": ["default", "^production"],
       "cache": true
     },
@@ -48,7 +52,7 @@
       "cache": true
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"],
+      "dependsOn": ["^build"],
       "inputs": ["default", "^default"],
       "cache": true
     }
