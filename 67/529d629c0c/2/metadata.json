@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.8",
+  "checkpoint_id": "67529d629c0c",
+  "session_id": "56a63748-85be-41b9-9f5e-60f1b9975d7c",
+  "strategy": "manual-commit",
+  "created_at": "2026-03-02T18:55:08.574609167Z",
+  "branch": "vda10/monorepo-scaffold-design",
+  "checkpoints_count": 1,
+  "files_touched": [
+    ".beads/issues.jsonl"
+  ],
+  "agent": "Claude Code",
+  "turn_id": "13bc08e92c80",
+  "token_usage": {
+    "input_tokens": 5,
+    "cache_creation_tokens": 6383,
+    "cache_read_tokens": 65471,
+    "output_tokens": 683,
+    "api_call_count": 3
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-03-02T18:55:08.568490682Z",
+    "agent_lines": 1,
+    "human_added": 505,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 506,
+    "agent_percentage": 0.1976284584980237
+  }
+}
