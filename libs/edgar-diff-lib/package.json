@@ -11,15 +11,21 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "nx": {
-    "tags": ["scope:lib", "type:core"]
+    "tags": [
+      "scope:lib",
+      "type:core"
+    ]
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
     "htmlparser2": "^10.1.0"
   },
   "devDependencies": {
+    "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.0.18"
   }
 }
