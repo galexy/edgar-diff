@@ -3,7 +3,7 @@
   "checkpoint_id": "dd8c09f44e51",
   "strategy": "manual-commit",
   "branch": "skills-experiment",
-  "checkpoints_count": 2,
+  "checkpoints_count": 4,
   "files_touched": [
     ".devcontainer/Dockerfile",
     "skills/story-grooming/SKILL.md"
@@ -15,13 +15,20 @@
       "context": "/dd/8c09f44e51/0/context.md",
       "content_hash": "/dd/8c09f44e51/0/content_hash.txt",
       "prompt": "/dd/8c09f44e51/0/prompt.txt"
+    },
+    {
+      "metadata": "/dd/8c09f44e51/1/metadata.json",
+      "transcript": "/dd/8c09f44e51/1/full.jsonl",
+      "context": "/dd/8c09f44e51/1/context.md",
+      "content_hash": "/dd/8c09f44e51/1/content_hash.txt",
+      "prompt": "/dd/8c09f44e51/1/prompt.txt"
     }
   ],
   "token_usage": {
-    "input_tokens": 10,
-    "cache_creation_tokens": 7328,
-    "cache_read_tokens": 143128,
-    "output_tokens": 678,
-    "api_call_count": 6
+    "input_tokens": 102,
+    "cache_creation_tokens": 208483,
+    "cache_read_tokens": 2740213,
+    "output_tokens": 16380,
+    "api_call_count": 63
   }
 }
