@@ -14,9 +14,9 @@
   "mounts": [
     "source=claude-code-starter-bashhistory,target=/home/vscode/.bash_history,type=volume",
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-    "source=${localEnv:SSH_AUTH_SOCK},target=/ssh-agent,type=bind",
-    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
-  ],
+    "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind",
+    "source=${env:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+ ],
 
   "containerEnv": {
     "CLAUDE_CONFIG_DIR": "/workspace/.claude",
@@ -26,6 +26,7 @@
     "SSH_AUTH_SOCK": "/ssh-agent"
   },
 
+  "postCreateCommand": "sudo chmod 777 /ssh-agent",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && tmux new-session -d -s main",
   "waitFor": "postStartCommand",
 
