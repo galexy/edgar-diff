@@ -34,6 +34,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     aggregate \
     # Needed for zsh-in-docker and general use
     locales \
+    openssh-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate locale
