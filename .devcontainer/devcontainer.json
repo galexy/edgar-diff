@@ -14,7 +14,7 @@
   "mounts": [
     "source=claude-code-starter-bashhistory,target=/home/vscode/.bash_history,type=volume",
     "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
-    "source=/run/host-services/ssh-auth.sock,target=/ssh-agent,type=bind",
+    "source=${env:HOST_SSH_AUTH_SOCK},target=/ssh-agent,type=bind",
     "source=${env:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
  ],
 
