@@ -102,8 +102,11 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
+# Install dolt
+RUN curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | bash
+
 # Install beads (bd) issue tracker
-RUN npm install -g @beads/bd
+RUN npm install -g @beads/bd@0.57
 
 # Install Nx CLI and TypeScript globally
 RUN npm install -g nx typescript
