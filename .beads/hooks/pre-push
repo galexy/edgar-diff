@@ -1,14 +1,4 @@
 #!/bin/sh
-# Entire CLI hooks
-# Pre-push hook: push session logs alongside user's push
-# $1 is the remote name (e.g., "origin")
-entire hooks git pre-push "$1" || true
-# Chain: run pre-existing hook
-_entire_hook_dir="$(dirname "$0")"
-if [ -x "$_entire_hook_dir/pre-push.pre-entire" ]; then
-    "$_entire_hook_dir/pre-push.pre-entire" "$@"
-fi
-
 # --- BEGIN BEADS INTEGRATION v0.57.0 ---
 # This section is managed by beads. Do not remove these markers.
 if command -v bd >/dev/null 2>&1; then
