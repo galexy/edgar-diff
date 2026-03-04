@@ -54,18 +54,20 @@ This prototype validates **section alignment via Jaro-Winkler similarity** and *
 
 ## Patience vs Myers Comparison
 
-**Key finding**: For paragraph-level diffing of 10-K filings, patience and Myers algorithms produce **identical results** in all test cases.
+Patience diff is implemented as a custom algorithm (unique-paragraph anchoring via LIS, with Myers on gaps between anchors). The `diff` npm package only provides Myers — it does **not** implement patience diff despite some documentation suggesting otherwise.
 
 | Metric | Apple (P) | Apple (M) | MSFT (P) | MSFT (M) |
 |--------|-----------|-----------|----------|----------|
-| Unchanged | 438 | 438 | 1,150 | 1,150 |
-| Modified | 296 | 296 | 284 | 284 |
-| Added | 94 | 94 | 148 | 148 |
-| Removed | 83 | 83 | 83 | 83 |
+| Unchanged | 438 | 438 | 1,146 | 1,150 |
+| Modified | 296 | 296 | 283 | 284 |
+| Added | 94 | 94 | 153 | 148 |
+| Removed | 83 | 83 | 88 | 83 |
 
-**Why identical?** The `diff` npm package's `diffArrays` function uses the same algorithm for both modes. The patience algorithm variant (which anchors on unique lines) doesn't diverge from Myers when comparing paragraph-level text blocks, since paragraphs are generally unique within a section.
+**Apple**: Patience and Myers produce identical results. Apple's filing structure is clean and paragraphs are mostly unique, so the unique-line anchoring step finds the same alignment as Myers.
 
-**Recommendation**: Use the default `diffArrays` (Myers). Patience diff adds no value at the paragraph granularity level. Patience may be more useful at the line level within paragraphs, but for section-to-section comparison, standard diff is sufficient.
+**Microsoft**: Patience and Myers diverge slightly. Patience finds 4 fewer unchanged paragraphs and 5 more added/removed. This is because Microsoft's large table-heavy sections (Item 7A has 900+ paragraphs) contain duplicate cell values, causing the patience anchoring to use different alignment points than Myers. The differences are small (~0.3% of total) but real.
+
+**Recommendation**: Myers is the simpler and more predictable choice for paragraph-level diffing. Patience diff's unique-line anchoring provides marginal benefit at paragraph granularity since most paragraphs are already unique within a section. For production, use Myers via `diffArrays`. Patience diff would be more valuable at line-level granularity within individual paragraphs, where duplicate lines are more common.
 
 ## Performance Measurements
 
@@ -99,7 +101,7 @@ All well under the **2,000 ms** target. Microsoft is slower due to larger file s
 
 1. **Section alignment**: Jaro-Winkler with threshold 0.75 works perfectly for consecutive same-company filings. For broader use cases, consider also matching on item number extracted from headings as a primary key, with Jaro-Winkler as fallback for renamed/restructured sections.
 
-2. **Paragraph diffing**: Standard Myers diff (`diffArrays`) is sufficient. No benefit from patience at paragraph granularity.
+2. **Paragraph diffing**: Standard Myers diff (`diffArrays`) is sufficient. Patience diff (custom implementation: unique-line LIS anchoring + Myers on gaps) produces marginally different results on large table-heavy filings but no clear quality advantage at paragraph granularity. The `diff` npm package only provides Myers — a custom patience implementation is needed if desired.
 
 3. **Word-level diff**: `diffWords` from the `diff` package produces good results for showing inline changes within modified paragraphs.
 

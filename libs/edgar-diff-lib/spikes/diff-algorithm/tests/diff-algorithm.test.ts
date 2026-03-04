@@ -153,11 +153,11 @@ describe('section alignment', () => {
     }
   });
 
-  it('achieves at least 80% match rate', () => {
+  it('achieves at least 90% match rate', () => {
     const alignment = alignSections(appleFy23Sections, appleFy24Sections, 0.75);
     const maxPossible = Math.min(appleFy23Sections.length, appleFy24Sections.length);
     const matchRate = alignment.matched.length / maxPossible;
-    expect(matchRate).toBeGreaterThanOrEqual(0.8);
+    expect(matchRate).toBeGreaterThanOrEqual(0.9);
   });
 
   it('all matched pairs have similarity >= threshold', () => {
@@ -261,6 +261,16 @@ describe('edge cases', () => {
     expect(result.matched).toHaveLength(0);
     expect(result.added).toHaveLength(0);
     expect(result.removed).toHaveLength(0);
+  });
+
+  it('diffParagraphs handles empty match array', () => {
+    const result = diffParagraphs([], 'patience');
+    expect(result.sectionDiffs).toHaveLength(0);
+    expect(result.totalStats.sectionsCompared).toBe(0);
+    expect(result.totalStats.totalAdded).toBe(0);
+    expect(result.totalStats.totalRemoved).toBe(0);
+    expect(result.totalStats.totalModified).toBe(0);
+    expect(result.totalStats.totalUnchanged).toBe(0);
   });
 
   it('handles one-sided alignment (all added)', () => {

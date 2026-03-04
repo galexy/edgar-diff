@@ -101,11 +101,6 @@ export function extractSections(html: string): Section[] {
         }
       },
       onclosetag(name) {
-        const style_was_bold = boldDepth > 0;
-        if (['b', 'strong'].includes(name) || style_was_bold) {
-          // Track bold closing, but imprecisely — that's OK for a spike
-        }
-
         if (['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'td', 'tr'].includes(name)) {
           if (inHeadingContext && currentText.trim()) {
             const itemNum = extractItemNumber(currentText.trim());
