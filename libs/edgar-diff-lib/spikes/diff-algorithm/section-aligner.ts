@@ -166,57 +166,71 @@ export const DEFAULT_CONFIG: AlignmentConfig = {
 };
 
 /**
- * Align sections between old and new filings using hybrid heading + TF-IDF scoring.
+ * Pre-computed similarity matrices for section alignment.
+ * Allows running alignment with different weight configs without recomputing TF-IDF.
  */
-export function alignSections(
+export interface PrecomputedSimilarities {
+  oldSections: Section[];
+  newSections: Section[];
+  headSimMatrix: number[][];
+  contentSimMatrix: number[][];
+}
+
+/**
+ * Pre-compute heading and content similarity matrices (expensive TF-IDF step).
+ * Call this once, then use alignSectionsWithPrecomputed for different weight configs.
+ */
+export function precomputeSimilarities(
   oldSections: Section[],
   newSections: Section[],
-  config: AlignmentConfig = DEFAULT_CONFIG,
-): AlignmentResult {
-  // Build TF-IDF corpus from all sections
-  const allTokens = [
-    ...oldSections.map((s) => tokenize(s.content)),
-    ...newSections.map((s) => tokenize(s.content)),
-  ];
-  const idf = computeIDF(allTokens);
+): PrecomputedSimilarities {
+  // Tokenize once and reuse for both IDF corpus and TF-IDF vectors
+  const oldTokens = oldSections.map((s) => tokenize(s.content));
+  const newTokens = newSections.map((s) => tokenize(s.content));
+  const idf = computeIDF([...oldTokens, ...newTokens]);
 
-  // Build vectors for all sections
-  const oldVectors = oldSections.map((s) => buildTfIdfVector(computeTF(tokenize(s.content)), idf));
-  const newVectors = newSections.map((s) => buildTfIdfVector(computeTF(tokenize(s.content)), idf));
+  // Build vectors reusing cached tokens
+  const oldVectors = oldTokens.map((tokens) => buildTfIdfVector(computeTF(tokens), idf));
+  const newVectors = newTokens.map((tokens) => buildTfIdfVector(computeTF(tokens), idf));
 
-  // Compute similarity matrix
-  const simMatrix: number[][] = [];
   const headSimMatrix: number[][] = [];
   const contentSimMatrix: number[][] = [];
 
   for (let i = 0; i < oldSections.length; i++) {
-    simMatrix[i] = [];
     headSimMatrix[i] = [];
     contentSimMatrix[i] = [];
     for (let j = 0; j < newSections.length; j++) {
-      const headSim = levenshteinSimilarity(
+      headSimMatrix[i][j] = levenshteinSimilarity(
         oldSections[i].normalizedHeading,
         newSections[j].normalizedHeading,
       );
-      const contentSim = cosineSimilarity(oldVectors[i], newVectors[j]);
-      const hybrid = config.headingWeight * headSim + config.contentWeight * contentSim;
-
-      simMatrix[i][j] = hybrid;
-      headSimMatrix[i][j] = headSim;
-      contentSimMatrix[i][j] = contentSim;
+      contentSimMatrix[i][j] = cosineSimilarity(oldVectors[i], newVectors[j]);
     }
   }
+
+  return { oldSections, newSections, headSimMatrix, contentSimMatrix };
+}
+
+/**
+ * Run alignment using pre-computed similarity matrices and a given config.
+ */
+export function alignSectionsWithPrecomputed(
+  pre: PrecomputedSimilarities,
+  config: AlignmentConfig = DEFAULT_CONFIG,
+): AlignmentResult {
+  const { oldSections, newSections, headSimMatrix, contentSimMatrix } = pre;
 
   // Greedy best-match alignment
   const matched: AlignmentResult['matched'] = [];
   const usedOld = new Set<number>();
   const usedNew = new Set<number>();
 
-  // Collect all pairs and sort by similarity descending
+  // Collect all pairs with hybrid scores and sort descending
   const pairs: Array<{ i: number; j: number; sim: number }> = [];
   for (let i = 0; i < oldSections.length; i++) {
     for (let j = 0; j < newSections.length; j++) {
-      pairs.push({ i, j, sim: simMatrix[i][j] });
+      const hybrid = config.headingWeight * headSimMatrix[i][j] + config.contentWeight * contentSimMatrix[i][j];
+      pairs.push({ i, j, sim: hybrid });
     }
   }
   pairs.sort((a, b) => b.sim - a.sim);
@@ -243,6 +257,18 @@ export function alignSections(
   const removed = oldSections.filter((_, i) => !usedOld.has(i));
 
   return { matched, added, removed };
+}
+
+/**
+ * Align sections between old and new filings using hybrid heading + TF-IDF scoring.
+ */
+export function alignSections(
+  oldSections: Section[],
+  newSections: Section[],
+  config: AlignmentConfig = DEFAULT_CONFIG,
+): AlignmentResult {
+  const pre = precomputeSimilarities(oldSections, newSections);
+  return alignSectionsWithPrecomputed(pre, config);
 }
 
 /**

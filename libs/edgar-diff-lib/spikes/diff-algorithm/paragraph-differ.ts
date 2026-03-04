@@ -217,7 +217,6 @@ function longestIncreasingSubsequence(arr: number[]): number[] {
   const n = arr.length;
   const tails: number[] = [];       // indices into arr
   const prevs: number[] = new Array(n).fill(-1);
-  const tailIndices: number[] = [];  // indices into arr
 
   for (let i = 0; i < n; i++) {
     // Binary search for position
@@ -231,11 +230,6 @@ function longestIncreasingSubsequence(arr: number[]): number[] {
 
     if (lo > 0) prevs[i] = tails[lo - 1];
     tails[lo] = i;
-    tailIndices[lo] = i;
-
-    if (lo === tails.length - 1 && lo === tails.length - 1) {
-      // Extended the sequence
-    }
   }
 
   // Reconstruct

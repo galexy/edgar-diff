@@ -300,6 +300,62 @@ describe('alignSections', () => {
   });
 });
 
+// ─── Heading-Only Alignment Tests ────────────────────────────────────────────
+
+describe('alignSectionsHeadingOnly', () => {
+  it('matches sections with identical headings', () => {
+    const oldSections = [
+      makeSection({ heading: 'Item 1. Business', content: 'Old content about business.', paragraphs: ['Old content about business.'] }),
+      makeSection({ heading: 'Item 2. Properties', content: 'Old properties info.', paragraphs: ['Old properties info.'], startIndex: 200, endIndex: 400 }),
+    ];
+    const newSections = [
+      makeSection({ heading: 'Item 1. Business', content: 'Completely different content.', paragraphs: ['Completely different content.'] }),
+      makeSection({ heading: 'Item 2. Properties', content: 'Totally new properties.', paragraphs: ['Totally new properties.'], startIndex: 200, endIndex: 400 }),
+    ];
+
+    const result = alignSectionsHeadingOnly(oldSections, newSections);
+    expect(result.matched.length).toBe(2);
+    expect(result.added.length).toBe(0);
+    expect(result.removed.length).toBe(0);
+    // Should match by heading regardless of content
+    expect(result.matched[0].headingSimilarity).toBe(1);
+    expect(result.matched[1].headingSimilarity).toBe(1);
+    // Content similarity is always 0 for heading-only
+    expect(result.matched[0].contentSimilarity).toBe(0);
+  });
+
+  it('detects added and removed sections', () => {
+    const oldSections = [
+      makeSection({ heading: 'Item 1. Business', content: 'Business.', paragraphs: ['Business.'] }),
+      makeSection({ heading: 'Item 6. Reserved', content: 'Reserved.', paragraphs: ['Reserved.'], startIndex: 200, endIndex: 400 }),
+    ];
+    const newSections = [
+      makeSection({ heading: 'Item 1. Business', content: 'Business.', paragraphs: ['Business.'] }),
+      makeSection({ heading: 'Item 1C. Cybersecurity', content: 'Cyber.', paragraphs: ['Cyber.'], startIndex: 200, endIndex: 400 }),
+    ];
+
+    const result = alignSectionsHeadingOnly(oldSections, newSections);
+    expect(result.matched.length).toBe(1);
+    expect(result.matched[0].oldSection.heading).toBe('Item 1. Business');
+    expect(result.added.length).toBe(1);
+    expect(result.removed.length).toBe(1);
+  });
+
+  it('does not match sections below threshold', () => {
+    const oldSections = [
+      makeSection({ heading: 'Item 1. Business', content: 'x', paragraphs: ['x'] }),
+    ];
+    const newSections = [
+      makeSection({ heading: 'Item 99. Appendix', content: 'y', paragraphs: ['y'] }),
+    ];
+
+    const result = alignSectionsHeadingOnly(oldSections, newSections, 0.5);
+    expect(result.matched.length).toBe(0);
+    expect(result.added.length).toBe(1);
+    expect(result.removed.length).toBe(1);
+  });
+});
+
 // ─── Paragraph Diff Tests ────────────────────────────────────────────────────
 
 describe('diffParagraphsMyers', () => {
@@ -463,31 +519,33 @@ describe('integration with real filings', () => {
     expect(sections.length).toBeGreaterThanOrEqual(5);
   });
 
-  it('correctly aligns Apple FY2023 and FY2024 sections', () => {
+  it('correctly aligns Apple FY2023 and FY2024 sections with >90% accuracy', () => {
     if (!hasFixtures) return;
 
     const oldSections = extractSections(appleOld);
     const newSections = extractSections(appleNew);
     const result = alignSections(oldSections, newSections);
 
-    // Most standard items should match
-    expect(result.matched.length).toBeGreaterThanOrEqual(5);
+    // >90% section alignment accuracy
+    const matchRate = result.matched.length / Math.max(oldSections.length, newSections.length);
+    expect(matchRate).toBeGreaterThanOrEqual(0.9);
 
-    // Check that matched sections have same normalized headings
+    // Check that matched sections have highly similar headings
     for (const m of result.matched) {
-      // Headings should be highly similar
       expect(m.headingSimilarity).toBeGreaterThan(0.5);
     }
   });
 
-  it('correctly aligns Microsoft FY2023 and FY2024 sections', () => {
+  it('correctly aligns Microsoft FY2023 and FY2024 sections with >90% accuracy', () => {
     if (!hasFixtures) return;
 
     const oldSections = extractSections(msftOld);
     const newSections = extractSections(msftNew);
     const result = alignSections(oldSections, newSections);
 
-    expect(result.matched.length).toBeGreaterThanOrEqual(5);
+    // >90% section alignment accuracy
+    const matchRate = result.matched.length / Math.max(oldSections.length, newSections.length);
+    expect(matchRate).toBeGreaterThanOrEqual(0.9);
   });
 
   it('completes Apple pipeline within 2s', () => {

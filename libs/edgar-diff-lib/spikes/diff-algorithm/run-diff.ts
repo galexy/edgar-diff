@@ -10,6 +10,8 @@ import { extractSections } from './section-extractor.js';
 import {
   alignSections,
   alignSectionsHeadingOnly,
+  alignSectionsWithPrecomputed,
+  precomputeSimilarities,
   type AlignmentConfig,
 } from './section-aligner.js';
 import { diffAllSections, type SectionDiff } from './paragraph-differ.js';
@@ -47,17 +49,6 @@ function rpad(s: string, len: number): string {
   return s.padStart(len);
 }
 
-function printTable(headers: string[], rows: string[][], colWidths: number[]): void {
-  const sep = colWidths.map((w) => '─'.repeat(w + 2)).join('┼');
-  const headerLine = headers.map((h, i) => ` ${pad(h, colWidths[i])} `).join('│');
-  console.log(headerLine);
-  console.log(sep);
-  for (const row of rows) {
-    const line = row.map((cell, i) => ` ${pad(cell, colWidths[i])} `).join('│');
-    console.log(line);
-  }
-}
-
 function summarizeDiffs(diffs: SectionDiff[]): void {
   for (const d of diffs) {
     const { stats } = d;
@@ -77,7 +68,8 @@ async function loadFiling(filename: string): Promise<string> {
   return readFile(join(FIXTURES_DIR, filename), 'utf-8');
 }
 
-/** Try different weight configurations and find the best one */
+/** Try different weight configurations and find the best one.
+ *  Pre-computes TF-IDF once, then runs scoring 7 times with different weights. */
 function experimentWithWeights(
   oldSections: ReturnType<typeof extractSections>,
   newSections: ReturnType<typeof extractSections>,
@@ -92,8 +84,12 @@ function experimentWithWeights(
     { headingWeight: 1.0, contentWeight: 0.0, threshold: 0.3 },
   ];
 
+  // Compute TF-IDF vectors once
+  const pre = precomputeSimilarities(oldSections, newSections);
+
+  // Run scoring with each weight config (cheap — just arithmetic on pre-computed matrices)
   const results = configs.map((config) => {
-    const alignment = alignSections(oldSections, newSections, config);
+    const alignment = alignSectionsWithPrecomputed(pre, config);
     const avgSim = alignment.matched.length > 0
       ? alignment.matched.reduce((sum, m) => sum + m.similarity, 0) / alignment.matched.length
       : 0;
