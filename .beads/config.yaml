@@ -53,3 +53,10 @@
 # - linear.api-key
 # - github.org
 # - github.repo
+
+dolt:
+  mode: server
+  host: host.docker.internal
+  port: 3306
+  user: beads
+  

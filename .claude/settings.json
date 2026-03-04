@@ -1,4 +1,8 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": "bash /workspace/.claude/statusline-command.sh"
+  },
   "permissions": {
     "deny": [
       "Read(./.entire/metadata/**)"
@@ -7,5 +11,30 @@
   "enabledPlugins": {
     "feature-dev@claude-plugins-official": true
   },
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+  },
+  "hooks": {
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'NAME=$(cat | jq -r .name); DIR=\"/tmp/claude-worktrees/$NAME\"; mkdir -p /tmp/claude-worktrees && git worktree add \"$DIR\" -b \"worktree-$NAME\" >&2 && echo \"$DIR\"'"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'WTPATH=$(cat | jq -r .worktree_path); git worktree remove \"$WTPATH\" 2>/dev/null; rm -rf \"$WTPATH\" 2>/dev/null; exit 0'"
+          }
+        ]
+      }
+    ]
+  }
 }

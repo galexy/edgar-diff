@@ -2,5 +2,7 @@
   "database": "dolt",
   "backend": "dolt",
   "dolt_mode": "server",
-  "dolt_database": "edgar_diff"
+  "dolt_database": "edgar_diff",
+  "dolt_server_host": "host.docker.internal",
+  "dolt_server_port": 3306
 }
