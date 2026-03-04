@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
-    "htmlparser2": "^10.1.0"
+    "htmlparser2": "^10.1.0",
+    "linkedom": "^0.18.12"
   },
   "devDependencies": {
     "vite-tsconfig-paths": "^6.1.1",
