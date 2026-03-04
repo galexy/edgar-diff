@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Multibyte Test</title></head>
+<body>
+  <!-- Comment with emoji: 🚀🌍 -->
+  <h1>Multibyte Character Test</h1>
+
+  <section id="emoji">
+    <h2>Emoji Section 🎉</h2>
+    <p>Rocket: 🚀 Earth: 🌍 Fire: 🔥 Star: ⭐</p>
+    <p>Compound emoji: 👨‍👩‍👧‍👦 Flag: 🇺🇸</p>
+  </section>
+
+  <section id="cjk">
+    <h2>CJK Characters 中文</h2>
+    <p>日本語テスト: これはテストです。</p>
+    <p>한국어: 이것은 시험입니다.</p>
+    <p>中文: 这是一个测试。</p>
+    <p>Mixed: Hello世界🌍test</p>
+  </section>
+
+  <section id="accented">
+    <h2>Accented Characters</h2>
+    <p>French: résumé, naïve, café</p>
+    <p>German: Ärger, Über, Straße</p>
+    <p>Spanish: señor, niño, año</p>
+    <p>Nordic: Ångström, fjörður</p>
+  </section>
+
+  <section id="special">
+    <h2>Special Unicode</h2>
+    <p>Math: ∑∏∫∂√∞≈≠≤≥</p>
+    <p>Currency: €£¥₹₽₿</p>
+    <p>Arrows: ←→↑↓↔↕⇐⇒</p>
+  </section>
+
+  <!-- CDATA-like section (for XML compat) -->
+  <script>
+  //<![CDATA[
+  const x = "🚀 < > & 中文";
+  //]]>
+  </script>
+
+  <br>
+  <img src="test.png" alt="Self-closing 🖼️">
+  <hr>
+
+  <div>
+    <div>
+      <div>
+        <div>
+          <p>Deeply nested with émojis 🎭</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
