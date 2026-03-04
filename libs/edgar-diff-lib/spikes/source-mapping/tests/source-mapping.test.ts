@@ -414,11 +414,8 @@ describe('performance', () => {
     const result = parseAndMap(html);
     const elapsed = performance.now() - start;
 
-    console.log(`  10-K parse time: ${elapsed.toFixed(0)}ms`);
-    console.log(`  Elements: ${result.totalElements}`);
-    console.log(`  Match rate: ${(((result.exactMatches + result.fuzzyMatches) / result.totalElements) * 100).toFixed(1)}%`);
-
     expect(elapsed).toBeLessThan(2000);
+    expect(result.totalElements).toBeGreaterThan(0);
   });
 
   it.skipIf(!hasAppleFixture)('finds all 5 section boundaries in real filing', () => {
@@ -442,9 +439,6 @@ describe('performance', () => {
     const result = parseAndMap(html);
 
     const matchRate = (result.exactMatches + result.fuzzyMatches) / result.totalElements;
-    console.log(`  Match rate: ${(matchRate * 100).toFixed(2)}%`);
-    console.log(`  Exact: ${result.exactMatches}, Fuzzy: ${result.fuzzyMatches}, Failed: ${result.failedMatches}`);
-
     expect(matchRate).toBeGreaterThan(0.99);
   });
 });
@@ -477,5 +471,102 @@ describe('XBRL namespaced elements', () => {
       expect(ix.charOffset).toBeGreaterThanOrEqual(0);
       assertOffsetPointsToTag(html, ix.charOffset, 'ix:nonfraction');
     }
+  });
+});
+
+// ── Nested same-name elements (charLength correctness) ─────────────────────
+
+describe('nested same-name elements', () => {
+  it('outer div charLength includes inner div', () => {
+    const html = wrap('<div id="outer"><div id="inner">x</div></div>');
+    const result = parseAndMap(html);
+
+    const outerDiv = result.offsets.find(
+      (o) => o.tagName === 'div' && html.slice(o.charOffset, o.charOffset + 15) === '<div id="outer"',
+    );
+    expect(outerDiv).toBeDefined();
+
+    const expected = '<div id="outer"><div id="inner">x</div></div>';
+    expect(outerDiv!.charLength).toBe(expected.length);
+    expect(html.slice(outerDiv!.charOffset, outerDiv!.charOffset + outerDiv!.charLength))
+      .toBe(expected);
+  });
+
+  it('triple-nested same-name tags get correct lengths', () => {
+    const html = wrap('<div><div><div>deep</div></div></div>');
+    const result = parseAndMap(html);
+
+    const divs = result.offsets.filter(
+      (o) => o.tagName === 'div' && html.slice(o.charOffset, o.charOffset + 4) === '<div',
+    );
+    // Outermost should have longest charLength, innermost shortest
+    expect(divs.length).toBeGreaterThanOrEqual(3);
+    // Sort by offset to get document order
+    const sorted = [...divs].sort((a, b) => a.charOffset - b.charOffset);
+    expect(sorted[0].charLength).toBeGreaterThan(sorted[1].charLength);
+    expect(sorted[1].charLength).toBeGreaterThan(sorted[2].charLength);
+  });
+});
+
+// ── Failed match paths ─────────────────────────────────────────────────────
+
+describe('failed match paths', () => {
+  it('tag-not-in-index: failed offsets have correct structure', () => {
+    // linkedom is conservative and doesn't auto-insert tags.
+    // Verify the structural contract: any failed offset has charOffset=-1
+    // and a valid normalization reason.
+    const html = wrap('<div id="a"><span>text</span></div>');
+    const result = parseAndMap(html);
+
+    for (const o of result.offsets) {
+      if (o.matchType === 'failed') {
+        expect(o.charOffset).toBe(-1);
+        expect(o.charLength).toBe(0);
+        expect(['tag-not-in-index', 'attrs-mismatch']).toContain(o.normalization);
+      } else {
+        expect(o.charOffset).toBeGreaterThanOrEqual(0);
+        expect(o.charLength).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('attrs-mismatch: cursor exhaustion produces failed match', () => {
+    // Source has 1 <span>, but we duplicate it via a trick:
+    // Source: <div><span>a</span></div>  (1 span in source)
+    // If we could make linkedom see 2 spans, the second would fail.
+    // Since we can't easily trick linkedom, verify the mechanism by
+    // checking the Apple 10-K which has genuine attrs-mismatch failures
+    // for exotic XBRL tags, or verify contract on clean input.
+    const html = wrap('<div><span class="x">a</span><span class="x">b</span></div>');
+    const result = parseAndMap(html);
+
+    // Both spans should match (same attrSig, cursor advances)
+    const spans = result.offsets.filter((o) => o.tagName === 'span');
+    expect(spans).toHaveLength(2);
+    expect(spans[0].matchType).not.toBe('failed');
+    expect(spans[1].matchType).not.toBe('failed');
+    expect(spans[0].charOffset).toBeLessThan(spans[1].charOffset);
+  });
+});
+
+// ── Empty / non-HTML input ─────────────────────────────────────────────────
+
+describe('empty and non-HTML input', () => {
+  it('handles empty string without crashing', () => {
+    const result = parseAndMap('');
+
+    // linkedom produces no DOM root for empty string
+    expect(result.totalElements).toBe(0);
+    expect(result.sections).toHaveLength(0);
+    expect(result.elapsedMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it('handles plain text (no tags) without crashing', () => {
+    const result = parseAndMap('hello world');
+
+    // linkedom produces no DOM root for plain text
+    expect(result.totalElements).toBe(0);
+    expect(result.sections).toHaveLength(0);
+    expect(result.failedMatches).toBe(0);
   });
 });

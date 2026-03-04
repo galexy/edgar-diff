@@ -83,11 +83,24 @@ function buildAttrSignature(tagStr: string): string {
   return attrs.join('\0');
 }
 
+/** Nested index: tagName → attrSig → TagOccurrence[] for O(1) lookup */
+type TagIndex = Map<string, Map<string, TagOccurrence[]>>;
+/** Flat index: tagName → all TagOccurrence[] (sorted by offset) for nesting search */
+type FlatTagIndex = Map<string, TagOccurrence[]>;
+
+interface BuiltIndex {
+  nested: TagIndex;
+  flat: FlatTagIndex;
+}
+
 /**
  * Pre-build index of all opening tags with their positions and attribute signatures.
+ * Returns both a nested index (tagName → attrSig → occurrences) for O(1) lookup
+ * and a flat index (tagName → all occurrences) for nesting-aware close-tag search.
  */
-function buildTagIndex(html: string): Map<string, TagOccurrence[]> {
-  const index = new Map<string, TagOccurrence[]>();
+function buildTagIndex(html: string): BuiltIndex {
+  const nested: TagIndex = new Map();
+  const flat: FlatTagIndex = new Map();
   const tagRegex = /<([a-zA-Z][a-zA-Z0-9]*(?::[a-zA-Z][a-zA-Z0-9._-]*)?)(\s[^>]*)?\s*(\/?)>/g;
   let match: RegExpExecArray | null;
 
@@ -99,20 +112,36 @@ function buildTagIndex(html: string): Map<string, TagOccurrence[]> {
     const attrSig = buildAttrSignature(fullTag);
     const selfClosing = match[3] === '/' || fullTag.endsWith('/>');
 
-    let arr = index.get(tagName);
-    if (!arr) {
-      arr = [];
-      index.set(tagName, arr);
-    }
-    arr.push({
+    const occ: TagOccurrence = {
       offset: match.index,
       endOffset: match.index + fullTag.length,
       attrSig,
       selfClosing,
-    });
+    };
+
+    // Nested index
+    let byAttr = nested.get(tagName);
+    if (!byAttr) {
+      byAttr = new Map();
+      nested.set(tagName, byAttr);
+    }
+    let arr = byAttr.get(attrSig);
+    if (!arr) {
+      arr = [];
+      byAttr.set(attrSig, arr);
+    }
+    arr.push(occ);
+
+    // Flat index
+    let flatArr = flat.get(tagName);
+    if (!flatArr) {
+      flatArr = [];
+      flat.set(tagName, flatArr);
+    }
+    flatArr.push(occ);
   }
 
-  return index;
+  return { nested, flat };
 }
 
 // ── Void elements that never have closing tags ─────────────────────────────
@@ -125,6 +154,65 @@ const VOID_ELEMENTS = new Set([
 // ── Core: Walk DOM and map to source offsets ───────────────────────────────
 
 /**
+ * Binary search for the first index in a sorted array where offset >= target.
+ */
+function lowerBound(arr: TagOccurrence[], target: number): number {
+  let lo = 0;
+  let hi = arr.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (arr[mid].offset < target) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/**
+ * Find the matching closing tag for a given tag name, handling nesting.
+ * Uses the pre-built tag index (binary search) to count nested same-name opens,
+ * and indexOf for closing tags.
+ */
+function findMatchingClose(
+  html: string,
+  tagName: string,
+  searchFrom: number,
+  allOpensForTag: TagOccurrence[],
+): number {
+  const closeLower = `</${tagName}>`;
+  const closeUpper = `</${tagName.toUpperCase()}>`;
+  const closeLen = closeLower.length;
+
+  let depth = 1;
+  let pos = searchFrom;
+
+  while (depth > 0) {
+    // Find next closing tag (case-insensitive)
+    const nextCloseLo = html.indexOf(closeLower, pos);
+    const nextCloseUp = html.indexOf(closeUpper, pos);
+    let nextClose = -1;
+    if (nextCloseLo >= 0 && nextCloseUp >= 0) nextClose = Math.min(nextCloseLo, nextCloseUp);
+    else if (nextCloseLo >= 0) nextClose = nextCloseLo;
+    else if (nextCloseUp >= 0) nextClose = nextCloseUp;
+
+    if (nextClose < 0) return -1;
+
+    // Count non-self-closing opens between pos and nextClose using binary search
+    const startIdx = lowerBound(allOpensForTag, pos);
+    for (let i = startIdx; i < allOpensForTag.length; i++) {
+      const occ = allOpensForTag[i];
+      if (occ.offset >= nextClose) break;
+      if (!occ.selfClosing) depth++;
+    }
+
+    depth--;
+    if (depth === 0) return nextClose + closeLen;
+    pos = nextClose + closeLen;
+  }
+
+  return -1;
+}
+
+/**
  * Walk DOM tree depth-first and map each element to its source position
  * using the pre-built tag index for O(1) lookups per element.
  */
@@ -133,9 +221,9 @@ function walkAndMap(
   originalHtml: string,
 ): SourceOffset[] {
   const offsets: SourceOffset[] = [];
-  const tagIndex = buildTagIndex(originalHtml);
+  const { nested, flat } = buildTagIndex(originalHtml);
 
-  // Per-signature cursor: tracks how far we've consumed in the occurrence array
+  // Per-signature cursor: index into the attrSig occurrence array
   // Key = tagName + '\0' + attrSig
   const cursorMap = new Map<string, number>();
 
@@ -151,53 +239,51 @@ function walkAndMap(
     const linkedomOpenTag = openMatch?.[0] ?? '';
     const linkedomAttrSig = buildAttrSignature(linkedomOpenTag);
 
-    const occurrences = tagIndex.get(tagName);
+    const byAttr = nested.get(tagName);
     let matched = false;
 
-    if (occurrences) {
-      const cursorKey = tagName + '\0' + linkedomAttrSig;
-      const startIdx = cursorMap.get(cursorKey) ?? 0;
+    if (byAttr) {
+      // O(1) lookup by attribute signature
+      const occurrences = byAttr.get(linkedomAttrSig);
 
-      for (let i = startIdx; i < occurrences.length; i++) {
-        const occ = occurrences[i];
-        if (occ.attrSig !== linkedomAttrSig) continue;
+      if (occurrences) {
+        const cursorKey = tagName + '\0' + linkedomAttrSig;
+        const startIdx = cursorMap.get(cursorKey) ?? 0;
 
-        // Found matching tag — compute element length
-        const isVoid = VOID_ELEMENTS.has(tagName);
-        let length: number;
+        if (startIdx < occurrences.length) {
+          const occ = occurrences[startIdx];
 
-        if (occ.selfClosing || isVoid) {
-          length = occ.endOffset - occ.offset;
-        } else {
-          // Find closing tag (case-insensitive)
-          const closingLower = `</${tagName}>`;
-          const closingUpper = `</${tagName.toUpperCase()}>`;
-          let closeIdx = originalHtml.indexOf(closingLower, occ.endOffset);
-          if (closeIdx < 0) {
-            closeIdx = originalHtml.indexOf(closingUpper, occ.endOffset);
-          }
-          if (closeIdx >= 0) {
-            length = closeIdx + closingLower.length - occ.offset;
+          // Compute element length
+          const isVoid = VOID_ELEMENTS.has(tagName);
+          let length: number;
+
+          if (occ.selfClosing || isVoid) {
+            length = occ.endOffset - occ.offset;
           } else {
-            length = occ.endOffset - occ.offset; // just opening tag
+            // Find the matching closing tag using nesting-aware search
+            const allOpens = flat.get(tagName) ?? [];
+            const closeEnd = findMatchingClose(originalHtml, tagName, occ.endOffset, allOpens);
+            if (closeEnd >= 0) {
+              length = closeEnd - occ.offset;
+            } else {
+              length = occ.endOffset - occ.offset; // just opening tag
+            }
           }
+
+          // Determine if it's an exact or fuzzy match
+          const originalSlice = originalHtml.slice(occ.offset, occ.offset + outer.length);
+          const isExact = originalSlice === outer;
+
+          offsets.push({
+            charOffset: occ.offset,
+            charLength: length,
+            tagName,
+            matchType: isExact ? 'exact' : 'fuzzy',
+            normalization: isExact ? undefined : 'tag-index',
+          });
+          cursorMap.set(cursorKey, startIdx + 1);
+          matched = true;
         }
-
-        // Determine if it's an exact or fuzzy match by checking if original
-        // content at that position matches linkedom's outerHTML
-        const originalSlice = originalHtml.slice(occ.offset, occ.offset + outer.length);
-        const isExact = originalSlice === outer;
-
-        offsets.push({
-          charOffset: occ.offset,
-          charLength: length,
-          tagName,
-          matchType: isExact ? 'exact' : 'fuzzy',
-          normalization: isExact ? undefined : 'tag-index',
-        });
-        cursorMap.set(cursorKey, i + 1);
-        matched = true;
-        break;
       }
     }
 
@@ -207,7 +293,7 @@ function walkAndMap(
         charLength: 0,
         tagName,
         matchType: 'failed',
-        normalization: occurrences ? 'attrs-mismatch' : 'tag-not-in-index',
+        normalization: byAttr ? 'attrs-mismatch' : 'tag-not-in-index',
       });
     }
 
@@ -217,7 +303,13 @@ function walkAndMap(
     }
   }
 
-  const root = document.documentElement ?? document.body;
+  // Guard: linkedom may return null documentElement for empty/non-HTML input
+  let root: Element | null = null;
+  try {
+    root = document.documentElement ?? document.body;
+  } catch {
+    // linkedom throws when accessing .body if documentElement is null
+  }
   if (root) walk(root);
 
   return offsets;
@@ -246,12 +338,39 @@ function getDirectTextContent(el: Element): string {
 
 function findSections(
   document: Document,
-  originalHtml: string,
+  offsets: SourceOffset[],
 ): SectionBoundary[] {
   const sections: SectionBoundary[] = [];
   const found = new Set<string>();
 
+  // Build a map from element identity to offset for lookup.
+  // Walk all elements in the same order as walkAndMap (querySelectorAll('*')
+  // returns document order which matches our depth-first walk).
   const allElements = document.querySelectorAll('*');
+  // The offsets array includes html/head/body from the walk root, but
+  // querySelectorAll('*') includes all descendants. Build a lookup by
+  // matching element index to offset index using tagName alignment.
+  // Simplest reliable approach: build a WeakMap by walking the DOM the same
+  // way walkAndMap does and pairing each element with its offset entry.
+  const elementOffsetMap = new WeakMap<Node, SourceOffset>();
+  let offsetIdx = 0;
+  function buildMap(node: Node): void {
+    if (node.nodeType !== 1) return;
+    if (offsetIdx < offsets.length) {
+      elementOffsetMap.set(node, offsets[offsetIdx]);
+      offsetIdx++;
+    }
+    for (const child of node.childNodes) {
+      buildMap(child);
+    }
+  }
+  let root: Element | null = null;
+  try {
+    root = document.documentElement ?? document.body;
+  } catch {
+    // linkedom throws when accessing .body if documentElement is null
+  }
+  if (root) buildMap(root);
 
   for (const el of allElements) {
     const text = (el.textContent ?? '').trim();
@@ -264,26 +383,14 @@ function findSections(
       const directText = getDirectTextContent(el).trim();
       if (!regex.test(directText) && text.length > 200) continue;
 
-      // Find this element's position
-      const outer = el.outerHTML;
-      let charOffset = originalHtml.indexOf(outer);
-      let matchType: 'exact' | 'fuzzy' | 'failed' = 'exact';
-
-      if (charOffset < 0) {
-        // Try matching just the opening tag
-        const openMatch = outer.match(/^<[^>]*>/);
-        if (openMatch) {
-          charOffset = originalHtml.indexOf(openMatch[0]);
-        }
-        matchType = charOffset >= 0 ? 'fuzzy' : 'failed';
-      }
-
-      if (charOffset >= 0) {
+      // Look up this element's offset from the pre-computed offsets array
+      const offset = elementOffsetMap.get(el);
+      if (offset && offset.charOffset >= 0) {
         sections.push({
           section,
-          charOffset,
+          charOffset: offset.charOffset,
           textContent: text.slice(0, 100),
-          matchType,
+          matchType: offset.matchType,
         });
         found.add(section);
       }
@@ -304,7 +411,7 @@ export function parseAndMap(html: string): ParseResult {
   const { document } = parseHTML(html);
 
   const offsets = walkAndMap(document, html);
-  const sections = findSections(document, html);
+  const sections = findSections(document, offsets);
 
   const elapsed = performance.now() - start;
 
