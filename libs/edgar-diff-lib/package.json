@@ -22,9 +22,13 @@
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
-    "htmlparser2": "^10.1.0"
+    "diff": "^8.0.3",
+    "htmlparser2": "^10.1.0",
+    "jaro-winkler": "^0.2.8"
   },
   "devDependencies": {
+    "@types/diff": "^8.0.0",
+    "@types/node": "^25.3.3",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.0.18"
   }
