@@ -33,19 +33,19 @@ async function fetchFiling(): Promise<void> {
   await mkdir(FIXTURES_DIR, { recursive: true });
 
   console.log(`Fetching ${FILING_URL} ...`);
-  const resp = await fetch(FILING_URL, {
-    headers: { 'User-Agent': USER_AGENT },
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let resp: Response;
+  try {
+    resp = await fetch(FILING_URL, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!resp.ok) {
-    // Try EFTS full-text search as fallback
-    console.log(`Primary URL failed (${resp.status}), trying EFTS search...`);
-    const searchUrl =
-      'https://efts.sec.gov/LATEST/search-index?q=%22aapl-20240928%22&dateRange=custom&startdt=2024-10-01&enddt=2024-12-31&forms=10-K';
-    const searchResp = await fetch(searchUrl, {
-      headers: { 'User-Agent': USER_AGENT },
-    });
-    console.log(`EFTS search status: ${searchResp.status}`);
     throw new Error(
       `Failed to fetch filing: ${resp.status} ${resp.statusText}. ` +
         `Try finding a valid URL manually via EDGAR full-text search.`,

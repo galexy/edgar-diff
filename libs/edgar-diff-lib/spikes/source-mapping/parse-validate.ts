@@ -52,6 +52,8 @@ function findSectionBoundaries(doc: Document, html: string): SectionHit[] {
   const headingTags = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'b', 'strong', 'span', 'p', 'div', 'a']);
 
   function walk(node: ChildNode): void {
+    if (foundLabels.size === SECTION_PATTERNS.length) return;
+
     if (isElement(node) && headingTags.has(node.tagName.toLowerCase())) {
       const text = getTextContent(node).trim();
       for (const sec of SECTION_PATTERNS) {
@@ -60,7 +62,7 @@ function findSectionBoundaries(doc: Document, html: string): SectionHit[] {
           const si = node.startIndex ?? -1;
           const ei = node.endIndex ?? -1;
 
-          // htmlparser2 endIndex points directly after the last character
+          // htmlparser2 endIndex is inclusive (points to the last character)
           // so slice(startIndex, endIndex + 1) captures the full element
           const actualSlice = si >= 0 && ei >= 0 ? html.slice(si, ei + 1) : '<no indices>';
 
@@ -203,7 +205,8 @@ async function parseAndValidate(filePath: string, label: string): Promise<void> 
       return null;
     }
 
-    const rocketNode = findNodeWithText(doc.children[0]!, '🚀');
+    const firstChild = doc.children[0];
+    const rocketNode = firstChild ? findNodeWithText(firstChild, '🚀') : null;
     if (rocketNode && rocketNode.startIndex != null && rocketNode.endIndex != null) {
       const slice = html.slice(rocketNode.startIndex, rocketNode.endIndex + 1);
       const charIdx = html.indexOf('🚀');

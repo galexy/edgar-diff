@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { parseDocument } from 'htmlparser2';
-import { readFile, stat } from 'node:fs/promises';
+import { readFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Document, Element, ChildNode } from 'domhandler';
@@ -312,14 +312,20 @@ describe('index boundary validation', () => {
 // ── Performance ─────────────────────────────────────────────────────
 
 describe('performance', () => {
-  it('should parse full 10-K in under 500ms', async () => {
-    let html: string;
+  const filingPath = join(FIXTURES_DIR, 'apple-10k.html');
+
+  async function loadFixtureOrSkip(ctx: { skip: () => void }): Promise<string> {
     try {
-      html = await readFile(join(FIXTURES_DIR, 'apple-10k.html'), 'utf-8');
+      await access(filingPath);
     } catch {
-      // Skip if fixture not available
-      return;
+      ctx.skip();
+      return ''; // unreachable after skip
     }
+    return readFile(filingPath, 'utf-8');
+  }
+
+  it('should parse full 10-K in under 500ms', async (ctx) => {
+    const html = await loadFixtureOrSkip(ctx);
 
     const t0 = performance.now();
     parse(html);
@@ -328,13 +334,8 @@ describe('performance', () => {
     expect(elapsed).toBeLessThan(500);
   });
 
-  it('should parse 10-K with consistent results across iterations', async () => {
-    let html: string;
-    try {
-      html = await readFile(join(FIXTURES_DIR, 'apple-10k.html'), 'utf-8');
-    } catch {
-      return;
-    }
+  it('should parse 10-K with consistent results across iterations', async (ctx) => {
+    const html = await loadFixtureOrSkip(ctx);
 
     const doc1 = parse(html);
     const doc2 = parse(html);
@@ -404,5 +405,149 @@ describe('indices are JS string indices', () => {
     // '中' is 1 UTF-16 code unit but 3 UTF-8 bytes
     expect(text.startIndex).toBe(3); // after <p>
     expect(html.slice(text.startIndex!, text.endIndex! + 1)).toBe('中x');
+  });
+});
+
+// ── Empty HTML ──────────────────────────────────────────────────────
+
+describe('empty HTML', () => {
+  it('should produce no nodes for empty string', () => {
+    const doc = parse('');
+    const nodes = collectNodes(doc);
+    expect(nodes).toHaveLength(0);
+  });
+
+  it('should handle whitespace-only HTML', () => {
+    const html = '   \n\t  ';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    // Should have one text node
+    expect(nodes).toHaveLength(1);
+    expect(nodes[0]!.type).toBe('text');
+    expect(sliceNode(html, nodes[0]!)).toBe(html);
+  });
+});
+
+// ── Malformed HTML ──────────────────────────────────────────────────
+
+describe('malformed HTML', () => {
+  it('should handle unclosed tags with valid indices', () => {
+    const html = '<div><p>unclosed<span>also unclosed';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    for (const node of nodes) {
+      expect(node.startIndex).toBeGreaterThanOrEqual(0);
+      expect(node.startIndex).toBeLessThanOrEqual(html.length);
+      expect(node.endIndex).toBeGreaterThanOrEqual(0);
+      expect(node.endIndex).toBeLessThanOrEqual(html.length);
+    }
+  });
+
+  it('should handle mismatched closing tags with valid indices', () => {
+    const html = '<div><p>text</span></div>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    for (const node of nodes) {
+      expect(node.startIndex).toBeGreaterThanOrEqual(0);
+      expect(node.endIndex).toBeGreaterThanOrEqual(0);
+      expect(node.startIndex).toBeLessThanOrEqual(html.length);
+      expect(node.endIndex).toBeLessThanOrEqual(html.length);
+    }
+  });
+
+  it('should handle duplicate closing tags', () => {
+    const html = '<p>text</p></p></p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    for (const node of nodes) {
+      expect(node.startIndex).toBeGreaterThanOrEqual(0);
+      expect(node.endIndex).toBeLessThanOrEqual(html.length);
+    }
+  });
+
+  it('should handle interleaved tags', () => {
+    const html = '<b><i>bold-italic</b></i>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    for (const node of nodes) {
+      expect(node.startIndex).toBeGreaterThanOrEqual(0);
+      expect(node.endIndex).toBeLessThanOrEqual(html.length);
+    }
+  });
+});
+
+// ── Section boundary detection ──────────────────────────────────────
+
+describe('section boundary detection', () => {
+  function getTextContent(node: ChildNode): string {
+    if (node.type === 'text') return (node as any).data;
+    if (isElement(node)) return node.children.map(getTextContent).join('');
+    return '';
+  }
+
+  function findSectionHeadings(doc: Document, html: string): { label: string; slice: string }[] {
+    const patterns = [
+      { label: 'Item 1 ', pattern: /\bItem\s+1[\.\s]/i },
+      { label: 'Item 1A', pattern: /\bItem\s+1A\b/i },
+      { label: 'Item 7 ', pattern: /\bItem\s+7[\.\s]/i },
+      { label: 'Item 7A', pattern: /\bItem\s+7A\b/i },
+      { label: 'Item 8 ', pattern: /\bItem\s+8[\.\s]/i },
+    ];
+    const found = new Set<string>();
+    const results: { label: string; slice: string }[] = [];
+
+    function walk(node: ChildNode): void {
+      if (found.size === patterns.length) return;
+      if (isElement(node)) {
+        const text = getTextContent(node).trim();
+        for (const p of patterns) {
+          if (found.has(p.label)) continue;
+          if (p.pattern.test(text)) {
+            found.add(p.label);
+            results.push({ label: p.label, slice: sliceNode(html, node) });
+            break;
+          }
+        }
+        for (const child of node.children) walk(child);
+      }
+    }
+    for (const child of doc.children) walk(child);
+    return results;
+  }
+
+  it('should find all 5 section headings in synthetic SEC HTML', () => {
+    const html = `<html><body>
+      <h2>Item 1. Business</h2>
+      <p>Description of business...</p>
+      <h2>Item 1A. Risk Factors</h2>
+      <p>Risk factors...</p>
+      <h2>Item 7. MD&amp;A</h2>
+      <p>Management discussion...</p>
+      <h2>Item 7A. Quantitative Disclosures</h2>
+      <p>Market risk...</p>
+      <h2>Item 8. Financial Statements</h2>
+      <p>Financial data...</p>
+    </body></html>`;
+
+    const doc = parse(html);
+    const hits = findSectionHeadings(doc, html);
+    expect(hits).toHaveLength(5);
+    expect(hits.map((h) => h.label)).toEqual(['Item 1 ', 'Item 1A', 'Item 7 ', 'Item 7A', 'Item 8 ']);
+  });
+
+  it('should handle SEC-style inline formatting in section headings', () => {
+    const html = `<div><span style="font-weight:bold">Item 1. Business</span></div>
+      <div><span style="font-weight:bold">Item 1A. Risk Factors</span></div>
+      <div><b>Item 7. MD&amp;A</b></div>
+      <div><b>Item 7A. Market Risk</b></div>
+      <div><b>Item 8. Financial Statements</b></div>`;
+
+    const doc = parse(html);
+    const hits = findSectionHeadings(doc, html);
+    expect(hits).toHaveLength(5);
+    // Verify slices contain the expected text
+    for (const hit of hits) {
+      expect(hit.slice).toContain('Item');
+    }
   });
 });
