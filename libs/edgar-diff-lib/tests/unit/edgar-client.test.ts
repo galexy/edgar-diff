@@ -310,6 +310,34 @@ describe('createEdgarClient', () => {
       expect(filing.formType).toBe('10-K/A');
     });
 
+    it('should extract filename with colon using substring(indexOf) not split', async () => {
+      const colonFilenameResponse = {
+        hits: {
+          total: { value: 1, relation: 'eq' },
+          hits: [{
+            _id: '0000320193-23-000106:file:with:colons.htm',
+            _source: {
+              ciks: ['0000320193'],
+              form: '10-K',
+              file_date: '2023-11-03',
+              adsh: '0000320193-23-000106',
+              sequence: 1,
+            },
+          }],
+        },
+      };
+
+      const mockFetch = createMockFetchSequence([
+        { status: 200, body: JSON.stringify(colonFilenameResponse) },
+        { status: 200, body: '<html></html>' },
+      ]);
+
+      const client = createEdgarClient({ userAgent: 'TestCo test@example.com', fetch: mockFetch });
+      const filing = await client.fetchFiling('0000320193-23-000106');
+
+      expect(filing.primaryDocumentFilename).toBe('file:with:colons.htm');
+    });
+
     it('should pass through unrecognized form types', async () => {
       const unknownFormResponse = {
         hits: {
