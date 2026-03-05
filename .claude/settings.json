@@ -1,19 +1,11 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": "bash /workspace/.claude/statusline-command.sh"
+  "env": {
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "permissions": {
     "deny": [
       "Read(./.entire/metadata/**)"
     ]
-  },
-  "enabledPlugins": {
-    "feature-dev@claude-plugins-official": true
-  },
-  "skipDangerousModePermissionPrompt": true,
-  "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
   "hooks": {
     "WorktreeCreate": [
@@ -36,5 +28,11 @@
         ]
       }
     ]
-  }
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "bash /workspace/.claude/statusline-command.sh"
+  },
+  "enabledPlugins": {},
+  "skipDangerousModePermissionPrompt": true
 }
