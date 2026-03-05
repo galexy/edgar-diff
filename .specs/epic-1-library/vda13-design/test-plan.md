@@ -16,30 +16,37 @@ Scenario: Catalog covers sufficient filing diversity
 Scenario: Catalog covers all standard 10-K Item sections
   Given the catalog documents observed heading patterns
   When I check the Item sections referenced across all sample filings
-  Then all standard 10-K Item sections are represented
+  Then all 22 standard 10-K Item sections are represented
     | Part I    | Item 1    | Item 5    | Item 9A  | Item 13  |
     |           | Item 1A   | Item 6    | Item 9B  | Item 14  |
-    |           | Item 1B   | Item 7    | Item 10  | Item 15  |
-    |           | Item 1C   | Item 7A   | Item 11  |          |
-    |           | Item 2    | Item 8    | Item 12  |          |
-    |           | Item 3    | Item 9    |          |          |
+    |           | Item 1B   | Item 7    | Item 9C  | Item 15  |
+    |           | Item 1C   | Item 7A   | Item 10  |          |
+    |           | Item 2    | Item 8    | Item 11  |          |
+    |           | Item 3    | Item 9    | Item 12  |          |
     |           | Item 4    |           |          |          |
-  Note: Item 1C (Cybersecurity) was added effective Dec 2023 —
-    all 2024+ filings should include it.
+  Note: Item 1C (Cybersecurity) mandated Dec 2023 — present in all 2024+ filings.
+  Note: Item 9C (Disclosure Regarding Foreign Jurisdictions) — present in 2024+ filings.
   Note: Item 16 (Form 10-K Summary) is technically standard but
     universally omitted — its absence is acceptable.
 
 Scenario: Catalog documents diverse pattern families
   Given filings were selected from diverse large-cap filers
   When heading patterns are documented per filing
-  Then at least 3 distinct HTML pattern families are identified
+  Then at least 4 distinct HTML pattern families are identified
+    (Workiva, DFIN, Toppan Merrill, Broadridge/CompSci)
   And each pattern family is represented by at least 1 sample filing
   And the dominant pattern family (Workiva) documents intra-family
     variations (e.g., font differences across filers)
-  Note: Toppan Merrill is extremely rare among large-cap filers
-    (2025-2026). Requiring 2+ filings per family is infeasible.
-    Instead, we require 1+ per agent-based family and document
-    Workiva sub-variations as distinct pattern sub-families.
+  And families with 2+ filings (Workiva, DFIN) document intra-family
+    consistency or variation
+  Note: Toppan Merrill and Broadridge/CompSci are rare among
+    large-cap filers. 1 filing per minority agent is acceptable.
+
+Scenario: Catalog includes temporal comparison
+  Given the sample set includes the same company across multiple years
+  When the Apple FY2022 and Apple FY2025 filings are compared
+  Then the catalog documents any Workiva template evolution
+  And notes whether heading patterns changed between versions
 ```
 
 ### Pattern Documentation Quality
@@ -88,6 +95,8 @@ Tests for h-tags are retained as defensive cases for robustness.
 | Detects font tags (legacy) | `<font style="font-weight:700">ITEM 1A</font>` | element_type: "font", has_bold: true | Observed (Toppan Merrill) |
 | Detects span-wrapped headings | `<p><span style="font-size:12pt"><b>Item 2</b></span></p>` | element_type: "p", has_bold: true, font_size: "12pt" | Common (Workiva, DFIN) |
 | Detects b-tag wrapped in div | `<div><b>ITEM 1A. RISK FACTORS</b></div>` | element_type: "div", has_bold: true | Common (Workiva) |
+| Detects heading in table cell | `<td style="font-weight:bold">ITEM 1.</td>` | element_type: "td", has_bold: true | Broadridge/CompSci |
+| Detects heading split across table cells | `<tr><td>ITEM 1.</td><td>BUSINESS</td></tr>` | concatenated text: "ITEM 1. BUSINESS" | Broadridge/CompSci |
 
 ### Inline Style Parsing
 
@@ -110,6 +119,8 @@ Tests for h-tags are retained as defensive cases for robustness.
 | Multiple classes | `<p class="bold-heading section-title">` | classes: ["bold-heading", "section-title"] |
 | No classes | `<p style="font-weight:bold">` | classes: [] |
 | Agent-specific class names | `<div class="rom_10k_heading">` | classes: ["rom_10k_heading"] |
+| Broadridge DSPFListTable class | `<table class="DSPFListTable">` | classes: ["DSPFListTable"] |
+| Broadridge heading table detection | `<table class="DSPFListTable"><tr><td>ITEM 1.</td>...` | Recognized as heading container via class |
 
 ### Section Heading Text Normalization
 
@@ -129,6 +140,7 @@ Tests for h-tags are retained as defensive cases for robustness.
 | Part headings | `PART I` | `part-i` |
 | Part heading lowercase | `Part II` | `part-ii` |
 | Item 1C (Cybersecurity) | `Item 1C. Cybersecurity` | `item-1c` |
+| Item 9C (Foreign Jurisdictions) | `Item 9C. Disclosure Regarding Foreign Jurisdictions` | `item-9c` |
 | Item 6 reserved | `Item 6. [Reserved]` | `item-6` |
 
 ### Text Concatenation from Split Spans
@@ -163,6 +175,7 @@ Tests for h-tags are retained as defensive cases for robustness.
 |---|---|---|
 | TOC link detected | `<a href="#item1a">Item 1A</a>` | is_toc_link: true |
 | Body heading with named anchor | `<a name="item1a"></a><p><b>Item 1A</b></p>` | is_toc_link: false, has_named_anchor: true |
+| Broadridge anchor with comment | `<a name="ITEM1.BUSINESS"><!--Anchor--></a>` | is_toc_link: false, has_named_anchor: true |
 | Body heading with id attribute | `<div id="item1a"><b>Item 1A</b></div>` | is_toc_link: false |
 | Page break before heading | `<hr style="page-break-before:always">` followed by heading | has_page_break: true |
 | CSS break-before | `<div style="break-before:page">` before heading | has_page_break: true |
@@ -206,14 +219,18 @@ Test: catalog_markdown_is_well_formed
   When parsed as markdown
   Then it contains:
     - A metadata/summary section listing all analyzed filings
-    - A pattern families section with at least 3 subsections
+    - A filing agent identification section (HTML comment signatures)
+    - A pattern families section with at least 4 subsections
+      (Workiva, DFIN, Toppan Merrill, Broadridge/CompSci)
     - Each pattern family subsection contains:
       - Description of the pattern
       - HTML element types used
       - Inline style characteristics
-      - CSS class names (if any)
+      - CSS class names (if any — notably Broadridge uses classes, others don't)
       - At least one HTML code block with an example snippet
       - List of accession numbers exhibiting this pattern
+    - A Part-level heading patterns section
+    - A Risk Gate Assessment section (4 families > threshold of 3)
     - A coverage matrix mapping Item sections to pattern families
 ```
 
@@ -239,20 +256,24 @@ These validate the catalog deliverable itself, not just the tooling.
 | Filing count | Number of distinct filings analyzed | >= 10 |
 | Company diversity | Number of distinct filers (by CIK) | >= 5 |
 | Industry diversity | Sectors represented | >= 3 |
-| Item coverage | Standard 10-K Items seen across all filings | All Items including 1C (Cybersecurity) |
-| Item 1C presence | Item 1C documented in 2024+ filings | Present in all 2024+ sample filings |
+| Item coverage | All 22 standard 10-K Items seen across filings | All Items including 1C and 9C |
+| Item 1C presence | Item 1C (Cybersecurity) in 2024+ filings | Present in all 2024+ sample filings |
+| Item 9C presence | Item 9C (Foreign Jurisdictions) in 2024+ filings | Present in all 2024+ sample filings |
 | Item 16 handling | Form 10-K Summary | Noted as universally omitted (acceptable) |
-| Year spread | Filing years represented | >= 2 distinct years |
+| Year spread | Filing years represented | >= 3 distinct years (2022, 2025, 2026) |
+| Temporal pair | Same company compared across years | Apple FY2022 vs FY2025 documented |
 
 ### Catalog Diversity
 
 | Check | Criteria | Pass Condition |
 |---|---|---|
-| Pattern families | Distinct filing agent pattern families | >= 3 (Workiva, DFIN, Toppan Merrill) |
+| Pattern families | Distinct filing agent pattern families | >= 4 (Workiva, DFIN, Toppan Merrill, Broadridge/CompSci) |
 | Workiva sub-variations | Intra-Workiva pattern differences documented | >= 2 distinct Workiva sub-patterns |
-| Element type variety | Different HTML elements used for headings | >= 3 (e.g., div, p, span, b, font) |
-| Filing agent spread | Filings from different HTML generation tools | >= 2 distinct agents with >= 2 filings; 1 agent with >= 1 filing acceptable if rare |
+| Element type variety | Different HTML elements used for headings | >= 4 (div, p, span, b, font, td) |
+| Filing agent spread | Filings from different HTML generation tools | Workiva (10), DFIN (2), Broadridge (1), Toppan Merrill (1) |
+| CSS class usage | CSS classes documented per agent | Broadridge uses classes; others use inline styles only |
 | No semantic h-tags finding | Documented that h1-h6 not observed | Explicitly noted in catalog |
+| Table-based headings | Broadridge/CompSci table pattern documented | DSPFListTable pattern with td-split text |
 
 ### Pattern Accuracy (Spot-Check)
 
@@ -267,7 +288,8 @@ Test: pattern_exists_in_cited_filing
       Then the HTML contains elements matching pattern P's description
       And the element text matches a standard 10-K Item heading
   Note: For Workiva (dominant family), spot-check at least 2 sub-variations.
-        For Toppan Merrill (1 sample), verify the single cited filing.
+        For DFIN (2 filings), verify both cited filings.
+        For Toppan Merrill and Broadridge/CompSci (1 each), verify the single cited filing.
 ```
 
 ### Cross-Reference Integrity
@@ -289,10 +311,15 @@ Test: all_filings_map_to_patterns
 
 ```
 Test: risk_gate_assessment
-  Given the catalog documents N distinct pattern families
-  When N > 3
-  Then the catalog includes an explicit risk assessment note
-  And the note evaluates whether heuristic coverage can achieve >= 80% accuracy
+  Given the catalog documents 4 distinct pattern families
+  And the architecture doc section 6 threshold is 3
+  Then the catalog includes an explicit Risk Gate Assessment section
+  And the assessment evaluates whether a single heuristic approach
+    can achieve >= 80% section detection accuracy across all 4 families
+  And documents universal signals shared across families
+    (e.g., bold text + ITEM \d regex as common denominators)
+  And provides a clear recommendation: proceed with single heuristic
+    vs. escalate parser to its own epic
   Per architecture doc section 6 and PRD parser risk signals
 ```
 
@@ -301,7 +328,7 @@ Test: risk_gate_assessment
 | Condition | Test Approach | Expected Behavior |
 |---|---|---|
 | Filing uses no standard h-tags | Include at least 1 fixture where all headings use styled `<p>` or `<div>` (e.g., Workiva filings) | Analysis script still detects headings via style signals; catalog documents this pattern family |
-| Filing uses deeply nested tables for layout | Include fixture with headings inside `<td>` elements | Script handles or explicitly skips table-nested headings; catalog notes this pattern |
+| Filing uses tables for heading layout (Broadridge) | Fixture with headings inside `<table class="DSPFListTable"><td>` cells (Broadridge/CompSci) | Script detects table-based headings; distinguishes from TOC tables via CSS class or structural context |
 | TOC links confused with section headings | Fixture with `<a href="#item1a">Item 1A</a>` in TOC region | Script distinguishes TOC links from actual section headings using classification heuristics |
 | Very large filing (>1MB HTML) | Test with at least 1 large real filing (JPMorgan ~12MB, BofA ~10MB) | Analysis completes without timeout or memory issues; document processing time recorded |
 | Filing with multiple heading styles mixed | Fixture using h2 for some Items, bold-p for others in same document | All heading styles detected; catalog notes intra-filing style mixing |
@@ -342,6 +369,7 @@ Location: `libs/edgar-diff-lib/tests/unit/fixtures/` (or inline in test files pe
 - **heading-font-tag.html**: Legacy `<font>` tag headings
 - **heading-mixed.html**: Single document with mixed heading styles
 - **heading-in-table.html**: Headings nested inside layout tables
+- **heading-table-based.html**: Broadridge/CompSci-style headings inside `<table class="DSPFListTable">` with text split across `<td>` cells
 - **heading-split-spans.html**: Heading text split across sibling `<span>` elements (DFIN-style)
 - **heading-xbrl-wrapped.html**: Heading content wrapped in `<ix:nonNumeric>` tags
 - **heading-item6-reserved.html**: Filing with "Item 6. [Reserved]" present
@@ -366,7 +394,7 @@ Location: `libs/edgar-diff-lib/tests/integration/fixtures/`
 Per architecture doc section 8, naming convention: `{formtype}-{ticker}-{year}.html`
 
 Select filings to ensure coverage of:
-- At least 3 distinct HTML pattern families
+- All 4 distinct HTML pattern families (Workiva, DFIN, Broadridge/CompSci, Toppan Merrill)
 - At least 2 filing years
 - At least 5 different companies
 - At least 1 filing > 500KB
