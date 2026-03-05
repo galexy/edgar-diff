@@ -35,7 +35,8 @@ export async function fetchWithRetry(
     }
 
     const retryAfterHeader = response.headers.get('Retry-After');
-    lastRetryAfter = retryAfterHeader != null ? parseInt(retryAfterHeader, 10) : undefined;
+    const parsed = retryAfterHeader != null ? parseInt(retryAfterHeader, 10) : NaN;
+    lastRetryAfter = Number.isNaN(parsed) ? undefined : parsed;
 
     if (attempt < options.maxAttempts) {
       const waitMs = lastRetryAfter != null

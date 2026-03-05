@@ -112,6 +112,8 @@ export function createEdgarClient(options: EdgarClientOptions) {
     return {
       accessionNumber: parsed.raw,
       cik: metadata.cik,
+      // EFTS may return form types outside our FormType union (e.g., "4", "SD").
+      // Intentional cast per design doc §6.7: no runtime filtering, type is a hint.
       formType: metadata.formType as FormType,
       filingDate: Temporal.PlainDate.from(metadata.filingDate),
       primaryDocumentFilename: metadata.primaryDocumentFilename,

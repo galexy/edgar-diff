@@ -156,6 +156,23 @@ describe('fetchWithRetry', () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
+  it('should fall back to exponential backoff when Retry-After is non-numeric', async () => {
+    const mockFetch = vi.fn()
+      .mockResolvedValueOnce(new Response('', { status: 429, headers: { 'Retry-After': 'invalid' } }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }));
+
+    const promise = fetchWithRetry('https://example.com', {}, defaultOpts, accession, mockFetch);
+
+    // Should use exponential backoff (1s), not resolve immediately
+    await vi.advanceTimersByTimeAsync(999);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    const resp = await promise;
+    expect(resp.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('should propagate network errors (fetch throws)', async () => {
     const mockFetch = vi.fn().mockRejectedValue(new TypeError('fetch failed'));
     await expect(
