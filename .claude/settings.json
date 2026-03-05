@@ -33,6 +33,8 @@
     "type": "command",
     "command": "bash /workspace/.claude/statusline-command.sh"
   },
-  "enabledPlugins": {},
+  "enabledPlugins": {
+    "metapowers@metapowers": true
+  },
   "skipDangerousModePermissionPrompt": true
 }
