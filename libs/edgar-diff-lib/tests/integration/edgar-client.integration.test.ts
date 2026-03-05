@@ -1,7 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
-import type { EdgarClientOptions } from '../../src/client/types.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -35,17 +34,6 @@ const FILING_AGENT_EFTS_RESPONSE = JSON.stringify({
 });
 
 // --- Factory Functions ---
-
-function createTestOptions(
-  overrides: Partial<EdgarClientOptions> = {},
-): EdgarClientOptions {
-  return {
-    userAgent: 'TestCo test@example.com',
-    maxRequestsPerSecond: 100,
-    fetch: vi.fn(),
-    ...overrides,
-  };
-}
 
 function createMockFetchSequence(
   responses: Array<{ status: number; body: string; headers?: Record<string, string> }>,

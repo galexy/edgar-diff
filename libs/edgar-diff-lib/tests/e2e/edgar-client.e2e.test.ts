@@ -1,7 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
-import type { EdgarClientOptions } from '../../src/client/types.js';
 
 // --- Mock Data ---
 
