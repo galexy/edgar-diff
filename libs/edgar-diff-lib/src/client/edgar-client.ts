@@ -9,6 +9,26 @@ const EDGAR_ARCHIVES_BASE = 'https://www.sec.gov/Archives/edgar/data';
 
 const DEFAULT_RETRY_OPTIONS = { maxAttempts: 3, baseDelayMs: 1000 };
 
+interface EftsHitSource {
+  ciks?: string[];
+  form?: string;
+  file_date?: string;
+  sequence?: number;
+  [key: string]: unknown;
+}
+
+interface EftsHit {
+  _id: string;
+  _source: EftsHitSource;
+}
+
+interface EftsResponse {
+  hits: {
+    total: { value: number };
+    hits: EftsHit[];
+  };
+}
+
 export function createEdgarClient(options: EdgarClientOptions) {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const userAgent = options.userAgent;
@@ -23,14 +43,14 @@ export function createEdgarClient(options: EdgarClientOptions) {
       fetchFn,
     );
 
-    const data = await response.json();
-    const hits = data?.hits?.hits;
+    const data = (await response.json()) as EftsResponse;
+    const hits = data.hits.hits;
 
     if (!hits || hits.length === 0) {
       throw new EdgarNetworkError(404, accessionNumber);
     }
 
-    const primaryHit = hits.find((h: any) => h._source?.sequence === 1);
+    const primaryHit = hits.find((h) => h._source?.sequence === 1);
     if (!primaryHit) {
       throw new Error(
         `No primary document (sequence 1) found in EFTS response for ${accessionNumber}`
