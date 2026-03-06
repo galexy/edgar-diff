@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TokenBucketRateLimiter } from '../../src/client/rate-limiter.js';
 
 describe('TokenBucketRateLimiter', () => {

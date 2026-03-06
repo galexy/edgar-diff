@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { parseAccessionNumber } from '../../src/client/accession-number.js';
 
 describe('parseAccessionNumber', () => {

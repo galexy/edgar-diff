@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { TokenBucketRateLimiter } from '../../src/client/rate-limiter.js';
 

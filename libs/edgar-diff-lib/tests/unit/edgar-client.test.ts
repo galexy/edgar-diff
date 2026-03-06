@@ -1,3 +1,4 @@
+import { describe, it, expect, vi } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { EdgarNetworkError } from '../../src/client/types.js';

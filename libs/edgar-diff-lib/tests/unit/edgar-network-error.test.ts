@@ -1,3 +1,4 @@
+import { describe, it, expect } from 'vitest';
 import { EdgarNetworkError } from '../../src/client/types.js';
 
 describe('EdgarNetworkError', () => {

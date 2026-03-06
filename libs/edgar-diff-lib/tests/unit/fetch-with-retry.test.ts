@@ -1,3 +1,4 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fetchWithRetry } from '../../src/client/fetch-with-retry.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
 
