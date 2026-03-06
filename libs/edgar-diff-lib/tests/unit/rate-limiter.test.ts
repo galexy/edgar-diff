@@ -2,18 +2,47 @@ import { TokenBucketRateLimiter } from '../../src/client/rate-limiter.js';
 
 describe('TokenBucketRateLimiter', () => {
   describe('construction', () => {
-    it('should default to capacity=10, refillRate=10 when no options given', () => {
+    it('should default to capacity=10: 10 acquires succeed, 11th blocks', async () => {
+      vi.useFakeTimers();
       const limiter = new TokenBucketRateLimiter();
-      // If it constructs without error, defaults are applied.
-      // We verify by draining 10 tokens immediately (tested in acquire tests).
-      expect(limiter).toBeDefined();
+
+      // All 10 should resolve immediately
+      for (let i = 0; i < 10; i++) {
+        await limiter.acquire();
+      }
+
+      // 11th should block
+      let resolved = false;
+      const p = limiter.acquire().then(() => { resolved = true; });
+      expect(resolved).toBe(false);
+
+      // After 100ms (ceil(1000/10)), 1 token refills
+      await vi.advanceTimersByTimeAsync(100);
+      expect(resolved).toBe(true);
+
+      await p;
       limiter.dispose();
+      vi.useRealTimers();
     });
 
-    it('should accept custom capacity and refillRate', () => {
+    it('should accept custom capacity: 5 acquires succeed, 6th blocks', async () => {
+      vi.useFakeTimers();
       const limiter = new TokenBucketRateLimiter({ capacity: 5, refillRate: 5 });
-      expect(limiter).toBeDefined();
+
+      for (let i = 0; i < 5; i++) {
+        await limiter.acquire();
+      }
+
+      let resolved = false;
+      const p = limiter.acquire().then(() => { resolved = true; });
+      expect(resolved).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(200); // ceil(1000/5) = 200ms
+      expect(resolved).toBe(true);
+
+      await p;
       limiter.dispose();
+      vi.useRealTimers();
     });
 
     it('should throw on capacity <= 0', () => {
@@ -192,9 +221,19 @@ describe('TokenBucketRateLimiter', () => {
   });
 
   describe('acquire - tokens available', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('should resolve immediately when tokens are available', async () => {
       const limiter = new TokenBucketRateLimiter({ capacity: 5, refillRate: 5 });
-      await limiter.acquire(); // should not hang
+      await limiter.acquire();
+      // No refill timer was started — acquire resolved synchronously
+      expect(vi.getTimerCount()).toBe(0);
       limiter.dispose();
     });
 
@@ -204,7 +243,45 @@ describe('TokenBucketRateLimiter', () => {
       for (let i = 0; i < 10; i++) {
         promises.push(limiter.acquire());
       }
-      // All 10 should resolve immediately (no waiting)
+      await Promise.all(promises);
+      // All 10 resolved without starting a refill timer
+      expect(vi.getTimerCount()).toBe(0);
+
+      // The (N+1)th acquire should start a timer (proving capacity was exhausted)
+      const p11 = limiter.acquire();
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await vi.advanceTimersByTimeAsync(100);
+      await p11;
+      limiter.dispose();
+    });
+
+    it('should enforce throughput: 15 acquires at rate=10 take at least 500ms', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 10, refillRate: 10 });
+
+      // Drain all 10 tokens
+      for (let i = 0; i < 10; i++) {
+        await limiter.acquire();
+      }
+
+      // Queue 5 more acquires (need 5 tokens at 10/s = 500ms)
+      const resolvedAt: number[] = [];
+      const promises = [];
+      for (let i = 0; i < 5; i++) {
+        promises.push(limiter.acquire().then(() => { resolvedAt.push(Date.now()); }));
+      }
+
+      // At time 0, none should have resolved yet
+      expect(resolvedAt.length).toBe(0);
+
+      // After 400ms, only 4 should have resolved (4 tokens at 10/s)
+      await vi.advanceTimersByTimeAsync(400);
+      expect(resolvedAt.length).toBe(4);
+
+      // After another 100ms (total 500ms), all 5 should resolve
+      await vi.advanceTimersByTimeAsync(100);
+      expect(resolvedAt.length).toBe(5);
+
       await Promise.all(promises);
       limiter.dispose();
     });

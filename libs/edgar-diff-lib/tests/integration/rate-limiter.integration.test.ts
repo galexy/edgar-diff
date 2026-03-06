@@ -227,11 +227,23 @@ describe('shared rate limiter', () => {
   });
 
   it('should enforce combined rate across two clients sharing one limiter', async () => {
-    const limiter = new TokenBucketRateLimiter({ capacity: 4, refillRate: 4 });
+    // capacity=3, so 4 acquires (2 per client) exceeds capacity by 1
+    const limiter = new TokenBucketRateLimiter({ capacity: 3, refillRate: 3 });
     const acquireSpy = vi.spyOn(limiter, 'acquire');
 
-    const mockFetch1 = createUrlAwareMockFetch();
-    const mockFetch2 = createUrlAwareMockFetch();
+    const fetchTimestamps: number[] = [];
+
+    const baseMockFetch1 = createUrlAwareMockFetch();
+    const mockFetch1 = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      fetchTimestamps.push(Date.now());
+      return (baseMockFetch1 as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+    }) as typeof globalThis.fetch;
+
+    const baseMockFetch2 = createUrlAwareMockFetch();
+    const mockFetch2 = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
+      fetchTimestamps.push(Date.now());
+      return (baseMockFetch2 as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+    }) as typeof globalThis.fetch;
 
     const client1 = createEdgarClient({
       userAgent: 'TestCo test@example.com',
@@ -244,7 +256,7 @@ describe('shared rate limiter', () => {
       rateLimiter: limiter,
     });
 
-    // Each fetchFiling = 2 acquires, 2 clients = 4 acquires total = exactly capacity
+    // Each fetchFiling = 2 acquires, 2 clients = 4 acquires total > capacity of 3
     const p1 = client1.fetchFiling('0000320193-23-000106');
     const p2 = client2.fetchFiling('0000320193-23-000106');
 
@@ -253,6 +265,11 @@ describe('shared rate limiter', () => {
 
     // Both clients share the same limiter
     expect(acquireSpy).toHaveBeenCalledTimes(4);
+
+    // The 4th acquire should have been delayed (proves rate enforcement)
+    const startTime = fetchTimestamps[0]!;
+    const delayedCalls = fetchTimestamps.filter((ts) => ts > startTime);
+    expect(delayedCalls.length).toBeGreaterThan(0);
 
     limiter.dispose();
   });
