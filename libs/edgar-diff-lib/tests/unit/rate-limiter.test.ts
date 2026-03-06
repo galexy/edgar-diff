@@ -170,4 +170,66 @@ describe('TokenBucketRateLimiter', () => {
       limiter.dispose();
     });
   });
+
+  describe('dispose', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should clear the refill interval timer on dispose()', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+
+      await limiter.acquire();
+      await limiter.acquire();
+
+      // Start a blocked acquire to trigger the timer
+      const p = limiter.acquire();
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      limiter.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+
+      await p; // should resolve from dispose
+    });
+
+    it('should resolve all pending waiters on dispose() (not reject)', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+
+      await limiter.acquire();
+      await limiter.acquire();
+
+      const results: string[] = [];
+      const p1 = limiter.acquire().then(
+        () => results.push('resolved'),
+        () => results.push('rejected'),
+      );
+      const p2 = limiter.acquire().then(
+        () => results.push('resolved'),
+        () => results.push('rejected'),
+      );
+
+      limiter.dispose();
+
+      await Promise.all([p1, p2]);
+      expect(results).toEqual(['resolved', 'resolved']);
+    });
+
+    it('should throw on acquire() after dispose()', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+      limiter.dispose();
+
+      await expect(limiter.acquire()).rejects.toThrow('RateLimiter has been disposed');
+    });
+
+    it('should be safe to call dispose() multiple times (idempotent)', () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+      limiter.dispose();
+      limiter.dispose(); // should not throw
+      limiter.dispose();
+    });
+  });
 });
