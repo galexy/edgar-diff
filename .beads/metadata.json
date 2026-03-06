@@ -3,6 +3,5 @@
   "backend": "dolt",
   "dolt_mode": "server",
   "dolt_database": "edgar_diff",
-  "dolt_server_host": "host.docker.internal",
-  "dolt_server_port": 3306
+  "project_id": "8c6c05df-f5f6-4988-b8f1-75ba86a83266"
 }
