@@ -1,13 +1,7 @@
-import { parseDocument } from 'htmlparser2';
 import type { Node, Element } from 'domhandler';
 import { isTag, isText } from 'domhandler';
 import type { ContentBlock, Paragraph, Table, SourceLocation } from '../types.js';
 import type { ExtractionContext, SectionBoundary } from './types.js';
-
-/** Check if a node falls within the given range. */
-function isInRange(node: Node, start: number, end: number): boolean {
-  return node.startIndex != null && node.startIndex >= start && node.endIndex != null && node.endIndex! + 1 <= end;
-}
 
 /** Accumulate text from all descendant text nodes. */
 function getTextContent(node: Node): string {

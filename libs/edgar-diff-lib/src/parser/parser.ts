@@ -2,7 +2,7 @@ import { parseDocument } from 'htmlparser2';
 import type { RawFiling } from '../client/types.js';
 import type { StructuredDocument, FilingSection, Logger } from '../types.js';
 import type { ExtractionContext } from './types.js';
-import { extractSections, normalizeHeading } from './section-extractor.js';
+import { extractSections } from './section-extractor.js';
 import { extractContentBlocks } from './content-extractor.js';
 
 export interface ParseOptions {
@@ -25,7 +25,13 @@ export function parseFiling(
   };
 
   try {
-    const boundaries = extractSections(raw.html, context);
+    // Parse the DOM once and share it across extraction stages
+    const doc = parseDocument(raw.html, {
+      withStartIndices: true,
+      withEndIndices: true,
+    });
+
+    const boundaries = extractSections(raw.html, doc, context);
 
     if (boundaries.length === 0) {
       return {
@@ -34,12 +40,6 @@ export function parseFiling(
         parseWarnings: context.warnings,
       };
     }
-
-    // Parse the DOM once for content extraction
-    const doc = parseDocument(raw.html, {
-      withStartIndices: true,
-      withEndIndices: true,
-    });
 
     const sections: FilingSection[] = boundaries.map(boundary => {
       const blocks = extractContentBlocks(boundary, doc, context);

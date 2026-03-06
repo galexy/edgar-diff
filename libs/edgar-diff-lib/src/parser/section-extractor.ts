@@ -1,4 +1,3 @@
-import { parseDocument } from 'htmlparser2';
 import type { Document, Element, Node } from 'domhandler';
 import { isTag, isText } from 'domhandler';
 import type { SourceLocation } from '../types.js';
@@ -152,7 +151,7 @@ function scoreCandidate(el: Element, text: string): number {
 /**
  * Walk the DOM tree and find heading candidates.
  */
-function findHeadingCandidates(doc: Document): HeadingCandidate[] {
+function findHeadingCandidates(doc: Document, context: ExtractionContext): HeadingCandidate[] {
   const candidates: HeadingCandidate[] = [];
 
   function walk(node: Node): void {
@@ -165,9 +164,13 @@ function findHeadingCandidates(doc: Document): HeadingCandidate[] {
       if (text) {
         const itemNumber = extractItemNumber(text);
         if (itemNumber) {
+          if (node.startIndex == null || node.endIndex == null) {
+            context.warnings.push(`Skipping candidate "${itemNumber}" — missing source indices`);
+            return;
+          }
           const source: SourceLocation = {
-            start: node.startIndex!,
-            end: node.endIndex! + 1,
+            start: node.startIndex,
+            end: node.endIndex + 1,
           };
           const score = scoreCandidate(node, text);
           candidates.push({ text, itemNumber, source, score });
@@ -195,8 +198,11 @@ function findHeadingCandidates(doc: Document): HeadingCandidate[] {
 function deduplicateCandidates(candidates: HeadingCandidate[]): HeadingCandidate[] {
   const byItem = new Map<string, HeadingCandidate>();
   for (const c of candidates) {
-    // Last occurrence wins (handles TOC before body)
-    byItem.set(c.itemNumber, c);
+    const existing = byItem.get(c.itemNumber);
+    // Keep highest score; if tied, last occurrence wins (handles TOC before body)
+    if (!existing || c.score >= existing.score) {
+      byItem.set(c.itemNumber, c);
+    }
   }
 
   const deduped = Array.from(byItem.values());
@@ -218,10 +224,11 @@ function buildSectionBoundaries(
 }
 
 /**
- * Extract sections from HTML: parse DOM, find headings, deduplicate, build boundaries.
+ * Extract sections from a pre-parsed DOM: find headings, deduplicate, build boundaries.
  */
 export function extractSections(
   html: string,
+  doc: Document,
   context: ExtractionContext,
 ): SectionBoundary[] {
   if (!html.trim()) {
@@ -231,12 +238,7 @@ export function extractSections(
     return [];
   }
 
-  const doc = parseDocument(html, {
-    withStartIndices: true,
-    withEndIndices: true,
-  });
-
-  const candidates = findHeadingCandidates(doc);
+  const candidates = findHeadingCandidates(doc, context);
 
   if (candidates.length === 0) {
     const msg = 'No Item headings found';
@@ -260,12 +262,3 @@ export function extractSections(
   return buildSectionBoundaries(deduped, html.length);
 }
 
-/**
- * Get the parsed DOM document for content extraction.
- */
-export function parseHtml(html: string): Document {
-  return parseDocument(html, {
-    withStartIndices: true,
-    withEndIndices: true,
-  });
-}
