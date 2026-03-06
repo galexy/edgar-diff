@@ -35,6 +35,123 @@ describe('TokenBucketRateLimiter', () => {
     });
   });
 
+  describe('acquire - bucket empty (queuing and refill)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should block (capacity+1)th acquire until refill', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+
+      // Drain bucket
+      await limiter.acquire();
+      await limiter.acquire();
+
+      // 3rd acquire should block
+      let resolved = false;
+      const p = limiter.acquire().then(() => { resolved = true; });
+
+      // Not resolved yet
+      expect(resolved).toBe(false);
+
+      // After 500ms (ceil(1000/2) = 500ms interval), 1 token refills
+      await vi.advanceTimersByTimeAsync(500);
+      expect(resolved).toBe(true);
+
+      await p;
+      limiter.dispose();
+    });
+
+    it('should resolve multiple blocked acquires in FIFO order', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+
+      await limiter.acquire();
+      await limiter.acquire();
+
+      const order: number[] = [];
+      const p3 = limiter.acquire().then(() => order.push(3));
+      const p4 = limiter.acquire().then(() => order.push(4));
+
+      // After 500ms, 1 token refills -> p3 resolves
+      await vi.advanceTimersByTimeAsync(500);
+      expect(order).toEqual([3]);
+
+      // After another 500ms, 1 more token -> p4 resolves
+      await vi.advanceTimersByTimeAsync(500);
+      expect(order).toEqual([3, 4]);
+
+      await Promise.all([p3, p4]);
+      limiter.dispose();
+    });
+
+    it('should refill based on elapsed time', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 10, refillRate: 10 });
+
+      // Drain all 10 tokens
+      for (let i = 0; i < 10; i++) {
+        await limiter.acquire();
+      }
+
+      // Queue up 5 more acquires
+      const order: number[] = [];
+      const promises = [];
+      for (let i = 0; i < 5; i++) {
+        promises.push(limiter.acquire().then(() => order.push(i)));
+      }
+
+      // After 500ms at rate 10/s, ~5 tokens should refill
+      await vi.advanceTimersByTimeAsync(500);
+      expect(order.length).toBe(5);
+
+      await Promise.all(promises);
+      limiter.dispose();
+    });
+
+    it('should not exceed capacity when idle', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 3, refillRate: 3 });
+
+      // Wait a long time (should cap at capacity=3)
+      await vi.advanceTimersByTimeAsync(10000);
+
+      // Should be able to acquire exactly 3 immediately
+      await limiter.acquire();
+      await limiter.acquire();
+      await limiter.acquire();
+
+      // 4th should block
+      let resolved = false;
+      const p = limiter.acquire().then(() => { resolved = true; });
+      expect(resolved).toBe(false);
+
+      await vi.advanceTimersByTimeAsync(334); // ceil(1000/3) = 334ms
+      expect(resolved).toBe(true);
+      await p;
+      limiter.dispose();
+    });
+
+    it('should stop refill timer when wait queue drains', async () => {
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 2 });
+
+      await limiter.acquire();
+      await limiter.acquire();
+
+      const p = limiter.acquire();
+      // Timer should be running now
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
+
+      await vi.advanceTimersByTimeAsync(500);
+      await p;
+
+      // Timer should stop after queue drains
+      expect(vi.getTimerCount()).toBe(0);
+      limiter.dispose();
+    });
+  });
+
   describe('acquire - tokens available', () => {
     it('should resolve immediately when tokens are available', async () => {
       const limiter = new TokenBucketRateLimiter({ capacity: 5, refillRate: 5 });
