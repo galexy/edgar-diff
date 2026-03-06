@@ -27,7 +27,8 @@ Design notes affecting tests:
 Given a RawFiling containing well-formed 10-K HTML (AAPL FY2024, Family A)
 When parseFiling(raw) is called
 Then the result is a StructuredDocument
-And result.sections contains at least 15 FilingSection entries
+And result.sections contains exactly the number of valid items listed in meta-10k-aapl-2024.json
+  (load expectedItems[], filter to id matching /^item-\d+[a-z]?$/, count = expected)
 And each section has a non-empty id matching /^item-\d+[a-z]?$/
 And each section has a non-empty heading string
 And each section has source.start < source.end
@@ -47,16 +48,32 @@ Given one filing from each pattern family:
 When parseFiling(raw) is called for each
 Then each produces a StructuredDocument with sections.length > 0
 And each filing achieves >= 80% section detection accuracy vs ground truth
+And no single filing falls below 60% accuracy (pattern family gap detector)
 ```
 
-### Scenario 3: Source offset round-trip
+**Accuracy gate mechanics (Scenario 2):**
+1. Each integration test loads `meta-10k-{ticker}-{year}.json` to get `expectedItems[]`
+2. Filter out entries with `"id": "unknown"` or non-standard IDs (e.g. `item-601`, `item-408`) — only keep IDs matching `/^item-\d+[a-z]?$/` where the number is a valid 10-K item
+3. Compare detected section IDs against the filtered expected IDs
+4. Per-filing accuracy = `matched / expected` (matched = expected IDs found in detected)
+5. Aggregate accuracy = `sum(matched) / sum(expected)` across all fixtures
+6. The test suite has an explicit `it('aggregate accuracy >= 80%')` test case (see §3.2)
+7. Per-filing floor: an explicit `it('no filing below 60%')` test case fails if any single filing drops below 60%
+
+### Scenario 3: Source offset round-trip and invariants
 ```gherkin
 Given a parsed StructuredDocument
 When for each section, html.slice(section.source.start, section.source.end) is evaluated
 Then the resulting substring contains the section's heading text
 And section.source.start >= 0
 And section.source.end <= html.length
+And section.source.start < section.source.end (ordering)
+And for consecutive sections[i], sections[i+1]: sections[i].source.end <= sections[i+1].source.start (non-overlapping)
+And for each block in section.blocks: section.source.start <= block.source.start AND block.source.end <= section.source.end (containment)
+And all offsets are within [0, html.length) (bounds)
 ```
+
+**Note on gaps:** Content between sections may not belong to any section (e.g. PART headers, whitespace). Gap-free coverage is NOT required.
 
 ### Scenario 4: Content blocks extracted correctly
 ```gherkin
@@ -434,6 +451,27 @@ it('achieves >= 80% aggregate accuracy across all fixtures', () => {
 });
 ```
 
+### 3.2b Per-filing floor -- no filing below 60%
+
+```typescript
+it('no single filing drops below 60% accuracy', () => {
+  for (const meta of loadAllFixtureMeta()) {
+    const html = readFixture(`10k-${meta.ticker.toLowerCase()}-${meta.year}.html`);
+    const doc = parseFiling(makeRawFiling(html));
+
+    const expectedIds = meta.expectedItems
+      .filter(e => e.id.startsWith('item-') && e.id !== 'unknown')
+      .map(e => e.id);
+    const detectedIds = doc.sections.map(s => s.id);
+
+    const hits = expectedIds.filter(id => detectedIds.includes(id));
+    const accuracy = hits.length / expectedIds.length;
+
+    expect(accuracy).toBeGreaterThanOrEqual(0.60);
+  }
+});
+```
+
 ### 3.3 Cross-filing consistency
 
 ```typescript
@@ -467,10 +505,10 @@ describe('cross-filing consistency', () => {
 });
 ```
 
-### 3.4 Source offset round-trip on real filings
+### 3.4 Source offset round-trip and invariants on real filings
 
 ```typescript
-describe('source offset round-trip', () => {
+describe('source offset round-trip and invariants', () => {
   const fixtures = loadAllFixtureMeta();
 
   for (const meta of fixtures) {
@@ -479,14 +517,31 @@ describe('source offset round-trip', () => {
       const doc = parseFiling(makeRawFiling(html));
 
       for (const section of doc.sections) {
+        // Bounds: all offsets within [0, html.length)
         expect(section.source.start).toBeGreaterThanOrEqual(0);
         expect(section.source.end).toBeLessThanOrEqual(html.length);
+
+        // Ordering: start < end
         expect(section.source.start).toBeLessThan(section.source.end);
 
+        // Round-trip: slice contains heading text
         const slice = html.slice(section.source.start, section.source.end);
-        // The slice should contain the heading text (possibly with HTML tags)
         const headingWords = section.heading.split(/\s+/).slice(0, 3).join('.*');
         expect(slice).toMatch(new RegExp(headingWords, 'i'));
+
+        // Containment: block offsets within parent section range
+        for (const block of section.blocks) {
+          expect(block.source.start).toBeGreaterThanOrEqual(section.source.start);
+          expect(block.source.end).toBeLessThanOrEqual(section.source.end);
+          expect(block.source.start).toBeLessThan(block.source.end);
+        }
+      }
+
+      // Non-overlapping: consecutive sections don't overlap
+      for (let i = 1; i < doc.sections.length; i++) {
+        expect(doc.sections[i].source.start).toBeGreaterThanOrEqual(
+          doc.sections[i - 1].source.end
+        );
       }
     });
   }
