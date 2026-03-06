@@ -99,6 +99,17 @@ interface RawFiling {
   fetchedAt: Temporal.Instant;
 }
 
+// New: connection-level errors distinct from HTTP errors
+class EdgarConnectionError extends EdgarNetworkError {
+  constructor(
+    accessionNumber: string,
+    cause: Error,  // Original TypeError from fetch
+  ) {
+    super(0, accessionNumber);
+    this.cause = cause;
+  }
+}
+
 // Public API surface (factory function)
 function createEdgarClient(options: EdgarClientOptions): {
   fetchFiling(accessionNumber: string): Promise<RawFiling>;
@@ -187,7 +198,11 @@ fetchWithRateLimit(url, accessionNumber)
   throw lastError  // All retries exhausted
 ```
 
-**Key design decision**: The rate limiter `acquire()` is called *before each retry attempt*, not just the first. This ensures that even retries respect the SEC rate limit. This is correct behavior - a 429 response means we're already hitting limits, so we should re-acquire a token before retrying.
+**Key design decisions**:
+
+1. The rate limiter `acquire()` is called *before each retry attempt*, not just the first. This ensures that even retries respect the SEC rate limit. This is correct behavior - a 429 response means we're already hitting limits, so we should re-acquire a token before retrying.
+
+2. The backoff sleep and rate-limiter `acquire()` are **independent waits**. After a long backoff (e.g., 5s Retry-After), the bucket will have refilled, so the subsequent `acquire()` is effectively free. This is correct - the backoff respects the server's request to wait, and the rate limiter ensures we don't burst after the backoff. They serve different purposes and should not be combined.
 
 ## 5. Dependencies
 
@@ -210,12 +225,12 @@ fetchWithRateLimit(url, accessionNumber)
 |-----------|----------|
 | Concurrent callers exhaust bucket simultaneously | `acquire()` is async but not locked - two callers could both see tokens >= 1 and consume, potentially going negative. **Acceptable**: the bucket self-corrects on next refill; worst case is one extra request per burst. True mutex would add complexity with minimal benefit. |
 | `maxRequestsPerSecond` set to 0 or negative | Currently unhandled. **Fix**: Validate in `createEdgarClient` and throw if <= 0. (Confirmed by tester as potential bug B3/B4.) |
-| Clock jumps (NTP correction, suspend/resume) | `Date.now()` monotonicity is not guaranteed. A backward jump would compute negative elapsed time, adding negative tokens. `Math.min` cap prevents overflow but not underflow. **Acceptable risk**: SEC rate limit enforcement is best-effort; a brief burst after clock correction is unlikely to trigger 429. |
+| Clock jumps (NTP correction, suspend/resume) | `Date.now()` monotonicity is not guaranteed. A backward jump would compute negative elapsed time, adding negative tokens via `elapsed * refillRate`. This *reduces* the token count, potentially starving the limiter until real time catches up. `Math.min` cap prevents overflow but not underflow. **Acceptable risk**: SEC rate limit enforcement is best-effort; a brief burst after clock correction is unlikely to trigger 429. **Action**: Add a code comment documenting this behavior and clamp `elapsed` to `Math.max(0, elapsed)` in `refill()` as a low-cost guard. |
 
 ### HTTP Client
 | Edge Case | Handling |
 |-----------|----------|
-| Network timeout / DNS failure | Currently unhandled - `fetch()` throws a `TypeError`. **Fix**: Catch fetch-level errors and wrap in `EdgarNetworkError` with status code 0 or a distinct error type. |
+| Network timeout / DNS failure | Currently unhandled - `fetch()` throws a `TypeError`. **Fix**: Catch fetch-level errors and wrap in a new `EdgarConnectionError` subclass (extends `EdgarNetworkError`) to distinguish network failures from HTTP errors. Using `statusCode: 0` could be confused with a real HTTP response. `EdgarConnectionError` carries the original `cause` for debugging. |
 | Retry-After header with date format | `parseRetryAfter` only handles numeric seconds. HTTP spec allows dates. **Acceptable**: SEC EDGAR uses numeric values in practice. |
 | Retry-After header with very large value | No cap on wait time. **Fix**: Cap `retryAfter` at a reasonable maximum (e.g., 60 seconds) to prevent indefinite blocking. |
 | Negative `Retry-After` value (e.g., `-1`) | `parseRetryAfter` returns the negative number — `Number.isFinite(-1)` is true. **Fix**: Add `seconds > 0` check in `parseRetryAfter`. (Identified by tester as ERR4.) |
