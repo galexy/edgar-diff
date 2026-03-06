@@ -38,9 +38,11 @@ function findBlocksInRange(
 
   const name = node.name.toLowerCase();
 
-  // Handle table elements
-  if (name === 'table' && nodeStart >= start) {
-    const source: SourceLocation = { start: nodeStart, end: nodeEnd };
+  // Handle table elements — must start within range
+  if (name === 'table' && nodeStart >= start && nodeStart < end) {
+    // Clip end to section boundary
+    const clippedEnd = Math.min(nodeEnd, end);
+    const source: SourceLocation = { start: nodeStart, end: clippedEnd };
     const table: Table = {
       type: 'table',
       rows: [],
@@ -53,8 +55,8 @@ function findBlocksInRange(
     return; // Don't recurse into tables
   }
 
-  // Handle paragraph-level elements
-  if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(name) && nodeStart >= start) {
+  // Handle paragraph-level elements — must start within range
+  if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(name) && nodeStart >= start && nodeStart < end) {
     // Skip if this element contains a table (table will be handled separately)
     const hasTable = hasDescendantTag(node, 'table');
     if (!hasTable) {
@@ -64,7 +66,9 @@ function findBlocksInRange(
         .trim();
 
       if (text.length > 0 && text.trim().length > 0) {
-        const source: SourceLocation = { start: nodeStart, end: nodeEnd };
+        // Clip end to section boundary
+        const clippedEnd = Math.min(nodeEnd, end);
+        const source: SourceLocation = { start: nodeStart, end: clippedEnd };
         const paragraph: Paragraph = {
           type: 'paragraph',
           text,
