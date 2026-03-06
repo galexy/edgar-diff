@@ -1,0 +1,136 @@
+{
+  "ticker": "MSFT",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "DFIN (RR Donnelley)",
+  "expectedItems": [
+    {
+      "id": "item-1",
+      "heading": "A list of our executive officers and biographical information appears in Part I, Item 1 of this Form",
+      "sourceOffset": 7447234
+    },
+    {
+      "id": "unknown",
+      "heading": "Item 16",
+      "sourceOffset": 8098931
+    },
+    {
+      "id": "item-8",
+      "heading": "The financial statements are set forth under Part II, Item 8 of this Form 10-K, as indexed below. Fi",
+      "sourceOffset": 7460022
+    },
+    {
+      "id": "item-1a",
+      "heading": "Refer to Risk Factors (Part I, Item 1A of this Form 10-K) for a discussion of these factors and othe",
+      "sourceOffset": 908266
+    },
+    {
+      "id": "item-1b",
+      "heading": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "sourceOffset": 712761
+    },
+    {
+      "id": "item-1c",
+      "heading": "ITEM 1C. CYBERSECURITY",
+      "sourceOffset": 714263
+    },
+    {
+      "id": "item-2",
+      "heading": "ITEM 2. PROPERTIES",
+      "sourceOffset": 739159
+    },
+    {
+      "id": "item-3",
+      "heading": "ITEM 3. LEGAL PROCEEDINGS",
+      "sourceOffset": 777921
+    },
+    {
+      "id": "item-4",
+      "heading": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "sourceOffset": 779086
+    },
+    {
+      "id": "item-5",
+      "heading": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS, AND ISSUER PURCHASES OF ",
+      "sourceOffset": 781927
+    },
+    {
+      "id": "item-6",
+      "heading": "ITEM 6. [RESERVED]",
+      "sourceOffset": 887980
+    },
+    {
+      "id": "item-7",
+      "heading": "ITEM 7. MANAGEMENT’S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "sourceOffset": 890235
+    },
+    {
+      "id": "item-7a",
+      "heading": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "sourceOffset": 1480103
+    },
+    {
+      "id": "item-9",
+      "heading": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "sourceOffset": 7421584
+    },
+    {
+      "id": "item-9a",
+      "heading": "Management conducted an evaluation of the effectiveness of our internal control over financial repor",
+      "sourceOffset": 7426788
+    },
+    {
+      "id": "item-9b",
+      "heading": "ITEM 9B. OTHER INFORMATION",
+      "sourceOffset": 7441187
+    },
+    {
+      "id": "item-408",
+      "heading": "None of our officers or directors, as defined in Rule 16a-1(f) of the Securities Exchange Act of 193",
+      "sourceOffset": 7445194
+    },
+    {
+      "id": "item-9c",
+      "heading": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "sourceOffset": 7445592
+    },
+    {
+      "id": "item-10",
+      "heading": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS, AND CORPORATE GOVERNANCE",
+      "sourceOffset": 7446784
+    },
+    {
+      "id": "item-11",
+      "heading": "ITEM 11. EXECUTIVE COMPENSATION",
+      "sourceOffset": 7450139
+    },
+    {
+      "id": "item-12",
+      "heading": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATT",
+      "sourceOffset": 7451322
+    },
+    {
+      "id": "item-13",
+      "heading": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "sourceOffset": 7452486
+    },
+    {
+      "id": "item-14",
+      "heading": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "sourceOffset": 7455148
+    },
+    {
+      "id": "item-15",
+      "heading": "ITEM 15. EXHIBIT AND FINANCIAL STATEMENT SCHEDULES",
+      "sourceOffset": 7458830
+    },
+    {
+      "id": "item-16",
+      "heading": "ITEM 16. FORM 10-K SUMMARY",
+      "sourceOffset": 8099559
+    }
+  ]
+}

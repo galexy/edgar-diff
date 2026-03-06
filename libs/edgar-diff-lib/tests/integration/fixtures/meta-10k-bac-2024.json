@@ -1,0 +1,136 @@
+{
+  "ticker": "BAC",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "item-1a",
+      "heading": "See Note 19 – Income Taxes to the Consolidated Financial Statements for a table of significant tax a",
+      "sourceOffset": 4876317
+    },
+    {
+      "id": "item-1",
+      "heading": "For more information on factors that may affect payments to holders of the Guaranteed Securities, se",
+      "sourceOffset": 3643089
+    },
+    {
+      "id": "item-1b",
+      "heading": "Item 1B. Unresolved Staff Comments",
+      "sourceOffset": 1799411
+    },
+    {
+      "id": "item-1c",
+      "heading": "Item 1C. Cybersecurity",
+      "sourceOffset": 1800081
+    },
+    {
+      "id": "item-2",
+      "heading": "Item 2. Properties",
+      "sourceOffset": 1800589
+    },
+    {
+      "id": "item-3",
+      "heading": "Item 3. Legal Proceedings",
+      "sourceOffset": 1815707
+    },
+    {
+      "id": "item-4",
+      "heading": "Item 4. Mine Safety Disclosures",
+      "sourceOffset": 1816581
+    },
+    {
+      "id": "item-5",
+      "heading": "Pursuant to Section 13(r) of the Exchange Act, an issuer is required to disclose in its annual or qu",
+      "sourceOffset": 12594558
+    },
+    {
+      "id": "item-6",
+      "heading": "Item 6. [Reserved]",
+      "sourceOffset": 1834280
+    },
+    {
+      "id": "item-7",
+      "heading": "Item 7. Bank of America Corporation and Subsidiaries",
+      "sourceOffset": 1836352
+    },
+    {
+      "id": "item-7a",
+      "heading": "Item 7A. Quantitative and Qualitative Disclosures about Market Risk",
+      "sourceOffset": 5080322
+    },
+    {
+      "id": "item-8",
+      "heading": "Item 8. Financial Statements and Supplementary Data",
+      "sourceOffset": 5081519
+    },
+    {
+      "id": "item-9",
+      "heading": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "sourceOffset": 12589635
+    },
+    {
+      "id": "item-9a",
+      "heading": "Item 9A. Controls and Procedures",
+      "sourceOffset": 12590119
+    },
+    {
+      "id": "item-9b",
+      "heading": "Item 9B. Other Information",
+      "sourceOffset": 12592877
+    },
+    {
+      "id": "item-408",
+      "heading": "During the fiscal quarter ended December 31, 2024, none of the Corporation’s directors or officers (",
+      "sourceOffset": 12593958
+    },
+    {
+      "id": "item-9c",
+      "heading": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections",
+      "sourceOffset": 12597323
+    },
+    {
+      "id": "item-10",
+      "heading": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "sourceOffset": 12598247
+    },
+    {
+      "id": "item-11",
+      "heading": "Item 11. Executive Compensation",
+      "sourceOffset": 12618870
+    },
+    {
+      "id": "item-12",
+      "heading": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matt",
+      "sourceOffset": 12623707
+    },
+    {
+      "id": "item-13",
+      "heading": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "sourceOffset": 12635605
+    },
+    {
+      "id": "item-14",
+      "heading": "Item 14. Principal Accounting Fees and Services",
+      "sourceOffset": 12637195
+    },
+    {
+      "id": "item-15",
+      "heading": "Item 15. Exhibits, Financial Statement Schedules",
+      "sourceOffset": 12640293
+    },
+    {
+      "id": "unknown",
+      "heading": "(3)As permitted by Regulation S-K, Item 601(b)(10)(iv) of the Securities Exchange Act of 1934, as am",
+      "sourceOffset": 12854184
+    },
+    {
+      "id": "item-16",
+      "heading": "Item 16. Form 10-K Summary",
+      "sourceOffset": 12855824
+    }
+  ]
+}

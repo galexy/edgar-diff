@@ -1,0 +1,16 @@
+{
+  "ticker": "JNJ",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "unknown",
+      "heading": "A copy of any of the Exhibits listed above will be provided without charge to any shareholder submit",
+      "sourceOffset": 3660686
+    }
+  ]
+}

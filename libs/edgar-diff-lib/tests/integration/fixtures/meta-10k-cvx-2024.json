@@ -1,0 +1,76 @@
+{
+  "ticker": "CVX",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "item-406",
+      "heading": "The information required by Item 406 of Regulation S-K and contained under the heading “Business Con",
+      "sourceOffset": 1204167
+    },
+    {
+      "id": "unknown",
+      "heading": "Pursuant to Item 601(b)(4) of Regulation S-K, certain instruments with respect to the company’s long",
+      "sourceOffset": 5943275
+    },
+    {
+      "id": "item-11",
+      "heading": "Item 11. Executive Compensation",
+      "sourceOffset": 1205705
+    },
+    {
+      "id": "item-402",
+      "heading": "The information required by Item 402 of Regulation S-K and contained under the headings “Executive C",
+      "sourceOffset": 1205916
+    },
+    {
+      "id": "item-12",
+      "heading": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matt",
+      "sourceOffset": 1208884
+    },
+    {
+      "id": "item-403",
+      "heading": "The information required by Item 403 of Regulation S-K and contained under the heading “Stock Owners",
+      "sourceOffset": 1209167
+    },
+    {
+      "id": "item-13",
+      "heading": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "sourceOffset": 1210151
+    },
+    {
+      "id": "item-404",
+      "heading": "The information required by Item 404 of Regulation S-K and contained under the heading “Related Pers",
+      "sourceOffset": 1210528
+    },
+    {
+      "id": "item-14",
+      "heading": "Item 14. Principal Accountant Fees and Services",
+      "sourceOffset": 1211454
+    },
+    {
+      "id": "item-1a",
+      "heading": "Chevron and Hess are working to complete the merger as soon as practicable. However, neither Chevron",
+      "sourceOffset": 4697943
+    },
+    {
+      "id": "item-10",
+      "heading": "The company’s segments are managed by “segment managers” who report to the “chief operating decision",
+      "sourceOffset": 3126676
+    },
+    {
+      "id": "item-15",
+      "heading": "Item 15. Exhibit and Financial Statement Schedules",
+      "sourceOffset": 5822945
+    },
+    {
+      "id": "item-16",
+      "heading": "Item 16. Form 10-K Summary",
+      "sourceOffset": 5864933
+    }
+  ]
+}

@@ -1,0 +1,96 @@
+{
+  "ticker": "BRK-B",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "DFIN (RR Donnelley)",
+  "expectedItems": [
+    {
+      "id": "item-1a",
+      "heading": "Item 1A. Risk Factors",
+      "sourceOffset": 1051564
+    },
+    {
+      "id": "item-1b",
+      "heading": "Item 1B. Unresolved Staff Comments",
+      "sourceOffset": 1092877
+    },
+    {
+      "id": "item-1c",
+      "heading": "Item 1C. Cybersecurity",
+      "sourceOffset": 1094222
+    },
+    {
+      "id": "item-2",
+      "heading": "Item 2. Description of Properties",
+      "sourceOffset": 1107078
+    },
+    {
+      "id": "item-3",
+      "heading": "Item 3. Legal Proceedings",
+      "sourceOffset": 1320619
+    },
+    {
+      "id": "item-4",
+      "heading": "Item 4. Mine Safety Disclosures",
+      "sourceOffset": 1323110
+    },
+    {
+      "id": "item-5",
+      "heading": "Item 5. Market for Registrant’s Common Equity, Related Security Holder Matters and Issuer Purchases ",
+      "sourceOffset": 1341804
+    },
+    {
+      "id": "item-6",
+      "heading": "Item 6. [Reserved]",
+      "sourceOffset": 1374201
+    },
+    {
+      "id": "item-7",
+      "heading": "See “Market Risk Disclosures” contained in Item 7 “Management’s Discussion and Analysis of Financial",
+      "sourceOffset": 2852369
+    },
+    {
+      "id": "item-7a",
+      "heading": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk",
+      "sourceOffset": 2851716
+    },
+    {
+      "id": "item-8",
+      "heading": "The following Consolidated Financial Statements, as well as the Report of Independent Registered Pub",
+      "sourceOffset": 10287238
+    },
+    {
+      "id": "item-9",
+      "heading": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure",
+      "sourceOffset": 10276940
+    },
+    {
+      "id": "item-9a",
+      "heading": "Item 9A. Controls and Procedures",
+      "sourceOffset": 10278060
+    },
+    {
+      "id": "unknown",
+      "heading": "Berkshire has not adopted a Rule 10b5-1 trading arrangement (as defined in Item 408(a)(1)(i) of Regu",
+      "sourceOffset": 10282922
+    },
+    {
+      "id": "item-9b",
+      "heading": "Item 9B. Other Information",
+      "sourceOffset": 10280698
+    },
+    {
+      "id": "item-9c",
+      "heading": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspection",
+      "sourceOffset": 10283563
+    },
+    {
+      "id": "item-15",
+      "heading": "We have audited the consolidated financial statements of Berkshire Hathaway Inc. and subsidiaries (t",
+      "sourceOffset": 10306682
+    }
+  ]
+}

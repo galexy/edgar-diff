@@ -1,0 +1,1441 @@
+[
+  {
+    "filename": "10k-aapl-2024.html",
+    "ticker": "aapl",
+    "year": 2024,
+    "fileSize": 1520208,
+    "headingCount": 57,
+    "bodyHeadingCount": 34,
+    "tocHeadingCount": 23,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "This Annual Report on Form 10-K (“Form 10-K”) contains forward-looking statements, within the meanin",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-style:italic;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:18pt;text-align:justify\"><span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-style:italic;font-weight:400;line-height:120%\">This Annual Report on Form 10-K (“Form 10-K”) contains forward-looking statements, within the meaning of the Private Securit"
+      },
+      {
+        "text": "Item 1. Business",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:12pt;padding-left:45pt;text-align:justify;text-indent:-45pt\"><span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%\">Item 1.    Business</span></div>"
+      },
+      {
+        "text": "Item 1A. Risk Factors",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:18pt;padding-left:45pt;text-align:justify;text-indent:-45pt\"><span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%\">Item 1A.    Risk Factors</span></div>"
+      },
+      {
+        "text": "This section should be read in conjunction with Part II, Item 7, “Management’s Discussion and Analys",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:12pt;text-align:justify\"><span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">This section should be read in conjunction with Part II, Item 7, “Management’s Discussion and Analysis of Financial Condition and Results of O"
+      },
+      {
+        "text": "Item 1B. Unresolved Staff Comments",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:18pt;padding-left:45pt;text-align:justify;text-indent:-45pt\"><span style=\"color:#000000;font-family:'Helvetica',sans-serif;font-size:9pt;font-weight:700;line-height:120%\">Item 1B.    Unresolved Staff Comments</span></div>"
+      }
+    ]
+  },
+  {
+    "filename": "10k-amzn-2024.html",
+    "ticker": "amzn",
+    "year": 2024,
+    "fileSize": 1922355,
+    "headingCount": 78,
+    "bodyHeadingCount": 46,
+    "tocHeadingCount": 32,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "Item 1B.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"padding:2px 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">Item 1B.</span></td>"
+      },
+      {
+        "text": "Item 1C.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"padding:2px 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">Item 1C.</span></td>"
+      },
+      {
+        "text": "Our cybersecurity risks and associated mitigations are evaluated by senior leadership, including as ",
+        "tag": "ix:nonnumeric",
+        "ancestors": [
+          "ix:nonnumeric",
+          "span",
+          "div",
+          "ix:nonnumeric",
+          "body"
+        ],
+        "inlineStyle": "",
+        "cssClasses": "",
+        "hasIXBRL": true,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:5pt;text-indent:24.75pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\"><ix:nonnumeric contextref=\"c-1\" name=\"cyd:CybersecurityRiskBoardOfDirectorsOversightTextBlock\" id=\"f-44\" escape=\"true\">Our cybersecurit"
+      },
+      {
+        "text": "Item 2.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"padding:2px 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">Item 2.</span></td>"
+      },
+      {
+        "text": "(1)Segment amounts exclude corporate facilities. Shared facilities are allocated among the segments ",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;padding-left:6.34pt",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"padding-left:18pt;text-indent:-18pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">(1)</span><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;padding-"
+      }
+    ]
+  },
+  {
+    "filename": "10k-bac-2024.html",
+    "ticker": "bac",
+    "year": 2024,
+    "fileSize": 12899522,
+    "headingCount": 64,
+    "bodyHeadingCount": 38,
+    "tocHeadingCount": 26,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "body>div>div>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "For more information on regulatory capital rules and capital composition, see Capital Management on ",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:7pt;text-align:justify;text-indent:11.25pt\"><span style=\"color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">For more information on regulatory capital rules and capital composition, see Capital Management on page 48, "
+      },
+      {
+        "text": "For more information regarding our resolution plan, see Item 1A. Risk Factors – Liquidity on page 9.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"text-align:justify;text-indent:13.5pt\"><span style=\"color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">For more information regarding our resolution plan, see Item 1A. Risk Factors – Liquidity on page 9.</span></div>"
+      },
+      {
+        "text": "For more information regarding our resolution, see Item 1A. Risk Factors – Liquidity on page 9.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"text-align:justify;text-indent:13.5pt\"><span style=\"color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">For more information regarding our resolution, see Item 1A. Risk Factors – Liquidity on page 9.</span></div>"
+      },
+      {
+        "text": "Item 1A. Risk Factors",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#e31837;font-family:'Franklin Gothic Medium',sans-serif;font-size:12pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:7pt\"><span style=\"color:#e31837;font-family:'Franklin Gothic Medium',sans-serif;font-size:12pt;font-weight:700;line-height:120%\">Item 1A.  Risk Factors</span></div>"
+      },
+      {
+        "text": "The discussion below addresses our material risk factors of which we are aware. Any risk factor, eit",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Franklin Gothic Book',sans-serif;font-size:9pt;font-weight:400;line-height:120%\">The discussion below addresses our material risk factors of which we are aware. Any risk factor, either by itself or together wit"
+      }
+    ]
+  },
+  {
+    "filename": "10k-brk-b-2024.html",
+    "ticker": "brk-b",
+    "year": 2024,
+    "fileSize": 10744089,
+    "headingCount": 46,
+    "bodyHeadingCount": 22,
+    "tocHeadingCount": 24,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "DFIN (RR Donnelley)",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>p>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "Item 1A. Risk Factors",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:justify;\" id=\"item_1a_risk_factors\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;\">Item 1A. Ris</span><s"
+      },
+      {
+        "text": "Item 1B. Unresolved Staff Comments",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:6pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\" id=\"item_1b_unresolved_staff_comments\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;\">Item 1"
+      },
+      {
+        "text": "Item 1C. Cybersecurity",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "ix:nonnumeric",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": true,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:6pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\" id=\"item_1c_cybersecurity\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;\">Item 1C. Cybersecu"
+      },
+      {
+        "text": "Item 2. Description of Properties",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:6pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\" id=\"item_2_description_properties\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;\">Item 2. De"
+      },
+      {
+        "text": "Item 3. Legal Proceedings",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:6pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\" id=\"item_3_legal_proceedings\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:10pt;font-family:Times New Roman;font-kerning:none;min-width:fit-content;\">Item 3. Legal</"
+      }
+    ]
+  },
+  {
+    "filename": "10k-cvx-2024.html",
+    "ticker": "cvx",
+    "year": 2024,
+    "fileSize": 5960635,
+    "headingCount": 46,
+    "bodyHeadingCount": 25,
+    "tocHeadingCount": 21,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "The information required by Item 406 of Regulation S-K and contained under the heading “Business Con",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%\">The information required by Item 406 of Regulation S-K and contained under the heading “Business Conduct and Ethics Code” in the 2025"
+      },
+      {
+        "text": "The information required by Item 407(d)(4) and (5) of Regulation S-K and contained under the heading",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%\">The information required by Item 407(d)(4) and (5) of Regulation S-K and contained under the heading “Corporate Governance — Board Co"
+      },
+      {
+        "text": "The information required by Item 408(b) of Regulation S-K and contained under the heading “Insider T",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%\">The information required by Item 408(b) of Regulation S-K and contained under the heading “<ix:nonnumeric contextref=\"c-1\" name=\"ecd:"
+      },
+      {
+        "text": "Item 11. Executive Compensation",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0077c0;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:5pt;margin-top:9pt;text-align:justify\"><span style=\"color:#0077c0;font-family:'Arial',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">Item 11. Executive Compensation</span></div>"
+      },
+      {
+        "text": "The information required by Item 402 of Regulation S-K and contained under the headings “Executive C",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:125%\">The information required by Item 402 of Regulation S-K and contained under the headings “Executive Compensation,” “Director Compensat"
+      }
+    ]
+  },
+  {
+    "filename": "10k-jnj-2024.html",
+    "ticker": "jnj",
+    "year": 2024,
+    "fileSize": 3662321,
+    "headingCount": 49,
+    "bodyHeadingCount": 1,
+    "tocHeadingCount": 48,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": false,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "A copy of any of the Exhibits listed above will be provided without charge to any shareholder submit",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Johnson Text',sans-serif;font-size:9pt;font-weight:400;line-height:130%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:3pt\"><span style=\"color:#000000;font-family:'Johnson Text',sans-serif;font-size:9pt;font-weight:400;line-height:130%\">A copy of any of the Exhibits listed above will be provided without charge to any shareholder submitting a written request specifying the desired exhibit(s)"
+      }
+    ]
+  },
+  {
+    "filename": "10k-jpm-2023.html",
+    "ticker": "jpm",
+    "year": 2023,
+    "fileSize": 13211658,
+    "headingCount": 57,
+    "bodyHeadingCount": 5,
+    "tocHeadingCount": 52,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "DFIN (RR Donnelley)",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": false,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "body>div>div>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "This Form 10-K contains forward-looking statements within the meaning of the Private Securities Liti",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div><span style=\"color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%\">This Form 10-K contains forward-looking statements within the meaning of the Private Securities Litigation Reform Act of 1995. These forward-looking statements are ba"
+      },
+      {
+        "text": "These current expectations are forward-looking statements within the meaning of the Private Securiti",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Amplitude TF',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:3pt\"><span style=\"color:#000000;font-family:'Amplitude TF',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%\">These current expectations are forward-looking statements within the meaning of the Private Securities Litigation Reform Act of 1995. Suc"
+      },
+      {
+        "text": "Refer to Part II, Item 5: Market for Registrant’s Common Equity, Related Stockholder Matters and Iss",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt\"><span style=\"color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Refer to Part II, Item 5: Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities on page 35 </span><span"
+      },
+      {
+        "text": "Refer to Part I, Item 1A: Risk Factors on pages 9-33 of the 2023 Form 10-K for information on the fi",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt\"><span style=\"color:#000000;font-family:'Amplitude',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Refer to Part I, Item 1A: Risk Factors on pages 9-33 </span><span style=\"background-color:#ffffff;color:#000000;font-family:'Amplitude',sans-serif;font-size:1"
+      },
+      {
+        "text": "•The other risks and uncertainties detailed in Part I, Item 1A: Risk Factors in JPMorgan Chase’s 202",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Amplitude TF',sans-serif;font-size:9.8pt;font-weight:400;line-height:120%;padding-left:10.28pt",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:2pt;padding-left:13.5pt;text-indent:-13.5pt\"><span style=\"color:#000000;font-family:'Amplitude TF',sans-serif;font-size:9.8pt;font-weight:400;line-height:120%\">•</span><span style=\"color:#000000;font-family:'Amplitude TF',sans-serif;font-size:9.8pt;font-weight:400;line-heig"
+      }
+    ]
+  },
+  {
+    "filename": "10k-jpm-2024.html",
+    "ticker": "jpm",
+    "year": 2024,
+    "fileSize": 12849180,
+    "headingCount": 56,
+    "bodyHeadingCount": 4,
+    "tocHeadingCount": 52,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": false,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "body>div>div>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "These current expectations are forward-looking statements within the meaning of the Private Securiti",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:3pt\"><span style=\"color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-style:italic;font-weight:400;line-height:120%\">These current expectations are forward-looking statements within the meaning of the Private Securities Litigation Reform Act of 1995. Such forwar"
+      },
+      {
+        "text": "Refer to Part II, Item 5: Market for Registrant’s Common Equity, Related Stockholder Matters and Iss",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:4pt\"><span style=\"color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Refer to Part II, Item 5: Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of Equity Securities on page 39 </span><span styl"
+      },
+      {
+        "text": "Refer to Part I, Item 1A: Risk Factors on pages 10-37 of this 2024 Form 10-K for information on the ",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:4pt\"><span style=\"color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Refer to Part I, Item 1A: Risk Factors on pages 10-37 </span><span style=\"background-color:#ffffff;color:#000000;font-family:'Sons',sans-serif;font-size:10pt;font-"
+      },
+      {
+        "text": "•The other risks and uncertainties detailed in Part I, Item 1A: Risk Factors in JPMorganChase’s 2024",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "div",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Sons',sans-serif;font-size:9.7pt;font-weight:400;line-height:120%;padding-left:5.08pt",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:2pt;padding-left:9pt;text-indent:-9pt\"><span style=\"color:#000000;font-family:'Sons',sans-serif;font-size:9.7pt;font-weight:400;line-height:120%\">•</span><span style=\"color:#000000;font-family:'Sons',sans-serif;font-size:9.7pt;font-weight:400;line-height:120%;padding-left:5"
+      }
+    ]
+  },
+  {
+    "filename": "10k-msft-2023.html",
+    "ticker": "msft",
+    "year": 2023,
+    "fileSize": 6860911,
+    "headingCount": 179,
+    "bodyHeadingCount": 155,
+    "tocHeadingCount": 24,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "DFIN (RR Donnelley)",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>p>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "This report includes estimates, projections, statements relating to our business plans, objectives, ",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:9pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;min-width:fit-content;\">This report includes estimates, projections, statements relating to our business plans, ob"
+      },
+      {
+        "text": "ITEM 1. BUSINESS",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:12pt;font-family:Arial;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:9pt;font-family:Times New Roman;margin-bottom:0;text-align:center;\" id=\"item_1_business\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:12pt;font-family:Arial;min-width:fit-content;\">ITEM 1. B</span><span style=\"color:#000000;white-spac"
+      },
+      {
+        "text": "Item 1",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:center;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;\">Item 1</span></p>"
+      },
+      {
+        "text": "Item 1",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:center;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;\">Item 1</span></p>"
+      },
+      {
+        "text": "Item 1",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:center;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;min-width:fit-content;\">Item 1</span></p>"
+      }
+    ]
+  },
+  {
+    "filename": "10k-msft-2024.html",
+    "ticker": "msft",
+    "year": 2024,
+    "fileSize": 8158067,
+    "headingCount": 168,
+    "bodyHeadingCount": 144,
+    "tocHeadingCount": 24,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "DFIN (RR Donnelley)",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>p>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "This report includes estimates, projections, statements relating to our business plans, objectives, ",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:9pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;font-kerning:none;min-width:fit-content;\">This report includes estimates, projections, statements relating to our "
+      },
+      {
+        "text": "ITEM 1. BUSINESS",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-weight:bold;font-size:12pt;font-family:Arial;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:9pt;font-family:Times New Roman;margin-bottom:0;text-align:center;\" id=\"item_1_business\"><span style=\"color:#000000;white-space:pre-wrap;font-weight:bold;font-size:12pt;font-family:Arial;font-kerning:none;min-width:fit-content;\">ITEM 1. B</span><span style=\"color:"
+      },
+      {
+        "text": "Item 1",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:center;margin-left:0;margin-right:0;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;font-kerning:none;min-width:fit-content;\">Item 1</span></p>"
+      },
+      {
+        "text": "Item 1",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:0;font-family:Times New Roman;margin-bottom:0;text-align:center;margin-left:0;margin-right:0;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:7.5pt;font-family:Arial;font-kerning:none;min-width:fit-content;\">Item 1</span></p>"
+      },
+      {
+        "text": "Additional information on our operating segments and geographic and product information is contained",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;font-kerning:none;min-width:fit-content;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"font-size:10pt;margin-top:9pt;font-family:Times New Roman;margin-bottom:0;text-align:justify;\"><span style=\"color:#000000;white-space:pre-wrap;font-size:10pt;font-family:Arial;font-kerning:none;min-width:fit-content;\">Additional information on our operating segments and geographic and prod"
+      }
+    ]
+  },
+  {
+    "filename": "10k-pg-2024.html",
+    "ticker": "pg",
+    "year": 2024,
+    "fileSize": 2491287,
+    "headingCount": 58,
+    "bodyHeadingCount": 32,
+    "tocHeadingCount": 26,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": false,
+      "usesUppercase": false,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "Item 1B. Unresolved Staff Comments.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt;margin-top:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%\">Item 1B. </span><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:1"
+      },
+      {
+        "text": "Item 1C. Cybersecurity.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt;margin-top:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%\">Item 1C. </span><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:1"
+      },
+      {
+        "text": "As a global company, we manage a variety of cybersecurity threats and cannot wholly eliminate the ri",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "ix:nonnumeric",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%",
+        "cssClasses": "",
+        "hasIXBRL": true,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-bottom:3pt;margin-top:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%\">As a global company, we manage a variety of cybersecurity threats and cannot wholly eliminate the risk of adverse impacts f"
+      },
+      {
+        "text": "Item 2. Properties.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt;margin-top:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%\">Item 2. </span><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:11"
+      },
+      {
+        "text": "Item 3. Legal Proceedings.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-bottom:3pt;margin-top:3pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:115%\">Item 3. </span><span style=\"color:#000000;font-family:'Times New Roman',serif;font-size:10pt;font-weight:400;line-height:11"
+      }
+    ]
+  },
+  {
+    "filename": "10k-unh-2024.html",
+    "ticker": "unh",
+    "year": 2024,
+    "fileSize": 2823139,
+    "headingCount": 90,
+    "bodyHeadingCount": 65,
+    "tocHeadingCount": 25,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": false,
+      "typicalNesting": "html>body>div>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "See Part I, Item 1A, “Risk Factors” for a discussion of the risks related to our compliance with U.S",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:6pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">See </span><span style=\"color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline\"><"
+      },
+      {
+        "text": "State Privacy and Security Regulations. A number of states have adopted laws and regulations which m",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:6pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-style:italic;font-weight:700;line-height:120%\">State Privacy and Security Regulations. </span><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-we"
+      },
+      {
+        "text": "Optum Rx’s businesses include home delivery, specialty and compounding pharmacies, as well as clinic",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:6pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Optum Rx’s businesses include home delivery, specialty and compounding pharmacies, as well as clinic-based pharmacies which must be licensed as pharmacies "
+      },
+      {
+        "text": "As a diversified health care company, we operate in highly competitive markets across the full expan",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:6pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">As a diversified health care company, we operate in highly competitive markets across the full expanse of health care benefits and services. Our competitor"
+      },
+      {
+        "text": "ITEM 1A. RISK FACTORS",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div style=\"margin-top:12pt;padding-left:72pt;text-indent:-72pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">ITEM 1A.    RISK FACTORS </span></div>"
+      }
+    ]
+  },
+  {
+    "filename": "10k-wmt-2024.html",
+    "ticker": "wmt",
+    "year": 2024,
+    "fileSize": 2335078,
+    "headingCount": 71,
+    "bodyHeadingCount": 5,
+    "tocHeadingCount": 66,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": false,
+      "typicalNesting": "div>table>tr>td>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "The information required by this Item 14 is incorporated herein by reference to the information unde",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">The information required by this Item 14 is incorporated herein by reference to the information under the caption \"Proposal No. 4 – Ratification of Independent Accountants\" inclu"
+      },
+      {
+        "text": "ITEM 15.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:100%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"padding:2px 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:100%;text-decoration:underline\">ITEM 15.</span></td>"
+      },
+      {
+        "text": "Financial Statements: See the Financial Statements in \"Item 8. Financial Statements and Supplementar",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "td",
+          "tr"
+        ],
+        "inlineStyle": "-sec-extract:exhibit;color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:9pt\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Financial Statements: See the Financial Statements in \"</span><span style=\"color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weigh"
+      },
+      {
+        "text": "Certain instruments defining the rights of holders of long-term debt securities of the Registrant ar",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "td",
+          "tr",
+          "table"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:8pt;font-weight:400;line-height:100%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<div><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:8pt;font-weight:400;line-height:100%\">Certain instruments defining the rights of holders of long-term debt securities of the Registrant are omitted pursuant to Item 601(b)(4)(iii) of Regulation S-K. The Company hereby"
+      },
+      {
+        "text": "ITEM 16.",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:100%;text-decoration:underline",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"padding:2px 1pt;text-align:left;vertical-align:top\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:100%;text-decoration:underline\">ITEM 16.</span></td>"
+      }
+    ]
+  },
+  {
+    "filename": "10k-xom-2012.html",
+    "ticker": "xom",
+    "year": 2012,
+    "fileSize": 9115636,
+    "headingCount": 54,
+    "bodyHeadingCount": 32,
+    "tocHeadingCount": 22,
+    "hasTOC": true,
+    "hasIXBRL": false,
+    "filingAgentHint": "Unknown",
+    "patternSummary": {
+      "primaryTag": "font",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": true,
+      "typicalNesting": "body>div>p>b>font",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "ITEM 1. BUSINESS",
+        "tag": "font",
+        "ancestors": [
+          "font",
+          "b",
+          "p",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "font-size:11.0pt;text-transform:uppercase;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"margin-bottom:.0001pt;margin-left:63.35pt;margin-right:0in;margin-top:0in;page-break-after:avoid;text-align:justify;text-indent:-63.35pt;\"><b><font face=\"Times New Roman,serif\" lang=\"EN-US\" style=\"font-size:11.0pt;text-transform:uppercase;\">ITEM 1.\n      BUSINESS </font></b></p>"
+      },
+      {
+        "text": "Information concerning the source and availability of raw materials used in the Corporation’s busine",
+        "tag": "font",
+        "ancestors": [
+          "font",
+          "p",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "font-size:10.0pt;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"margin-bottom:.0001pt;margin-left:0in;margin-right:0in;margin-top:4.5pt;text-align:justify;text-indent:12.25pt;\"><font face=\"Times New Roman,serif\" lang=\"EN-US\" style=\"font-size:10.0pt;\">Information concerning the source and availability of\nraw materials used in the Corporation’s business,"
+      },
+      {
+        "text": "ITEM 1A. RISK FACTORS",
+        "tag": "font",
+        "ancestors": [
+          "font",
+          "b",
+          "p",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "font-size:11.0pt;text-transform:uppercase;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"margin-bottom:.0001pt;margin-left:55.45pt;margin-right:0in;margin-top:0in;page-break-after:avoid;text-align:justify;text-indent:-55.45pt;\"><b><font face=\"Times New Roman,serif\" lang=\"EN-US\" style=\"font-size:11.0pt;text-transform:uppercase;\">ITEM 1A.  RISK FACTORS</font></b></p>"
+      },
+      {
+        "text": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+        "tag": "font",
+        "ancestors": [
+          "font",
+          "b",
+          "p",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "font-size:11.0pt;text-transform:uppercase;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"margin-bottom:.0001pt;margin-left:55.05pt;margin-right:0in;margin-top:13.5pt;page-break-after:avoid;text-align:justify;text-indent:-55.1pt;\"><b><font face=\"Times New Roman,serif\" lang=\"EN-US\" style=\"font-size:11.0pt;text-transform:uppercase;\">ITEM 1B.  UNRESOLVED STAFF COMMENTS</font></b><"
+      },
+      {
+        "text": "Item 2. Properties",
+        "tag": "font",
+        "ancestors": [
+          "font",
+          "b",
+          "p",
+          "div",
+          "body"
+        ],
+        "inlineStyle": "font-size:11.0pt;text-transform:uppercase;",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<p style=\"margin-bottom:.0001pt;margin-left:63.0pt;margin-right:0in;margin-top:0in;text-align:justify;text-indent:-63.0pt;\"><b><font face=\"Times New Roman,serif\" lang=\"EN-US\" style=\"font-size:11.0pt;text-transform:uppercase;\">Item 2.  \n    Properties</font></b></p>"
+      }
+    ]
+  },
+  {
+    "filename": "10k-xom-2024.html",
+    "ticker": "xom",
+    "year": 2024,
+    "fileSize": 5980900,
+    "headingCount": 67,
+    "bodyHeadingCount": 43,
+    "tocHeadingCount": 24,
+    "hasTOC": true,
+    "hasIXBRL": true,
+    "filingAgentHint": "Workiva",
+    "patternSummary": {
+      "primaryTag": "span",
+      "usesSemanticH": false,
+      "usesBold": true,
+      "usesUppercase": true,
+      "usesFontTag": false,
+      "typicalNesting": "div>table>tr>td>span",
+      "cssClassPattern": "none"
+    },
+    "sampleBodyHeadings": [
+      {
+        "text": "Information concerning the source and availability of raw materials used in the Corporation’s busine",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:none",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Information concerning the source and availability of raw materials used in the Corporation’s business, the extent of seasonality in the"
+      },
+      {
+        "text": "Information concerning the source and availability of raw materials used in the Corporation’s busine",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:none",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">Information concerning the source and availability of raw materials used in the Corporation’s business, the extent of seasonality in the"
+      },
+      {
+        "text": "ITEM 1A. RISK FACTORS",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "td",
+          "tr",
+          "table",
+          "div"
+        ],
+        "inlineStyle": "color:#0c479d;font-family:'Times New Roman',sans-serif;font-size:12pt;font-weight:700;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": false,
+        "rawHtml": "<td colspan=\"3\" style=\"border-bottom:1.5pt solid #0c479d;padding:2px 1pt;text-align:justify;vertical-align:bottom\"><span style=\"color:#0c479d;font-family:'Times New Roman',sans-serif;font-size:12pt;font-weight:700;line-height:120%\">ITEM 1A. RISK FACTORS</span></td>"
+      },
+      {
+        "text": "The oil, gas, and petrochemical businesses are fundamentally commodity businesses. This means ExxonM",
+        "tag": "span",
+        "ancestors": [
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%\">The oil, gas, and petrochemical businesses are fundamentally commodity businesses. This means ExxonMobil’s operations and earnings may b"
+      },
+      {
+        "text": "Other market factors. ExxonMobil’s business results are also exposed to potential negative impacts d",
+        "tag": "a",
+        "ancestors": [
+          "a",
+          "span",
+          "div",
+          "body",
+          "html"
+        ],
+        "inlineStyle": "color:#0000ff;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-height:120%;text-decoration:none",
+        "cssClasses": "",
+        "hasIXBRL": false,
+        "splitElement": true,
+        "rawHtml": "<div style=\"margin-top:5pt;text-align:justify\"><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:700;line-height:120%\">Other market factors.</span><span style=\"color:#000000;font-family:'Times New Roman',sans-serif;font-size:10pt;font-weight:400;line-heig"
+      }
+    ]
+  }
+]

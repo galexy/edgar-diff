@@ -1,0 +1,16 @@
+{
+  "ticker": "JPM",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "unknown",
+      "heading": "•The other risks and uncertainties detailed in Part I, Item 1A: Risk Factors in JPMorganChase’s 2024",
+      "sourceOffset": 5248815
+    }
+  ]
+}

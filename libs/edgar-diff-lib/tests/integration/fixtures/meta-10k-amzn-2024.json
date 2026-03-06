@@ -1,0 +1,126 @@
+{
+  "ticker": "AMZN",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "item-1b",
+      "heading": "Item 1B.",
+      "sourceOffset": 378411
+    },
+    {
+      "id": "item-1c",
+      "heading": "Item 1C.",
+      "sourceOffset": 380249
+    },
+    {
+      "id": "item-1a",
+      "heading": "We provided guidance on February 6, 2025, in our earnings release furnished on Form 8-K as set forth",
+      "sourceOffset": 598314
+    },
+    {
+      "id": "item-2",
+      "heading": "Item 2.",
+      "sourceOffset": 389419
+    },
+    {
+      "id": "item-8",
+      "heading": "Item 8.",
+      "sourceOffset": 667311
+    },
+    {
+      "id": "item-3",
+      "heading": "Item 3.",
+      "sourceOffset": 407548
+    },
+    {
+      "id": "item-4",
+      "heading": "Item 4.",
+      "sourceOffset": 408747
+    },
+    {
+      "id": "item-5",
+      "heading": "Item 5.",
+      "sourceOffset": 410919
+    },
+    {
+      "id": "item-6",
+      "heading": "Item 6.",
+      "sourceOffset": 413736
+    },
+    {
+      "id": "item-7",
+      "heading": "See Item 7 of Part II, “Management’s Discussion and Analysis of Financial Condition and Results of O",
+      "sourceOffset": 663979
+    },
+    {
+      "id": "item-7a",
+      "heading": "Item 7A.",
+      "sourceOffset": 602351
+    },
+    {
+      "id": "item-9",
+      "heading": "Item 9.",
+      "sourceOffset": 1825614
+    },
+    {
+      "id": "item-9a",
+      "heading": "Item 9A.",
+      "sourceOffset": 1826703
+    },
+    {
+      "id": "item-9b",
+      "heading": "Item 9B.",
+      "sourceOffset": 1841030
+    },
+    {
+      "id": "item-9c",
+      "heading": "Item 9C.",
+      "sourceOffset": 1848337
+    },
+    {
+      "id": "item-10",
+      "heading": "Information regarding our Executive Officers required by Item 10 of Part III is set forth in Item 1 ",
+      "sourceOffset": 1850187
+    },
+    {
+      "id": "item-11",
+      "heading": "Information required by Item 11 of Part III is included in our Proxy Statement relating to our 2025 ",
+      "sourceOffset": 1852513
+    },
+    {
+      "id": "item-12",
+      "heading": "Information required by Item 12 of Part III is included in our Proxy Statement relating to our 2025 ",
+      "sourceOffset": 1853858
+    },
+    {
+      "id": "item-13",
+      "heading": "Information required by Item 13 of Part III is included in our Proxy Statement relating to our 2025 ",
+      "sourceOffset": 1855183
+    },
+    {
+      "id": "item-14",
+      "heading": "Information required by Item 14 of Part III is included in our Proxy Statement relating to our 2025 ",
+      "sourceOffset": 1857280
+    },
+    {
+      "id": "item-15",
+      "heading": "Item 15.",
+      "sourceOffset": 1859095
+    },
+    {
+      "id": "unknown",
+      "heading": "As permitted by Item 601(b)(4)(iii)(A) of Regulation S-K, the Company has not filed with this Annual",
+      "sourceOffset": 1900382
+    },
+    {
+      "id": "item-16",
+      "heading": "Item 16.",
+      "sourceOffset": 1902742
+    }
+  ]
+}

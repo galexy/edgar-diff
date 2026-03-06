@@ -1,0 +1,131 @@
+{
+  "ticker": "XOM",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "unknown",
+      "heading": "* Management contract or compensatory plan or arrangement required to be identified pursuant to Item",
+      "sourceOffset": 5957132
+    },
+    {
+      "id": "item-1a",
+      "heading": "Reputation. Our reputation is an important corporate asset. Factors that could have a negative impac",
+      "sourceOffset": 481289
+    },
+    {
+      "id": "item-1",
+      "heading": "Competition. As noted in Item 1 above, the energy and petrochemical industries are highly competitiv",
+      "sourceOffset": 478990
+    },
+    {
+      "id": "item-1b",
+      "heading": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "sourceOffset": 483913
+    },
+    {
+      "id": "item-1c",
+      "heading": "ITEM 1C. CYBERSECURITY",
+      "sourceOffset": 485142
+    },
+    {
+      "id": "item-2",
+      "heading": "ITEM 2. PROPERTIES",
+      "sourceOffset": 494399
+    },
+    {
+      "id": "item-3",
+      "heading": "ITEM 3. LEGAL PROCEEDINGS",
+      "sourceOffset": 1276634
+    },
+    {
+      "id": "item-4",
+      "heading": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "sourceOffset": 1282443
+    },
+    {
+      "id": "item-5",
+      "heading": "ITEM 5. MARKET FOR REGISTRANT'S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF E",
+      "sourceOffset": 1304993
+    },
+    {
+      "id": "item-7",
+      "heading": "ITEM 7. MANAGEMENT'S DISCUSSION AND ANALYSIS OF FINANCIAL CONDITION AND RESULTS OF OPERATIONS",
+      "sourceOffset": 1319755
+    },
+    {
+      "id": "item-7a",
+      "heading": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "sourceOffset": 1321190
+    },
+    {
+      "id": "item-8",
+      "heading": "ITEM 8. FINANCIAL STATEMENTS AND SUPPLEMENTARY DATA",
+      "sourceOffset": 1323532
+    },
+    {
+      "id": "item-9",
+      "heading": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "sourceOffset": 1328857
+    },
+    {
+      "id": "item-9a",
+      "heading": "The Corporation's management is responsible for these consolidated financial statements, for maintai",
+      "sourceOffset": 2308185
+    },
+    {
+      "id": "item-9b",
+      "heading": "ITEM 9B. OTHER INFORMATION",
+      "sourceOffset": 1335948
+    },
+    {
+      "id": "item-9c",
+      "heading": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "sourceOffset": 1337848
+    },
+    {
+      "id": "item-10",
+      "heading": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "sourceOffset": 1339124
+    },
+    {
+      "id": "item-11",
+      "heading": "ITEM 11. EXECUTIVE COMPENSATION",
+      "sourceOffset": 1343541
+    },
+    {
+      "id": "item-12",
+      "heading": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATT",
+      "sourceOffset": 1345296
+    },
+    {
+      "id": "item-403",
+      "heading": "The information required under Item 403 of Regulation S-K is incorporated by reference to the sectio",
+      "sourceOffset": 1345594
+    },
+    {
+      "id": "item-13",
+      "heading": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "sourceOffset": 1359510
+    },
+    {
+      "id": "item-14",
+      "heading": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "sourceOffset": 1360827
+    },
+    {
+      "id": "item-15",
+      "heading": "ITEM 15. EXHIBIT AND FINANCIAL STATEMENT SCHEDULES",
+      "sourceOffset": 1362321
+    },
+    {
+      "id": "item-16",
+      "heading": "ITEM 16. FORM 10-K SUMMARY",
+      "sourceOffset": 1365107
+    }
+  ]
+}
