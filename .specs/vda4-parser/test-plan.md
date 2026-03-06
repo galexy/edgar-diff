@@ -140,6 +140,13 @@ expect(extractItemNumber('See Item 1A for details')).toBeNull();
 // U7: Regulation reference (item 601) -- invalid 10-K item
 expect(extractItemNumber('Item 601 of Regulation S-K')).toBeNull();
 
+// U32: KNOWN_ITEMS boundary -- Item 16 is valid, Item 17 is not
+expect(extractItemNumber('Item 16. Exhibits')).toBe('16');
+expect(extractItemNumber('Item 17. Financial Statements')).toBeNull();
+
+// U33: Item 9c (last valid lettered item)
+expect(extractItemNumber('Item 9C. Disclosure Regarding Foreign Jurisdictions')).toBe('9c');
+
 // U8: Item with trailing period only
 expect(extractItemNumber('Item 1B.')).toBe('1b');
 
@@ -177,6 +184,10 @@ const htmlA = `<html><body>
 <p>Risks include competition.</p>
 </body></html>`;
 // Expect 2 sections: item-1, item-1a
+const docA = parseFiling(makeRawFiling(htmlA));
+expect(docA.sections).toHaveLength(2);
+expect(docA.sections[0]).toMatchObject({ id: 'item-1', heading: expect.stringContaining('Business') });
+expect(docA.sections[1]).toMatchObject({ id: 'item-1a', heading: expect.stringContaining('Risk Factors') });
 ```
 
 ### 2.4 Section extraction -- Pattern Family B (DFIN p>span, bold, uppercase)
@@ -342,7 +353,7 @@ expect(item8!.blocks).toHaveLength(1);
 expect(item8!.blocks[0]).toMatchObject({ type: 'table', rows: [] });
 expect(item8!.blocks[0].source.start).toBeLessThan(item8!.blocks[0].source.end);
 // Table stub round-trip: slice should contain <table> content
-const tableSlice = html.slice(item8!.blocks[0].source.start, item8!.blocks[0].source.end);
+const tableSlice = htmlTable.slice(item8!.blocks[0].source.start, item8!.blocks[0].source.end);
 expect(tableSlice).toContain('<table');
 ```
 
@@ -395,6 +406,100 @@ expect(doc2.sections[0].sourceHtml).toBeDefined();
 expect(doc2.sections[0].sourceHtml).toContain('Item 1');
 ```
 
+### 2.17 Cross-reference inside anchor tag suppressed by scoring
+
+```typescript
+// U34: Bold Item heading inside <a> tag should NOT be detected as a section
+const htmlCrossRef = `<html><body>
+<div><span style="font-weight:700">Item 1. Business</span></div>
+<p>Our business is described below.</p>
+<p>For risk factors, see <a href="#item1a"><span style="font-weight:700">Item 1A. Risk Factors</span></a> above.</p>
+<div><span style="font-weight:700">Item 2. Properties</span></div>
+<p>Properties content.</p>
+</body></html>`;
+const doc = parseFiling(makeRawFiling(htmlCrossRef));
+// Should detect item-1 and item-2, but NOT item-1a (it's a cross-ref inside <a>)
+expect(doc.sections.map(s => s.id)).toEqual(['item-1', 'item-2']);
+```
+
+### 2.18 sourceHtml is undefined by default
+
+```typescript
+// U35: sourceHtml is not populated when includeSourceHtml is not set
+const html = `<html><body><div><span style="font-weight:700">Item 1. Business</span></div><p>Content.</p></body></html>`;
+const doc = parseFiling(makeRawFiling(html));
+expect(doc.sections[0].sourceHtml).toBeUndefined();
+```
+
+### 2.19 Preamble skipped warning
+
+```typescript
+// U36: When content exists before the first Item heading, a warning is emitted
+const html = `<html><body>
+<p>UNITED STATES SECURITIES AND EXCHANGE COMMISSION</p>
+<p>FORM 10-K</p>
+<div><span style="font-weight:700">Item 1. Business</span></div>
+<p>Content.</p>
+</body></html>`;
+const doc = parseFiling(makeRawFiling(html));
+expect(doc.parseWarnings).toEqual(
+  expect.arrayContaining([expect.stringMatching(/content before first item heading/i)])
+);
+```
+
+### 2.20 Section IDs are unique
+
+```typescript
+// U37: No duplicate section IDs in output (dedup must work correctly)
+const htmlDup = `<html><body>
+<div><a href="#i1"><span style="font-weight:700">Item 1. Business</span></a></div>
+<div><a href="#i1a"><span style="font-weight:700">Item 1A. Risk Factors</span></a></div>
+<hr/>
+<div id="i1"><span style="font-weight:700">Item 1. Business</span></div>
+<p>Business content.</p>
+<div id="i1a"><span style="font-weight:700">Item 1A. Risk Factors</span></div>
+<p>Risk content.</p>
+</body></html>`;
+const doc = parseFiling(makeRawFiling(htmlDup));
+const ids = doc.sections.map(s => s.id);
+expect(new Set(ids).size).toBe(ids.length); // no duplicates
+```
+
+### 2.21 Block ordering within section
+
+```typescript
+// U38: Blocks are ordered by source offset within their section
+const html = `<html><body>
+<div><span style="font-weight:700">Item 1. Business</span></div>
+<p>First paragraph.</p>
+<p>Second paragraph.</p>
+<p>Third paragraph.</p>
+</body></html>`;
+const doc = parseFiling(makeRawFiling(html));
+const blocks = doc.sections[0].blocks;
+for (let i = 1; i < blocks.length; i++) {
+  expect(blocks[i].source.start).toBeGreaterThan(blocks[i - 1].source.start);
+}
+```
+
+### 2.22 Whitespace-only content between headings
+
+```typescript
+// U39: Section with only whitespace/nbsp between headings has no paragraph blocks
+const htmlWs = `<html><body>
+<div><span style="font-weight:700">Item 4. Mine Safety Disclosures</span></div>
+<p>&nbsp;</p>
+<p>   </p>
+<div><span style="font-weight:700">Item 5. Market Info</span></div>
+<p>Content here.</p>
+</body></html>`;
+const doc = parseFiling(makeRawFiling(htmlWs));
+const item4 = doc.sections.find(s => s.id === 'item-4');
+expect(item4).toBeDefined();
+// Whitespace-only paragraphs should be filtered out (no empty text blocks)
+expect(item4!.blocks.every(b => b.type !== 'paragraph' || b.text.trim().length > 0)).toBe(true);
+```
+
 ---
 
 ## 3. Integration Tests
@@ -403,7 +508,19 @@ Test file: `tests/integration/parser.integration.test.ts`. Uses real filing fixt
 
 ### 3.1 Per-filing section detection accuracy
 
+**Important:** All integration tests should use a shared `getExpectedIds(meta)` helper to filter ground truth consistently. The helper should:
+1. Filter to IDs matching `/^item-\d+[a-z]?$/`
+2. Extract the number part and check it's in `KNOWN_ITEMS`
+3. Exclude `"unknown"` entries
+
 ```typescript
+/** Shared helper -- filters ground truth to valid 10-K item IDs. */
+function getExpectedIds(meta: FixtureMeta): string[] {
+  return meta.expectedItems
+    .filter(e => KNOWN_ITEMS.has(e.id.replace('item-', '')) && /^item-\d+[a-z]?$/.test(e.id))
+    .map(e => e.id);
+}
+
 describe('parser accuracy per filing', () => {
   const fixtures = loadAllFixtureMeta(); // reads meta-10k-*.json files
 
@@ -413,9 +530,7 @@ describe('parser accuracy per filing', () => {
       const raw = makeRawFiling(html);
       const doc = parseFiling(raw);
 
-      const expectedIds = meta.expectedItems
-        .filter(e => e.id.startsWith('item-') && e.id !== 'unknown')
-        .map(e => e.id);
+      const expectedIds = getExpectedIds(meta);
       const detectedIds = doc.sections.map(s => s.id);
 
       const hits = expectedIds.filter(id => detectedIds.includes(id));
@@ -438,9 +553,7 @@ it('achieves >= 80% aggregate accuracy across all fixtures', () => {
     const html = readFixture(`10k-${meta.ticker.toLowerCase()}-${meta.year}.html`);
     const doc = parseFiling(makeRawFiling(html));
 
-    const expectedIds = meta.expectedItems
-      .filter(e => e.id.startsWith('item-') && e.id !== 'unknown')
-      .map(e => e.id);
+    const expectedIds = getExpectedIds(meta);
     const detectedIds = doc.sections.map(s => s.id);
 
     totalExpected += expectedIds.length;
@@ -459,9 +572,7 @@ it('no single filing drops below 60% accuracy', () => {
     const html = readFixture(`10k-${meta.ticker.toLowerCase()}-${meta.year}.html`);
     const doc = parseFiling(makeRawFiling(html));
 
-    const expectedIds = meta.expectedItems
-      .filter(e => e.id.startsWith('item-') && e.id !== 'unknown')
-      .map(e => e.id);
+    const expectedIds = getExpectedIds(meta);
     const detectedIds = doc.sections.map(s => s.id);
 
     const hits = expectedIds.filter(id => detectedIds.includes(id));
@@ -548,7 +659,54 @@ describe('source offset round-trip and invariants', () => {
 });
 ```
 
-### 3.5 Section ordering correctness
+### 3.5 Section ID uniqueness and false-positive bound
+
+```typescript
+describe('section ID quality', () => {
+  for (const meta of loadAllFixtureMeta()) {
+    it(`${meta.ticker} ${meta.year}: no duplicate section IDs`, () => {
+      const html = readFixture(`10k-${meta.ticker.toLowerCase()}-${meta.year}.html`);
+      const doc = parseFiling(makeRawFiling(html));
+
+      const ids = doc.sections.map(s => s.id);
+      expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it(`${meta.ticker} ${meta.year}: detected sections <= 1.5x expected (false-positive bound)`, () => {
+      const html = readFixture(`10k-${meta.ticker.toLowerCase()}-${meta.year}.html`);
+      const doc = parseFiling(makeRawFiling(html));
+
+      const expectedIds = getExpectedIds(meta);
+      // Parser should not emit wildly more sections than exist in ground truth
+      expect(doc.sections.length).toBeLessThanOrEqual(
+        Math.ceil(expectedIds.length * 1.5)
+      );
+    });
+  }
+});
+```
+
+### 3.6 Table stubs in real filings
+
+```typescript
+it('Item 8 (Financial Statements) contains at least one Table block', () => {
+  // Pick a filing known to have tables in Item 8
+  const html = readFixture('10k-aapl-2024.html');
+  const doc = parseFiling(makeRawFiling(html));
+
+  const item8 = doc.sections.find(s => s.id === 'item-8');
+  expect(item8).toBeDefined();
+  const tableBlocks = item8!.blocks.filter(b => b.type === 'table');
+  expect(tableBlocks.length).toBeGreaterThan(0);
+  // Table stubs have empty rows for v1
+  for (const table of tableBlocks) {
+    expect(table.rows).toEqual([]);
+    expect(table.source.start).toBeLessThan(table.source.end);
+  }
+});
+```
+
+### 3.7 Section ordering correctness
 
 ```typescript
 it('sections are ordered by source offset (document order)', () => {
@@ -609,9 +767,7 @@ describe('E2E: fixture -> parse -> ground truth', () => {
       expect(doc.parseWarnings).toBeInstanceOf(Array);
 
       // Verify against ground truth
-      const expectedIds = meta.expectedItems
-        .filter(e => e.id.startsWith('item-') && e.id !== 'unknown')
-        .map(e => e.id);
+      const expectedIds = getExpectedIds(meta);
       const detectedIds = doc.sections.map(s => s.id);
 
       const hits = expectedIds.filter(id => detectedIds.includes(id));
@@ -633,6 +789,8 @@ describe('E2E: fixture -> parse -> ground truth', () => {
 
 ### E2E-2: Performance -- parse time < 500ms for largest filing
 
+**Note:** The 500ms threshold assumes a modern developer machine. May need adjustment for CI runners. Consider using `jest.retries(2)` or a generous margin. The key invariant is that parse time scales roughly linearly with file size, not quadratically.
+
 ```typescript
 it('parses the largest fixture within 500ms', () => {
   // JPM and BAC are ~12MB; MSFT is ~7.8MB
@@ -644,6 +802,25 @@ it('parses the largest fixture within 500ms', () => {
   const elapsed = performance.now() - start;
 
   expect(elapsed).toBeLessThan(500);
+});
+
+it('parse time scales linearly (not quadratically) with file size', () => {
+  // Compare a small filing vs large filing to detect O(n²) regressions
+  const smallHtml = readFixture('10k-aapl-2024.html');  // ~1.4MB
+  const largeHtml = readFixture('10k-jpm-2024.html');   // ~12.3MB
+
+  const startSmall = performance.now();
+  parseFiling(makeRawFiling(smallHtml));
+  const smallTime = performance.now() - startSmall;
+
+  const startLarge = performance.now();
+  parseFiling(makeRawFiling(largeHtml));
+  const largeTime = performance.now() - startLarge;
+
+  const sizeRatio = largeHtml.length / smallHtml.length; // ~8.8x
+  const timeRatio = largeTime / smallTime;
+  // Allow up to 3x the size ratio to account for overhead, but not quadratic
+  expect(timeRatio).toBeLessThan(sizeRatio * 3);
 });
 ```
 
@@ -869,10 +1046,11 @@ A "correctly detected" item means:
 ```
 tests/
   unit/
-    parser.test.ts              # U1-U27, B1-B9, E1-E4
+    parser.test.ts              # U1-U39, B1-B9, E1-E4
   integration/
-    parser.integration.test.ts  # I1-I6 (accuracy, cross-filing, round-trip)
-    parser-e2e.test.ts          # E2E-1, E2E-2 (full pipeline, performance)
+    parser.integration.test.ts  # §3.1-3.8 (accuracy, uniqueness, false-positives, cross-filing, round-trip, tables)
+    parser-e2e.test.ts          # E2E-1, E2E-2 (full pipeline, performance, scaling)
+    test-helpers.ts             # Shared: getExpectedIds(), makeRawFiling(), readFixture(), loadAllFixtureMeta()
     fixtures/
       10k-*.html                # Real filing HTML (already committed)
       meta-10k-*.json           # Ground truth (already committed)
