@@ -1,0 +1,16 @@
+{
+  "ticker": "JPM",
+  "year": 2023,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "DFIN (RR Donnelley)",
+  "expectedItems": [
+    {
+      "id": "unknown",
+      "heading": "•The other risks and uncertainties detailed in Part I, Item 1A: Risk Factors in JPMorgan Chase’s 202",
+      "sourceOffset": 5555333
+    }
+  ]
+}

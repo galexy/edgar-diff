@@ -1,0 +1,146 @@
+{
+  "ticker": "UNH",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "unknown",
+      "heading": "For a summary of commitments and contingencies, see Note 12 of the Notes to the Consolidated Financi",
+      "sourceOffset": 2799025
+    },
+    {
+      "id": "item-1a",
+      "heading": "ITEM 1A. RISK FACTORS",
+      "sourceOffset": 403652
+    },
+    {
+      "id": "item-1b",
+      "heading": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "sourceOffset": 491996
+    },
+    {
+      "id": "item-1c",
+      "heading": "ITEM 1C. CYBERSECURITY",
+      "sourceOffset": 493223
+    },
+    {
+      "id": "item-2",
+      "heading": "ITEM 2. PROPERTIES",
+      "sourceOffset": 503900
+    },
+    {
+      "id": "item-3",
+      "heading": "The information required by this Item 3 is incorporated herein by reference to the information set f",
+      "sourceOffset": 505129
+    },
+    {
+      "id": "item-4",
+      "heading": "ITEM 4. MINE SAFETY DISCLOSURES",
+      "sourceOffset": 506084
+    },
+    {
+      "id": "item-5",
+      "heading": "ITEM 5. MARKET FOR REGISTRANT’S COMMON EQUITY, RELATED STOCKHOLDER MATTERS AND ISSUER PURCHASES OF E",
+      "sourceOffset": 507049
+    },
+    {
+      "id": "item-6",
+      "heading": "ITEM 6. RESERVED",
+      "sourceOffset": 541393
+    },
+    {
+      "id": "item-7",
+      "heading": "The following discussion should be read together with the accompanying Consolidated Financial Statem",
+      "sourceOffset": 543930
+    },
+    {
+      "id": "item-1",
+      "heading": "Following is a summary of management’s view of the trends and uncertainties related to regulatory ma",
+      "sourceOffset": 563495
+    },
+    {
+      "id": "item-8",
+      "heading": "The financial statements are included under Item 8 of this report:",
+      "sourceOffset": 2529159
+    },
+    {
+      "id": "item-7a",
+      "heading": "ITEM 7A. QUANTITATIVE AND QUALITATIVE DISCLOSURES ABOUT MARKET RISK",
+      "sourceOffset": 874248
+    },
+    {
+      "id": "item-9",
+      "heading": "ITEM 9. CHANGES IN AND DISAGREEMENTS WITH ACCOUNTANTS ON ACCOUNTING AND FINANCIAL DISCLOSURE",
+      "sourceOffset": 2479857
+    },
+    {
+      "id": "item-9a",
+      "heading": "The Company’s independent registered public accounting firm has audited the Company’s internal contr",
+      "sourceOffset": 2487129
+    },
+    {
+      "id": "item-9b",
+      "heading": "ITEM 9B. OTHER INFORMATION",
+      "sourceOffset": 2496812
+    },
+    {
+      "id": "item-9c",
+      "heading": "ITEM 9C. DISCLOSURE REGARDING FOREIGN JURISDICTIONS THAT PREVENT INSPECTIONS",
+      "sourceOffset": 2498562
+    },
+    {
+      "id": "item-10",
+      "heading": "ITEM 10. DIRECTORS, EXECUTIVE OFFICERS AND CORPORATE GOVERNANCE",
+      "sourceOffset": 2499322
+    },
+    {
+      "id": "item-401",
+      "heading": "Pursuant to General Instruction G(3) to Form 10-K and the Instruction to Item 401 of Regulation S-K,",
+      "sourceOffset": 2506641
+    },
+    {
+      "id": "item-11",
+      "heading": "ITEM 11. EXECUTIVE COMPENSATION",
+      "sourceOffset": 2510792
+    },
+    {
+      "id": "item-12",
+      "heading": "ITEM 12. SECURITY OWNERSHIP OF CERTAIN BENEFICIAL OWNERS AND MANAGEMENT AND RELATED STOCKHOLDER MATT",
+      "sourceOffset": 2511981
+    },
+    {
+      "id": "item-403",
+      "heading": "The information required by Item 403 of Regulation S-K will be included under the heading “Security ",
+      "sourceOffset": 2524967
+    },
+    {
+      "id": "item-13",
+      "heading": "ITEM 13. CERTAIN RELATIONSHIPS AND RELATED TRANSACTIONS, AND DIRECTOR INDEPENDENCE",
+      "sourceOffset": 2525528
+    },
+    {
+      "id": "item-14",
+      "heading": "ITEM 14. PRINCIPAL ACCOUNTANT FEES AND SERVICES",
+      "sourceOffset": 2526636
+    },
+    {
+      "id": "item-15",
+      "heading": "We have audited the consolidated financial statements of UnitedHealth Group Incorporated and Subsidi",
+      "sourceOffset": 2640867
+    },
+    {
+      "id": "item-601",
+      "heading": "(b) The following exhibits are filed or incorporated by reference herein in response to Item 601 of ",
+      "sourceOffset": 2541789
+    },
+    {
+      "id": "item-16",
+      "heading": "ITEM 16. FORM 10-K SUMMARY",
+      "sourceOffset": 2799445
+    }
+  ]
+}

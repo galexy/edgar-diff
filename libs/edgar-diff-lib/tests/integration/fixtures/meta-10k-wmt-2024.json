@@ -1,0 +1,36 @@
+{
+  "ticker": "WMT",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "item-14",
+      "heading": "The information required by this Item 14 is incorporated herein by reference to the information unde",
+      "sourceOffset": 2227842
+    },
+    {
+      "id": "item-15",
+      "heading": "ITEM 15.",
+      "sourceOffset": 2229325
+    },
+    {
+      "id": "item-8",
+      "heading": "Financial Statements: See the Financial Statements in \"Item 8. Financial Statements and Supplementar",
+      "sourceOffset": 2231119
+    },
+    {
+      "id": "unknown",
+      "heading": "Certain instruments defining the rights of holders of long-term debt securities of the Registrant ar",
+      "sourceOffset": 2293030
+    },
+    {
+      "id": "item-16",
+      "heading": "ITEM 16.",
+      "sourceOffset": 2294135
+    }
+  ]
+}

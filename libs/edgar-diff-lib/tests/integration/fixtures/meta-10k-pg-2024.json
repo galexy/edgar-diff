@@ -1,0 +1,136 @@
+{
+  "ticker": "PG",
+  "year": 2024,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": true,
+  "filingAgentHint": "Workiva",
+  "expectedItems": [
+    {
+      "id": "item-1b",
+      "heading": "Item 1B. Unresolved Staff Comments.",
+      "sourceOffset": 379927
+    },
+    {
+      "id": "item-1c",
+      "heading": "Item 1C. Cybersecurity.",
+      "sourceOffset": 380545
+    },
+    {
+      "id": "item-1a",
+      "heading": "For additional information on risk factors that could impact our business results, please refer to R",
+      "sourceOffset": 543265
+    },
+    {
+      "id": "item-2",
+      "heading": "Item 2. Properties.",
+      "sourceOffset": 392482
+    },
+    {
+      "id": "item-3",
+      "heading": "Item 3. Legal Proceedings.",
+      "sourceOffset": 393988
+    },
+    {
+      "id": "item-4",
+      "heading": "Item 4. Mine Safety Disclosure.",
+      "sourceOffset": 397009
+    },
+    {
+      "id": "item-5",
+      "heading": "Item 5. Market for Registrant's Common Equity, Related Stockholder Matters and Issuer Purchases of E",
+      "sourceOffset": 425558
+    },
+    {
+      "id": "item-12",
+      "heading": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matt",
+      "sourceOffset": 2344377
+    },
+    {
+      "id": "item-6",
+      "heading": "Item 6. Intentionally Omitted.",
+      "sourceOffset": 461022
+    },
+    {
+      "id": "item-7",
+      "heading": "For a detailed discussion of the fiscal 2024 year-over-year changes, please refer to the MD&A in Par",
+      "sourceOffset": 547317
+    },
+    {
+      "id": "unknown",
+      "heading": "In accordance with the SEC's Regulation S-K Item 10(e), the following provides definitions of non-GA",
+      "sourceOffset": 741127
+    },
+    {
+      "id": "item-7a",
+      "heading": "Item 7A. Quantitative and Qualitative Disclosures About Market Risk.",
+      "sourceOffset": 822546
+    },
+    {
+      "id": "item-8",
+      "heading": "The following Consolidated Financial Statements of The Procter & Gamble Company and subsidiaries, ma",
+      "sourceOffset": 2358191
+    },
+    {
+      "id": "item-9",
+      "heading": "Item 9. Changes in and Disagreements with Accountants on Accounting and Financial Disclosure.",
+      "sourceOffset": 2332914
+    },
+    {
+      "id": "item-9a",
+      "heading": "Item 9A. Controls and Procedures.",
+      "sourceOffset": 2334208
+    },
+    {
+      "id": "item-9b",
+      "heading": "Item 9B. Other Information.",
+      "sourceOffset": 2337505
+    },
+    {
+      "id": "item-408",
+      "heading": "During the fiscal year ended June 30, 2025, none of our directors or officers adopted or terminated ",
+      "sourceOffset": 2338468
+    },
+    {
+      "id": "item-9c",
+      "heading": "Item 9C. Disclosure Regarding Foreign Jurisdictions that Prevent Inspections.",
+      "sourceOffset": 2339589
+    },
+    {
+      "id": "item-10",
+      "heading": "Item 10. Directors, Executive Officers and Corporate Governance.",
+      "sourceOffset": 2340792
+    },
+    {
+      "id": "item-401",
+      "heading": "The information required by this item is incorporated by reference to the following sections of the ",
+      "sourceOffset": 2341634
+    },
+    {
+      "id": "item-11",
+      "heading": "Item 11. Executive Compensation.",
+      "sourceOffset": 2342582
+    },
+    {
+      "id": "item-13",
+      "heading": "Item 13. Certain Relationships and Related Transactions and Director Independence.",
+      "sourceOffset": 2355142
+    },
+    {
+      "id": "item-14",
+      "heading": "Item 14. Principal Accountant Fees and Services.",
+      "sourceOffset": 2356176
+    },
+    {
+      "id": "item-15",
+      "heading": "Item 15. Exhibits and Financial Statement Schedules.",
+      "sourceOffset": 2357411
+    },
+    {
+      "id": "item-16",
+      "heading": "Item 16. Form 10-K Summary.",
+      "sourceOffset": 2465191
+    }
+  ]
+}

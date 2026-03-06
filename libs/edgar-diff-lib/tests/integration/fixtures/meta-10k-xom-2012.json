@@ -1,0 +1,121 @@
+{
+  "ticker": "XOM",
+  "year": 2012,
+  "filingDate": "TBD",
+  "patternFamily": "TBD",
+  "hasTOC": true,
+  "hasIXBRL": false,
+  "filingAgentHint": "Unknown",
+  "expectedItems": [
+    {
+      "id": "item-1",
+      "heading": "ITEM 1. BUSINESS",
+      "sourceOffset": 58880
+    },
+    {
+      "id": "unknown",
+      "heading": "* Compensatory plan or arrangement required to be identified pursuant to Item 15(a)(3) of this Annua",
+      "sourceOffset": 9114040
+    },
+    {
+      "id": "item-1a",
+      "heading": "The Corporation has long been successful at offsetting the effects of natural field decline through ",
+      "sourceOffset": 2621843
+    },
+    {
+      "id": "item-1b",
+      "heading": "ITEM 1B. UNRESOLVED STAFF COMMENTS",
+      "sourceOffset": 98524
+    },
+    {
+      "id": "item-2",
+      "heading": "(4) See previous page for natural gas liquids proved reserves attributable to consolidated subsidiar",
+      "sourceOffset": 7787238
+    },
+    {
+      "id": "item-3",
+      "heading": "Item 3. Legal Proceedings",
+      "sourceOffset": 1617471
+    },
+    {
+      "id": "item-4",
+      "heading": "Item 4. MINE SAFETY DISCLOSURES",
+      "sourceOffset": 1620630
+    },
+    {
+      "id": "item-5",
+      "heading": "Item 5. Market for Registrant’s Common Equity, Related Stockholder Matters and Issuer Purchases of E",
+      "sourceOffset": 1705206
+    },
+    {
+      "id": "item-6",
+      "heading": "Item 6. Selected Financial Data",
+      "sourceOffset": 1725566
+    },
+    {
+      "id": "item-7",
+      "heading": "Item 7. Management’s Discussion and Analysis of Financial Condition and Results of Operations",
+      "sourceOffset": 1767488
+    },
+    {
+      "id": "item-7a",
+      "heading": "Reference is made to the section entitled “Market Risks, Inflation and Other Uncertainties”, excludi",
+      "sourceOffset": 1768531
+    },
+    {
+      "id": "item-8",
+      "heading": "Item 8. Financial Statements and Supplementary Data",
+      "sourceOffset": 1770431
+    },
+    {
+      "id": "item-9",
+      "heading": "Item 9. Changes in and Disagreements With Accountants on Accounting and Financial Disclosure",
+      "sourceOffset": 1774498
+    },
+    {
+      "id": "item-9a",
+      "heading": "Item 9A. Controls and Procedures",
+      "sourceOffset": 1775086
+    },
+    {
+      "id": "item-9b",
+      "heading": "Item 9B. Other Information",
+      "sourceOffset": 1779089
+    },
+    {
+      "id": "item-10",
+      "heading": "Item 10. Directors, Executive Officers and Corporate Governance",
+      "sourceOffset": 1781110
+    },
+    {
+      "id": "item-11",
+      "heading": "Item 11. Executive Compensation",
+      "sourceOffset": 1785211
+    },
+    {
+      "id": "item-12",
+      "heading": "Item 12. Security Ownership of Certain Beneficial Owners and Management and Related Stockholder Matt",
+      "sourceOffset": 1785983
+    },
+    {
+      "id": "item-403",
+      "heading": "The information required under Item 403 of Regulation S-K is incorporated by reference to the sectio",
+      "sourceOffset": 1786302
+    },
+    {
+      "id": "item-13",
+      "heading": "Item 13. Certain Relationships and Related Transactions, and Director Independence",
+      "sourceOffset": 1828342
+    },
+    {
+      "id": "item-14",
+      "heading": "Item 14. Principal Accounting Fees and Services",
+      "sourceOffset": 1829158
+    },
+    {
+      "id": "item-15",
+      "heading": "Item 15. Exhibits, Financial Statement Schedules",
+      "sourceOffset": 1830298
+    }
+  ]
+}
