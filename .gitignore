@@ -31,7 +31,8 @@ Thumbs.db
 .env.*.local
 
 # Claude Code
-.claude/
+.claude/*
+!.claude/settings.json
 
 # Dolt database files (added by bd init)
 .dolt/
