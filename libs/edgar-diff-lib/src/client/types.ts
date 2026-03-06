@@ -1,4 +1,5 @@
 import { Temporal } from '@js-temporal/polyfill';
+import type { RateLimiter } from './rate-limiter.js';
 
 // --- Form Types ---
 
@@ -16,8 +17,12 @@ export type FormType =
 export interface EdgarClientOptions {
   /** User-Agent string. Format: "CompanyName email@domain.com" */
   userAgent: string;
-  /** Max requests per second. Default: 10. (Rate limiter is US-1.2; stored for future use.) */
-  maxRequestsPerSecond?: number;
+  /**
+   * Optional rate limiter. Defaults to a TokenBucketRateLimiter at 10 req/s.
+   * Inject a shared instance to coordinate rate limiting across multiple
+   * client instances hitting the same EDGAR endpoints.
+   */
+  rateLimiter?: RateLimiter;
   /** Injectable fetch for testing. Defaults to globalThis.fetch. */
   fetch?: typeof globalThis.fetch;
 }

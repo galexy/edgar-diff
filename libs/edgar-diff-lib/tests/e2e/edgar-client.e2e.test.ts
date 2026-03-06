@@ -1,5 +1,6 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
+import { TokenBucketRateLimiter } from '../../src/client/rate-limiter.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
 
 // --- Mock Data ---
@@ -75,6 +76,37 @@ function createEftsMockFetch(opts?: {
     { status: 200, body: JSON.stringify(eftsResponse), headers: { 'Content-Type': 'application/json' } },
     { status: 200, body: opts?.html ?? APPLE_10K_FIXTURE_HTML, headers: { 'Content-Type': 'text/html' } },
   ]);
+}
+
+function createEftsResponseData(opts?: {
+  accession?: string;
+  cik?: string;
+  formType?: string;
+  filingDate?: string;
+  primaryDocument?: string;
+}) {
+  const accession = opts?.accession ?? '0000320193-23-000106';
+  const cik = opts?.cik ?? '0000320193';
+  const primaryDoc = opts?.primaryDocument ?? 'aapl-20230930.htm';
+
+  return {
+    hits: {
+      total: { value: 1, relation: 'eq' },
+      hits: [
+        {
+          _id: `${accession}:${primaryDoc}`,
+          _source: {
+            ciks: [cik],
+            root_forms: [opts?.formType ?? '10-K'],
+            form: opts?.formType ?? '10-K',
+            file_date: opts?.filingDate ?? '2023-11-03',
+            adsh: accession,
+            sequence: 1,
+          },
+        },
+      ],
+    },
+  };
 }
 
 // --- E2E Tests ---
@@ -200,6 +232,104 @@ describe('e2e: error scenarios', () => {
     expect(err).toBeInstanceOf(EdgarNetworkError);
     expect((err as EdgarNetworkError).statusCode).toBe(404);
     expect((err as EdgarNetworkError).accessionNumber).toBe('9999999999-99-999999');
+  });
+});
+
+describe('e2e: rate limiting', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should fetch multiple filings with default rate limiter (no throttle under capacity)', async () => {
+    // 3 fetchFiling calls = 6 HTTP calls, all under default capacity=10
+    const mockFetch = createMockFetchSequence([
+      ...[ // filing 1
+        { status: 200, body: JSON.stringify(createEftsResponseData()), headers: { 'Content-Type': 'application/json' } },
+        { status: 200, body: APPLE_10K_FIXTURE_HTML, headers: { 'Content-Type': 'text/html' } },
+      ],
+      ...[ // filing 2
+        { status: 200, body: JSON.stringify(createEftsResponseData()), headers: { 'Content-Type': 'application/json' } },
+        { status: 200, body: APPLE_10K_FIXTURE_HTML, headers: { 'Content-Type': 'text/html' } },
+      ],
+      ...[ // filing 3
+        { status: 200, body: JSON.stringify(createEftsResponseData()), headers: { 'Content-Type': 'application/json' } },
+        { status: 200, body: APPLE_10K_FIXTURE_HTML, headers: { 'Content-Type': 'text/html' } },
+      ],
+    ]);
+
+    const client = createEdgarClient({
+      userAgent: 'TestCo test@example.com',
+      fetch: mockFetch,
+    });
+
+    const f1 = await client.fetchFiling('0000320193-23-000106');
+    const f2 = await client.fetchFiling('0000320193-23-000106');
+    const f3 = await client.fetchFiling('0000320193-23-000106');
+
+    expect(f1.accessionNumber).toBe('0000320193-23-000106');
+    expect(f2.accessionNumber).toBe('0000320193-23-000106');
+    expect(f3.accessionNumber).toBe('0000320193-23-000106');
+    expect(mockFetch).toHaveBeenCalledTimes(6);
+
+    client.dispose();
+  });
+
+  it('should handle rate limiting under 429 error scenario end-to-end', async () => {
+    // Mock: EFTS returns 429 on first call, then succeeds
+    const mockFetch = createMockFetchSequence([
+      { status: 429, body: '', headers: { 'Retry-After': '1' } },
+      { status: 200, body: JSON.stringify(createEftsResponseData()), headers: { 'Content-Type': 'application/json' } },
+      { status: 200, body: APPLE_10K_FIXTURE_HTML, headers: { 'Content-Type': 'text/html' } },
+    ]);
+
+    const client = createEdgarClient({
+      userAgent: 'TestCo test@example.com',
+      fetch: mockFetch,
+    });
+
+    const promise = client.fetchFiling('0000320193-23-000106');
+    await vi.advanceTimersByTimeAsync(3000);
+    const filing = await promise;
+
+    expect(filing.accessionNumber).toBe('0000320193-23-000106');
+    expect(filing.html).toBe(APPLE_10K_FIXTURE_HTML);
+
+    client.dispose();
+  });
+
+  it('should work with default rate limiter (no explicit injection)', async () => {
+    const mockFetch = createEftsMockFetch();
+
+    // No rateLimiter option => default TokenBucketRateLimiter created internally
+    const client = createEdgarClient({
+      userAgent: 'TestCo test@example.com',
+      fetch: mockFetch,
+    });
+
+    const filing = await client.fetchFiling('0000320193-23-000106');
+    expect(filing.accessionNumber).toBe('0000320193-23-000106');
+    expect(filing.html).toContain('Apple');
+
+    client.dispose();
+  });
+
+  it('should clean up via client.dispose() after use', async () => {
+    const mockFetch = createEftsMockFetch();
+
+    const client = createEdgarClient({
+      userAgent: 'TestCo test@example.com',
+      fetch: mockFetch,
+    });
+
+    await client.fetchFiling('0000320193-23-000106');
+    client.dispose();
+
+    // No leaked timers after dispose
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 

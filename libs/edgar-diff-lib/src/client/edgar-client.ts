@@ -1,6 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import { parseAccessionNumber } from './accession-number.js';
 import { fetchWithRetry } from './fetch-with-retry.js';
+import { TokenBucketRateLimiter } from './rate-limiter.js';
 import type { EdgarClientOptions, FilingMetadata, FormType, RawFiling } from './types.js';
 import { EdgarNetworkError } from './types.js';
 
@@ -32,9 +33,12 @@ interface EftsResponse {
 export function createEdgarClient(options: EdgarClientOptions) {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const userAgent = options.userAgent;
+  const rateLimiter = options.rateLimiter ?? new TokenBucketRateLimiter();
+  const ownsLimiter = !options.rateLimiter;
 
   async function resolveFilingMetadata(accessionNumber: string): Promise<FilingMetadata> {
     const url = `${EFTS_SEARCH_URL}?q=%22${accessionNumber}%22`;
+    await rateLimiter.acquire();
     const response = await fetchWithRetry(
       url,
       { headers: { 'User-Agent': userAgent } },
@@ -99,6 +103,7 @@ export function createEdgarClient(options: EdgarClientOptions) {
     const cikNoLeadingZeros = metadata.cik.replace(/^0+/, '');
     const documentUrl = `${EDGAR_ARCHIVES_BASE}/${cikNoLeadingZeros}/${parsed.noDashes}/${metadata.primaryDocumentFilename}`;
 
+    await rateLimiter.acquire();
     const htmlResponse = await fetchWithRetry(
       documentUrl,
       { headers: { 'User-Agent': userAgent } },
@@ -122,5 +127,11 @@ export function createEdgarClient(options: EdgarClientOptions) {
     };
   }
 
-  return { fetchFiling };
+  function dispose(): void {
+    if (ownsLimiter) {
+      rateLimiter.dispose();
+    }
+  }
+
+  return { fetchFiling, dispose };
 }

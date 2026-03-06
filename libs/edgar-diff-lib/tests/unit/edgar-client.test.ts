@@ -630,4 +630,200 @@ describe('createEdgarClient', () => {
       await expect(client.fetchFiling('0000320193-23-000106')).rejects.toThrow('aborted');
     });
   });
+
+  describe('rate limiter integration', () => {
+    function createMockRateLimiter() {
+      return {
+        acquire: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      };
+    }
+
+    it('should call rateLimiter.acquire() exactly twice for a fetchFiling call (EFTS + HTML)', async () => {
+      const mockRateLimiter = createMockRateLimiter();
+      const mockFetch = createMockFetchSequence([
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ]);
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      await client.fetchFiling('0000320193-23-000106');
+      expect(mockRateLimiter.acquire).toHaveBeenCalledTimes(2);
+    });
+
+    it('should create a default TokenBucketRateLimiter when none provided', async () => {
+      vi.useFakeTimers();
+
+      // URL-aware mock that handles concurrent requests correctly
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        if (typeof url === 'string' && url.includes('efts.sec.gov')) {
+          return Promise.resolve(new Response(MOCK_EFTS_JSON, { status: 200 }));
+        }
+        return Promise.resolve(new Response(MOCK_FILING_HTML, { status: 200 }));
+      }) as typeof globalThis.fetch;
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+      });
+
+      // 6 fetchFiling calls = 12 acquires, exceeding default capacity of 10
+      const fetchTimestamps: number[] = [];
+      const promises: Promise<void>[] = [];
+      for (let i = 0; i < 6; i++) {
+        promises.push(
+          client.fetchFiling('0000320193-23-000106').then(() => {
+            fetchTimestamps.push(Date.now());
+          }),
+        );
+      }
+
+      // Advance time enough for all queued acquires to resolve
+      await vi.advanceTimersByTimeAsync(3000);
+      await Promise.all(promises);
+
+      // Some filings should have been delayed, proving a real rate limiter is active
+      const startTime = fetchTimestamps[0]!;
+      const delayedFilings = fetchTimestamps.filter((ts) => ts > startTime);
+      expect(delayedFilings.length).toBeGreaterThan(0);
+
+      client.dispose();
+      vi.useRealTimers();
+    });
+
+    it('should use the injected rateLimiter when provided in options', async () => {
+      const mockRateLimiter = createMockRateLimiter();
+      const mockFetch = createMockFetchSequence([
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ]);
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      await client.fetchFiling('0000320193-23-000106');
+      expect(mockRateLimiter.acquire).toHaveBeenCalled();
+    });
+
+    it('should call acquire() before each fetch call (ordering)', async () => {
+      const callOrder: string[] = [];
+      const mockRateLimiter = {
+        acquire: vi.fn().mockImplementation(() => {
+          callOrder.push('acquire');
+          return Promise.resolve();
+        }),
+        dispose: vi.fn(),
+      };
+
+      let fetchCallIndex = 0;
+      const responses = [
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ];
+      const mockFetch = vi.fn().mockImplementation(() => {
+        callOrder.push('fetch');
+        const resp = responses[fetchCallIndex++]!;
+        return Promise.resolve(new Response(resp.body, { status: resp.status }));
+      }) as typeof globalThis.fetch;
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      await client.fetchFiling('0000320193-23-000106');
+      expect(callOrder).toEqual(['acquire', 'fetch', 'acquire', 'fetch']);
+    });
+
+    it('should only dispose rate limiter if client created it (ownsLimiter)', async () => {
+      const mockFetch = createMockFetchSequence([
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ]);
+
+      // Client creates its own limiter — dispose should clean up
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+      });
+
+      // dispose() should not throw
+      client.dispose();
+    });
+
+    it('should NOT dispose an injected rate limiter when client.dispose() is called', async () => {
+      const mockRateLimiter = createMockRateLimiter();
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: vi.fn() as typeof globalThis.fetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      client.dispose();
+      expect(mockRateLimiter.dispose).not.toHaveBeenCalled();
+    });
+
+    it('should NOT call acquire() again when fetchWithRetry retries on 429', async () => {
+      vi.useFakeTimers();
+
+      const mockRateLimiter = createMockRateLimiter();
+      const mockFetch = createMockFetchSequence([
+        { status: 429, body: '', headers: { 'Retry-After': '1' } },
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ]);
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      const promise = client.fetchFiling('0000320193-23-000106');
+      await vi.advanceTimersByTimeAsync(1000);
+      await promise;
+
+      // acquire called 2 times (EFTS + HTML), NOT 3 (retry does not re-acquire)
+      expect(mockRateLimiter.acquire).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+
+    it('should NOT call acquire() again when fetchWithRetry retries on 503', async () => {
+      vi.useFakeTimers();
+
+      const mockRateLimiter = createMockRateLimiter();
+      const mockFetch = createMockFetchSequence([
+        { status: 503, body: '' },
+        { status: 200, body: MOCK_EFTS_JSON },
+        { status: 200, body: MOCK_FILING_HTML },
+      ]);
+
+      const client = createEdgarClient({
+        userAgent: 'TestCo test@example.com',
+        fetch: mockFetch,
+        rateLimiter: mockRateLimiter,
+      });
+
+      const promise = client.fetchFiling('0000320193-23-000106');
+      // 503 without Retry-After uses exponential backoff: baseDelayMs * 2^0 = 1000ms
+      await vi.advanceTimersByTimeAsync(1000);
+      await promise;
+
+      // acquire called 2 times (EFTS + HTML), NOT 3 (retry does not re-acquire)
+      expect(mockRateLimiter.acquire).toHaveBeenCalledTimes(2);
+
+      vi.useRealTimers();
+    });
+  });
 });
