@@ -18,20 +18,59 @@ describe('TokenBucketRateLimiter', () => {
 
     it('should throw on capacity <= 0', () => {
       expect(() => new TokenBucketRateLimiter({ capacity: 0 })).toThrow(
-        'capacity and refillRate must be positive numbers'
+        'capacity and refillRate must be finite positive numbers'
       );
       expect(() => new TokenBucketRateLimiter({ capacity: -1 })).toThrow(
-        'capacity and refillRate must be positive numbers'
+        'capacity and refillRate must be finite positive numbers'
       );
     });
 
     it('should throw on refillRate <= 0', () => {
       expect(() => new TokenBucketRateLimiter({ refillRate: 0 })).toThrow(
-        'capacity and refillRate must be positive numbers'
+        'capacity and refillRate must be finite positive numbers'
       );
       expect(() => new TokenBucketRateLimiter({ refillRate: -5 })).toThrow(
-        'capacity and refillRate must be positive numbers'
+        'capacity and refillRate must be finite positive numbers'
       );
+    });
+
+    it('should throw on NaN capacity or refillRate', () => {
+      expect(() => new TokenBucketRateLimiter({ capacity: NaN })).toThrow(
+        'capacity and refillRate must be finite positive numbers'
+      );
+      expect(() => new TokenBucketRateLimiter({ refillRate: NaN })).toThrow(
+        'capacity and refillRate must be finite positive numbers'
+      );
+    });
+
+    it('should throw on Infinity capacity or refillRate', () => {
+      expect(() => new TokenBucketRateLimiter({ capacity: Infinity })).toThrow(
+        'capacity and refillRate must be finite positive numbers'
+      );
+      expect(() => new TokenBucketRateLimiter({ refillRate: Infinity })).toThrow(
+        'capacity and refillRate must be finite positive numbers'
+      );
+    });
+
+    it('should use refillRate for timer interval, not capacity', async () => {
+      vi.useFakeTimers();
+      // capacity=2 (small burst), refillRate=10 (fast refill)
+      // Timer interval should be ceil(1000/10) = 100ms, not ceil(1000/2) = 500ms
+      const limiter = new TokenBucketRateLimiter({ capacity: 2, refillRate: 10 });
+
+      await limiter.acquire();
+      await limiter.acquire();
+
+      let resolved = false;
+      const p = limiter.acquire().then(() => { resolved = true; });
+
+      // At 100ms (refillRate-based interval), 1 token should refill
+      await vi.advanceTimersByTimeAsync(100);
+      expect(resolved).toBe(true);
+
+      await p;
+      limiter.dispose();
+      vi.useRealTimers();
     });
   });
 

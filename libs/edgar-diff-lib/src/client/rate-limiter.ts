@@ -20,6 +20,7 @@ export class TokenBucketRateLimiter implements RateLimiter {
   private tokens: number;
   private readonly capacity: number;
   private readonly refillRate: number; // tokens per ms
+  private readonly refillRatePerSecond: number; // tokens per second (for timer interval)
   private lastRefillTimestamp: number;
   private waitQueue: Array<() => void>;
   private refillTimer: ReturnType<typeof setInterval> | null;
@@ -27,11 +28,12 @@ export class TokenBucketRateLimiter implements RateLimiter {
 
   constructor(options: TokenBucketOptions = {}) {
     const { capacity = 10, refillRate = 10 } = options;
-    if (capacity <= 0 || refillRate <= 0) {
-      throw new Error('capacity and refillRate must be positive numbers');
+    if (!Number.isFinite(capacity) || !Number.isFinite(refillRate) || capacity <= 0 || refillRate <= 0) {
+      throw new Error('capacity and refillRate must be finite positive numbers');
     }
     this.capacity = capacity;
     this.tokens = capacity; // start full
+    this.refillRatePerSecond = refillRate;
     this.refillRate = refillRate / 1000; // tokens per ms
     this.lastRefillTimestamp = Date.now();
     this.waitQueue = [];
@@ -78,7 +80,7 @@ export class TokenBucketRateLimiter implements RateLimiter {
 
   private ensureRefillTimer(): void {
     if (this.refillTimer !== null) return;
-    const intervalMs = Math.ceil(1000 / this.capacity);
+    const intervalMs = Math.ceil(1000 / this.refillRatePerSecond);
     this.refillTimer = setInterval(() => {
       this.refill();
       while (this.tokens >= 1 && this.waitQueue.length > 0) {
