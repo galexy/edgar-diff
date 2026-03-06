@@ -334,40 +334,5 @@ describe('e2e: rate limiting', () => {
   });
 });
 
-describe.skip('live EDGAR e2e (manual only)', () => {
-  // WARNING: Hits real SEC EDGAR APIs (efts.sec.gov + www.sec.gov)
-  // Run manually: npx vitest run tests/e2e/ --grep "live EDGAR"
-  //
-  // Prerequisites:
-  //   - Network access to efts.sec.gov and www.sec.gov
-  //   - Proper User-Agent: "Company email@domain"
-  //   - Respect 10 req/s rate limit
-  //   - Not in CI (skip by default)
-
-  it('should fetch a real filing from SEC EDGAR', async () => {
-    const client = createEdgarClient({
-      userAgent: 'EdgarDiffTest admin@example.com',
-    });
-    const filing = await client.fetchFiling('0000320193-23-000106');
-
-    expect(filing.accessionNumber).toBe('0000320193-23-000106');
-    expect(filing.cik).toBe('0000320193');
-    expect(filing.formType).toBe('10-K');
-    expect(filing.filingDate.toString()).toBe('2023-11-03');
-    expect(filing.primaryDocumentFilename).toMatch(/\.htm$/);
-    expect(filing.html.length).toBeGreaterThan(10_000);
-  }, 30_000);
-
-  it('should fetch a filing-agent-submitted filing', async () => {
-    const client = createEdgarClient({
-      userAgent: 'EdgarDiffTest admin@example.com',
-    });
-    // Use an accession where the submitter CIK ≠ company CIK
-    const filing = await client.fetchFiling('0000950170-23-035122');
-
-    // CIK in result should be the company CIK, not the agent CIK
-    expect(filing.cik).not.toBe('0000950170');
-    expect(filing.accessionNumber).toBe('0000950170-23-035122');
-    expect(filing.html.length).toBeGreaterThan(1000);
-  }, 30_000);
-});
+// Live EDGAR tests have been moved to tests/e2e-live/edgar-client.live.test.ts
+// Run with: npx vitest run --config vitest.live.config.ts

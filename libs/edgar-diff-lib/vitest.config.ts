@@ -8,6 +8,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.{test,spec}.ts'],
+    exclude: ['tests/e2e-live/**'],
     passWithNoTests: true,
     coverage: {
       reportsDirectory: '../../coverage/libs/edgar-diff-lib',

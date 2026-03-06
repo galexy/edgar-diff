@@ -23,6 +23,7 @@
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
     "diff": "^8.0.3",
+    "domhandler": "^5.0.3",
     "htmlparser2": "^10.1.0",
     "jaro-winkler": "^0.2.8"
   },
