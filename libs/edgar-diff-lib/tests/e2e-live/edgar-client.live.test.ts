@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { createEdgarClient } from '../../src/client/index.js';
-import { EdgarNetworkError } from '../../src/client/types.js';
 
 describe('live EDGAR: fetch client', () => {
   it('fetches a real 10-K filing (Apple FY2023)', async () => {

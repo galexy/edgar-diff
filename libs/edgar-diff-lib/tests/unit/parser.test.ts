@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect, vi } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
 import { extractItemNumber, normalizeHeading } from '../../src/parser/section-extractor.js';

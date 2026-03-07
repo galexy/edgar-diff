@@ -5,10 +5,8 @@ import {
   alignSections,
   serializeSectionContent,
   classifySectionDiff,
-  isReordered,
 } from '../../../src/diff/section-aligner.js';
 import type { SectionMatch } from '../../../src/diff/section-aligner.js';
-import type { ChangeType } from '../../../src/diff/types.js';
 import type { FilingSection } from '../../../src/types.js';
 import {
   arbUniqueHeadings,

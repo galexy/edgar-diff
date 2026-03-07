@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect, vi } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
@@ -574,6 +575,7 @@ describe('createEdgarClient', () => {
   describe('accession number validation', () => {
     it('should throw on invalid accession number without making requests', async () => {
       const mockFetch = vi.fn();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const client = createEdgarClient({ userAgent: 'TestCo test@example.com', fetch: mockFetch as any });
 
       await expect(client.fetchFiling('invalid')).rejects.toThrow();

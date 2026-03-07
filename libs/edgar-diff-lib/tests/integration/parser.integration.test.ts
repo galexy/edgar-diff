@@ -5,11 +5,9 @@ import {
   ALL_FIXTURES,
   loadFixture,
   loadGroundTruth,
-  loadAllFixtureMeta,
   getExpectedIds,
   makeRawFiling,
   KNOWN_ITEMS,
-  type FixtureMeta,
 } from '../helpers/ground-truth.js';
 
 // ============================================================
@@ -222,7 +220,7 @@ describe('table stubs', () => {
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
     expect(item8).toBeDefined();
-    const tableBlocks = item8!.blocks.filter((b): b is Table => b.type === 'table');
+    const tableBlocks = item8?.blocks.filter((b): b is Table => b.type === 'table') ?? [];
     expect(tableBlocks.length).toBeGreaterThan(0);
     for (const table of tableBlocks) {
       expect(table.rows).toBeDefined();

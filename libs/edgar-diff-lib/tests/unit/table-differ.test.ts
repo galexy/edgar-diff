@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect } from 'vitest';
 import { diffTable, diffTables } from '../../src/diff/table-differ.js';
 import { makeTable, makeTableRow, makeTableCell, makeFinancialTable } from '../helpers/table-diff-helpers.js';

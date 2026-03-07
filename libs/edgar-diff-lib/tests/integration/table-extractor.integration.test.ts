@@ -6,6 +6,8 @@ import {
   makeRawFiling,
 } from '../helpers/ground-truth.js';
 
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+
 // ============================================================
 // §3.1 Table extraction in real filings -- Item 8
 // ============================================================

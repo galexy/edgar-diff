@@ -9,6 +9,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Document, Element, ChildNode } from 'domhandler';
 
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '..', 'fixtures');
 
@@ -480,6 +482,7 @@ describe('malformed HTML', () => {
 
 describe('section boundary detection', () => {
   function getTextContent(node: ChildNode): string {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (node.type === 'text') return (node as any).data;
     if (isElement(node)) return node.children.map(getTextContent).join('');
     return '';
@@ -487,11 +490,11 @@ describe('section boundary detection', () => {
 
   function findSectionHeadings(doc: Document, html: string): { label: string; slice: string }[] {
     const patterns = [
-      { label: 'Item 1 ', pattern: /\bItem\s+1[\.\s]/i },
+      { label: 'Item 1 ', pattern: /\bItem\s+1[.\s]/i },
       { label: 'Item 1A', pattern: /\bItem\s+1A\b/i },
-      { label: 'Item 7 ', pattern: /\bItem\s+7[\.\s]/i },
+      { label: 'Item 7 ', pattern: /\bItem\s+7[.\s]/i },
       { label: 'Item 7A', pattern: /\bItem\s+7A\b/i },
-      { label: 'Item 8 ', pattern: /\bItem\s+8[\.\s]/i },
+      { label: 'Item 8 ', pattern: /\bItem\s+8[.\s]/i },
     ];
     const found = new Set<string>();
     const results: { label: string; slice: string }[] = [];

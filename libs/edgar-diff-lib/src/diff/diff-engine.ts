@@ -1,7 +1,7 @@
 import { Temporal } from '@js-temporal/polyfill';
 import type { StructuredDocument, FilingSection } from '../types.js';
 import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange } from './types.js';
-import { alignSections, classifySectionDiff, serializeSectionContent } from './section-aligner.js';
+import { alignSections, classifySectionDiff } from './section-aligner.js';
 import type { SectionMatch } from './section-aligner.js';
 import { diffParagraphs } from './paragraph-differ.js';
 
@@ -30,7 +30,10 @@ function makeSectionDiff(
     match?: SectionMatch;
   },
 ): SectionDiff {
-  const section = options.newSection ?? options.oldSection!;
+  const section = options.newSection ?? options.oldSection;
+  if (!section) {
+    throw new Error('makeSectionDiff requires at least one of oldSection or newSection');
+  }
   const sourceMapping: DiffRange = {};
   if (options.oldSection) sourceMapping.old = options.oldSection.source;
   if (options.newSection) sourceMapping.new = options.newSection.source;

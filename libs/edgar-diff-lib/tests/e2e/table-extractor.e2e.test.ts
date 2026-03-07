@@ -46,6 +46,7 @@ describe('E2E: table stubs replaced', () => {
     const item8 = doc.sections.find(s => s.id === 'item-8');
     expect(item8).toBeDefined();
 
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
     const stubs = tables.filter(t => t.rows.length === 0);
     const populated = tables.filter(t => t.rows.length > 0);

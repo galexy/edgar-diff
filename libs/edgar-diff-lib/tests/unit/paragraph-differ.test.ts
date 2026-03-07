@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect } from 'vitest';
 import { diffParagraphs } from '../../src/diff/paragraph-differ.js';
 import { makeParagraph, makeTable, makeSection } from '../helpers/diff-fixtures.js';

@@ -25,21 +25,7 @@ const EFTS_JSON = JSON.stringify({
 
 const FILING_HTML = '<html><body>Filing</body></html>';
 
-function createMockFetchSequence(
-  responses: Array<{ status: number; body: string; headers?: Record<string, string> }>,
-): typeof globalThis.fetch {
-  let callIndex = 0;
-  return vi.fn().mockImplementation(() => {
-    const resp = responses[callIndex] ?? responses[responses.length - 1];
-    callIndex++;
-    return Promise.resolve(
-      new Response(resp!.body, {
-        status: resp!.status,
-        headers: resp!.headers,
-      }),
-    );
-  }) as typeof globalThis.fetch;
-}
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 /** URL-aware mock that handles concurrent requests correctly */
 function createUrlAwareMockFetch(opts?: {

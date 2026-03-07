@@ -3,10 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { buildSummary, diffFilings } from '../../../src/diff/diff-engine.js';
 import type { SectionDiff } from '../../../src/diff/types.js';
 import {
-  makeFilingSection,
-  makeStructuredDocument,
   makeDocumentPair,
-  makeParagraph,
 } from '../../helpers/diff-helpers.js';
 
 function makeSectionDiffStub(changeType: SectionDiff['changeType']): SectionDiff {

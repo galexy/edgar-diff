@@ -87,8 +87,11 @@ function pairRemovedAdded(changes: ParagraphDiff[]): ParagraphDiff[] {
       i + 1 < changes.length &&
       changes[i + 1].changeType === 'added'
     ) {
-      const oldText = changes[i].oldParagraph!.text;
-      const newText = changes[i + 1].newParagraph!.text;
+      const oldPara = changes[i].oldParagraph;
+      const newPara = changes[i + 1].newParagraph;
+      if (!oldPara || !newPara) { i++; continue; }
+      const oldText = oldPara.text;
+      const newText = newPara.text;
       result.push({
         changeType: 'modified',
         oldParagraph: changes[i].oldParagraph,
@@ -121,9 +124,13 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
 
   const pairs: { removedIdx: number; addedIdx: number; similarity: number }[] = [];
   for (const ri of removedIndices) {
-    const rNorm = normalizeText(changes[ri].oldParagraph!.text);
+    const oldP = changes[ri].oldParagraph;
+    if (!oldP) continue;
+    const rNorm = normalizeText(oldP.text);
     for (const ai of addedIndices) {
-      const aNorm = normalizeText(changes[ai].newParagraph!.text);
+      const newP = changes[ai].newParagraph;
+      if (!newP) continue;
+      const aNorm = normalizeText(newP.text);
       const sim = rNorm === aNorm ? 1.0 : jaroWinkler(rNorm, aNorm);
       if (sim >= MOVE_THRESHOLD) {
         pairs.push({ removedIdx: ri, addedIdx: ai, similarity: sim });
@@ -141,8 +148,9 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
     usedRemoved.add(pair.removedIdx);
     usedAdded.add(pair.addedIdx);
 
-    const oldPara = changes[pair.removedIdx].oldParagraph!;
-    const newPara = changes[pair.addedIdx].newParagraph!;
+    const oldPara = changes[pair.removedIdx].oldParagraph;
+    const newPara = changes[pair.addedIdx].newParagraph;
+    if (!oldPara || !newPara) continue;
     const isExact = normalizeText(oldPara.text) === normalizeText(newPara.text);
 
     const movedEntry: ParagraphDiff = {

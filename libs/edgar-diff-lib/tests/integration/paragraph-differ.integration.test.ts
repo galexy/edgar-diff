@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { parseFiling } from '../../src/parser/index.js';
 import { diffFilings } from '../../src/diff/index.js';
-import type { StructuredDiff, ParagraphDiff } from '../../src/diff/types.js';
+import type { StructuredDiff } from '../../src/diff/types.js';
 import { loadFixture, makeRawFiling } from '../helpers/ground-truth.js';
+
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 
 // ============================================================
 // Helper: parse and diff two fixtures

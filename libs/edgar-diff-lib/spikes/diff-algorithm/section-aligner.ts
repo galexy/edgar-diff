@@ -42,7 +42,7 @@ export function jaroWinklerSimilarity(a: string, b: string): number {
 export function alignSections(
   oldSections: Section[],
   newSections: Section[],
-  threshold: number = 0.75,
+  threshold = 0.75,
 ): AlignmentResult {
   const matched: SectionMatch[] = [];
   const usedOld = new Set<number>();

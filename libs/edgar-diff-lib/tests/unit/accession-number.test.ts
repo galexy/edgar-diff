@@ -105,10 +105,12 @@ describe('parseAccessionNumber', () => {
     });
 
     it('should throw on null', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => parseAccessionNumber(null as any)).toThrow();
     });
 
     it('should throw on undefined', () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       expect(() => parseAccessionNumber(undefined as any)).toThrow();
     });
   });

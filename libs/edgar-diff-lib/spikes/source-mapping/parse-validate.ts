@@ -15,11 +15,11 @@ const FIXTURES_DIR = join(__dirname, 'fixtures');
 
 // Section headings we're looking for in a 10-K
 const SECTION_PATTERNS = [
-  { label: 'Item 1 ', pattern: /\bItem\s+1[\.\s]/i },
+  { label: 'Item 1 ', pattern: /\bItem\s+1[.\s]/i },
   { label: 'Item 1A', pattern: /\bItem\s+1A\b/i },
-  { label: 'Item 7 ', pattern: /\bItem\s+7[\.\s]/i },
+  { label: 'Item 7 ', pattern: /\bItem\s+7[.\s]/i },
   { label: 'Item 7A', pattern: /\bItem\s+7A\b/i },
-  { label: 'Item 8 ', pattern: /\bItem\s+8[\.\s]/i },
+  { label: 'Item 8 ', pattern: /\bItem\s+8[.\s]/i },
 ];
 
 interface SectionHit {

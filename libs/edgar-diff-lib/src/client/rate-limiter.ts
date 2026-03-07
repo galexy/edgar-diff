@@ -85,8 +85,8 @@ export class TokenBucketRateLimiter implements RateLimiter {
       this.refill();
       while (this.tokens >= 1 && this.waitQueue.length > 0) {
         this.tokens -= 1;
-        const resolve = this.waitQueue.shift()!;
-        resolve();
+        const resolve = this.waitQueue.shift();
+        if (resolve) resolve();
       }
       if (this.waitQueue.length === 0 && this.refillTimer !== null) {
         clearInterval(this.refillTimer);

@@ -93,12 +93,14 @@ describe('section extraction', () => {
   it('finds Item 1 (Business)', () => {
     const item1 = appleSections.find((s) => /item\s+1\b/i.test(s.heading) && !/item\s+1[a-z]/i.test(s.heading));
     expect(item1).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(item1!.paragraphs.length).toBeGreaterThan(0);
   });
 
   it('finds Item 1A (Risk Factors)', () => {
     const item1a = appleSections.find((s) => /item\s+1a/i.test(s.heading));
     expect(item1a).toBeDefined();
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     expect(item1a!.paragraphs.length).toBeGreaterThan(5); // Risk factors has many paragraphs
   });
 
@@ -215,6 +217,7 @@ describe('paragraph diff', () => {
     if (modified.length > 0) {
       for (const m of modified.slice(0, 5)) {
         expect(m.wordDiff).toBeDefined();
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         expect(m.wordDiff!.length).toBeGreaterThan(0);
       }
     }

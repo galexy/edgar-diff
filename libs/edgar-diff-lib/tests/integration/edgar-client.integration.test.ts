@@ -44,9 +44,9 @@ function createMockFetchSequence(
     const resp = responses[callIndex] ?? responses[responses.length - 1];
     callIndex++;
     return Promise.resolve(
-      new Response(resp!.body, {
-        status: resp!.status,
-        headers: resp!.headers,
+      new Response(resp?.body ?? '', {
+        status: resp?.status ?? 500,
+        headers: resp?.headers,
       }),
     );
   }) as typeof globalThis.fetch;
