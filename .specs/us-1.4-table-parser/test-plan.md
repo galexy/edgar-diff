@@ -31,72 +31,54 @@ enables exact structural assertions across hundreds of generated inputs per CI r
 relying solely on handwritten examples. Scenario 6 uses real filing fixtures. See section 7 for
 the generator specification and property test implementation.
 
-### Scenario 1: HTML tables extracted into row/column data structure
+### Scenario 1: HTML tables extracted into row/column data structure (Property: P1, P2)
 ```gherkin
-Given a RawFiling containing HTML with <table> elements
+Given a randomly generated <table> with a known structure (rows, cells, content)
 When parseFiling(raw) is called
-Then each Table block has rows.length > 0 (not a stub)
-And each TableRow has cells.length > 0
-And each TableCell has a non-empty text or whitespace-only text
-And each TableCell has colspan >= 1 and rowspan >= 1
+Then the extracted Table has the same number of rows as the generated table
+And each extracted row has the same number of cells as the generated row
+And each cell's text matches the generated cell's expected text
+And each cell has colspan >= 1 and rowspan >= 1
 ```
 
-**Property test:** Generate N=200 random tables. For each, assert `table.rows.length === expected.rowCount`
-and `row.cells.length === expected.cellCount`. (Properties P1, P2)
-
-### Scenario 2: Header rows and column labels preserved
+### Scenario 2: Header rows and column labels preserved (Property: P3)
 ```gherkin
-Given a table with <thead> containing <th> elements
+Given a randomly generated table with a randomized header pattern
+  (none, <thead> wrapper, or all-<th> cells)
 When the table is extracted
-Then rows within <thead> have isHeader = true
-And cells from <th> elements are included in header rows
-And header row text preserves the column label content
+Then each row's isHeader matches the expected value based on the generated pattern
+And header row cell text matches the generated content
 ```
 
-**Property test:** Generator randomizes header patterns (none / `<thead>` / all-`<th>`). For each
-generated table, assert `row.isHeader === expected.isHeader`. (Property P3)
-
-### Scenario 3: Merged cells handled gracefully
+### Scenario 3: Merged cells handled gracefully (Property: P5, P8)
 ```gherkin
-Given a table with cells using colspan and rowspan attributes
+Given a randomly generated table with randomized colspan (1-3) and rowspan (1-3) values
 When the table is extracted
-Then each TableCell.colspan reflects the HTML colspan attribute (default 1)
-And each TableCell.rowspan reflects the HTML rowspan attribute (default 1)
-And cells without colspan/rowspan attributes have colspan=1, rowspan=1
+Then each cell's colspan matches the generated colspan attribute
+And each cell's rowspan matches the generated rowspan attribute
+And all colspan values are >= 1
+And all rowspan values are >= 1
 ```
 
-**Property test:** Generator randomizes colspan (1-3) and rowspan (1-3). For each cell, assert
-`cell.colspan === expected.colspan` and `cell.rowspan === expected.rowspan`. Also assert
-`colspan >= 1` and `rowspan >= 1` as invariants. (Properties P5, P8)
-
-### Scenario 4: Numeric values retained as numbers
+### Scenario 4: Numeric values retained as numbers (Property: P7)
 ```gherkin
-Given a table with cells containing financial data
+Given a randomly generated table with cells containing randomized content types
+  (text, currency, percentage, parenthetical negative, plain number, dash-zero, empty)
 When the table is extracted
-Then cells with currency values like "$1,234.56" have numericValue = 1234.56
-And cells with percentages like "12.5%" have numericValue = 12.5
-And cells with parenthetical negatives like "(1,234)" have numericValue = -1234
-And cells with plain numbers like "42" have numericValue = 42
-And cells with non-numeric text like "Revenue" have numericValue = undefined
+Then each cell's numericValue matches the expected value derived from the generated content
+And cells with non-numeric generated text have numericValue = undefined
+And cells with numeric generated content have the correct parsed numericValue
 ```
 
-**Property test:** Generator produces cells with randomized content types (text, currency, percentage,
-parenthetical negative, plain number, dash-zero, empty). For each cell, assert
-`cell.numericValue === expected.numericValue`. Also fuzz `tryParseNumeric` directly with random
-integers, currency strings, and parenthetical negatives. (Property P7, plus standalone numeric fuzz)
-
-### Scenario 5: Source mappings for each cell
+### Scenario 5: Source mappings for each cell (Property: P4, P9)
 ```gherkin
-Given a parsed table with rows and cells
-When inspecting source mappings
-Then each TableCell has source.start < source.end
-And each TableRow has source.start < source.end
-And html.slice(cell.source.start, cell.source.end) contains the cell's text content
-And all source offsets are within [0, html.length)
+Given a randomly generated table parsed into a Table block
+When inspecting source mappings on the extracted rows and cells
+Then each row has source.start < source.end within [0, html.length)
+And each cell has source.start < source.end within its parent row's source range
+And rows appear in monotonically increasing source offset order
+And html.slice(cell.source.start, cell.source.end) contains the cell's text
 ```
-
-**Property test:** For every generated table, assert source offset bounds, containment (cell within
-row), and monotonic row ordering. (Properties P4, P9)
 
 ### Scenario 6: Full pipeline produces populated tables
 ```gherkin
@@ -109,16 +91,14 @@ And table cells contain recognizable financial data (numbers, labels)
 
 *Not property-tested — uses real filing fixtures in integration/E2E tests (sections 3-4).*
 
-### Scenario 7: Empty/edge-case tables handled gracefully
+### Scenario 7: Edge-case tables handled gracefully (Property: P10)
 ```gherkin
-Given a table with no <tr> elements
+Given a randomly generated table (including edge cases: 0 rows, 0 cells, empty content)
 When the table is extracted
-Then the Table block has rows = [] (valid empty table)
-And no exception is thrown
+Then no exception is thrown
+And the Table block has the expected number of rows (including 0 for empty tables)
+And all structural invariants (P1-P9) still hold
 ```
-
-**Property test:** Generator includes row count range 0-20, so empty tables (0 rows) are covered.
-The invariant "no exception thrown" is implicit — if the test reaches assertions, no exception occurred. (Property P10)
 
 ---
 
