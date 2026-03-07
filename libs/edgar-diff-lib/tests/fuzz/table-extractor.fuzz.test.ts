@@ -216,4 +216,66 @@ describe('property: edge-case tables handled gracefully', () => {
       }
     }
   });
+
+  // B4: Table with only header rows (no data)
+  it('table with only header rows works correctly', () => {
+    const html = wrapInSection(
+      '<table><thead><tr><th>Col A</th><th>Col B</th></tr></thead></table>'
+    );
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0].isHeader).toBe(true);
+  });
+
+  // B5: Nested tables -- inner table text folds into outer cell
+  it('nested table text folds into outer cell', () => {
+    const html = wrapInSection(
+      '<table><tr><td>Outer <table><tr><td>Inner data</td></tr></table></td></tr></table>'
+    );
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+    const doc = parseFiling(makeRawFiling(html));
+    const tables = doc.sections[0]?.blocks.filter(b => b.type === 'table') as Table[];
+    // Only the outer table is extracted as a block
+    expect(tables).toHaveLength(1);
+    // Inner table's text is accumulated into the outer cell
+    expect(tables[0].rows[0].cells[0].text).toContain('Inner data');
+  });
+
+  // B7: Cells with very long content
+  it('cell with long text content does not truncate', () => {
+    const longText = 'A'.repeat(5000);
+    const html = wrapInSection(`<table><tr><td>${longText}</td></tr></table>`);
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows[0].cells[0].text).toBe(longText);
+  });
+
+  // B8: Inconsistent column counts across rows
+  it('rows with different numbers of cells are preserved', () => {
+    const html = wrapInSection(`<table>
+      <tr><td>A</td><td>B</td><td>C</td></tr>
+      <tr><td>D</td><td>E</td></tr>
+      <tr><td>F</td></tr>
+    </table>`);
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows).toHaveLength(3);
+    expect(table.rows[0].cells).toHaveLength(3);
+    expect(table.rows[1].cells).toHaveLength(2);
+    expect(table.rows[2].cells).toHaveLength(1);
+  });
+
+  // E2: Table with no <tr> elements
+  it('table with no <tr> elements produces empty rows', () => {
+    const html = wrapInSection(
+      '<table><caption>Financial Summary</caption></table>'
+    );
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(0);
+  });
 });
