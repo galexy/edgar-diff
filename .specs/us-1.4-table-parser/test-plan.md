@@ -1134,7 +1134,202 @@ for (const row of table.rows) {
 
 ---
 
-## 7. Test Data
+## 7. Property-Based / Fuzz Tests
+
+Test file: `tests/fuzz/table-extractor.fuzz.test.ts`.
+
+The unit tests above cover specific scenarios, but the table extraction domain has high combinatorial
+complexity (varying row/column counts, colspan/rowspan combinations, mixed header patterns, numeric
+formats, nesting). Property-based testing generates hundreds of random table structures per CI run
+and validates structural invariants that must hold for ANY valid table input.
+
+### 7.1 Table HTML Generator
+
+A `TableHtmlGenerator` produces structurally valid but randomized `<table>` HTML:
+
+```typescript
+interface TableGenOptions {
+  minRows?: number;       // default 0
+  maxRows?: number;       // default 20
+  minCols?: number;       // default 0
+  maxCols?: number;       // default 10
+  useColspan?: boolean;   // default true, random colspan 1-3
+  useRowspan?: boolean;   // default true, random rowspan 1-3
+  useThead?: boolean;     // default: random
+  useTbody?: boolean;     // default: random
+  useTfoot?: boolean;     // default: random
+  useThCells?: boolean;   // default: random
+  cellContentTypes?: ('text' | 'currency' | 'percentage' | 'negative'
+    | 'plain-number' | 'dash-zero' | 'empty' | 'nested-span' | 'ixbrl')[];
+  nestingDepth?: number;  // 0 = no nested tables, 1 = one level, default 0
+}
+
+/** Returns { html: string, expected: ExpectedTable } */
+function generateTable(options?: TableGenOptions): GeneratedTable;
+
+interface ExpectedTable {
+  rowCount: number;
+  rows: Array<{
+    cellCount: number;
+    isHeader: boolean;
+    cells: Array<{
+      text: string;
+      numericValue?: number;
+      colspan: number;
+      rowspan: number;
+    }>;
+  }>;
+}
+```
+
+The generator produces both the HTML string and the expected parse result, enabling exact
+structural assertions (not just invariant checks).
+
+### 7.2 Structural invariants (property tests)
+
+Run N=200 generated tables per CI invocation. For each generated table:
+
+```typescript
+describe('property: table extraction invariants', () => {
+  const N = 200;
+
+  for (let i = 0; i < N; i++) {
+    it(`generated table #${i}: structural invariants hold`, () => {
+      const { html: tableHtml, expected } = generateTable();
+      const html = wrapInSection(tableHtml); // adds Item 8 heading + body
+      const doc = parseFiling(makeRawFiling(html));
+
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+      expect(table).toBeDefined();
+
+      // P1: Row count matches expected
+      expect(table.rows.length).toBe(expected.rowCount);
+
+      // P2: Each row's cell count matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        expect(table.rows[r].cells.length).toBe(expected.rows[r].cellCount);
+      }
+
+      // P3: isHeader matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        expect(table.rows[r].isHeader).toBe(expected.rows[r].isHeader);
+      }
+
+      // P4: All source offsets valid
+      for (const row of table.rows) {
+        expect(row.source.start).toBeGreaterThanOrEqual(0);
+        expect(row.source.end).toBeLessThanOrEqual(html.length);
+        expect(row.source.start).toBeLessThan(row.source.end);
+        for (const cell of row.cells) {
+          expect(cell.source.start).toBeGreaterThanOrEqual(row.source.start);
+          expect(cell.source.end).toBeLessThanOrEqual(row.source.end);
+          expect(cell.source.start).toBeLessThan(cell.source.end);
+        }
+      }
+
+      // P5: colspan/rowspan >= 1
+      for (const row of table.rows) {
+        for (const cell of row.cells) {
+          expect(cell.colspan).toBeGreaterThanOrEqual(1);
+          expect(cell.rowspan).toBeGreaterThanOrEqual(1);
+        }
+      }
+
+      // P6: Cell text matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].text).toBe(expected.rows[r].cells[c].text);
+        }
+      }
+
+      // P7: Numeric values match expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].numericValue)
+            .toBe(expected.rows[r].cells[c].numericValue);
+        }
+      }
+
+      // P8: colspan/rowspan match expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].colspan).toBe(expected.rows[r].cells[c].colspan);
+          expect(table.rows[r].cells[c].rowspan).toBe(expected.rows[r].cells[c].rowspan);
+        }
+      }
+
+      // P9: Rows are in document order (source offsets monotonically increasing)
+      for (let r = 1; r < table.rows.length; r++) {
+        expect(table.rows[r].source.start)
+          .toBeGreaterThan(table.rows[r - 1].source.start);
+      }
+
+      // P10: No exception thrown (implicit -- test reaches this point)
+    });
+  }
+});
+```
+
+### 7.3 Numeric parsing properties
+
+Separately fuzz the `tryParseNumeric` function with random numeric strings:
+
+```typescript
+describe('property: tryParseNumeric round-trip', () => {
+  it('plain integers always parse correctly', () => {
+    for (let i = 0; i < 100; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = n.toLocaleString('en-US'); // "1,234,567"
+      expect(tryParseNumeric(formatted)).toBe(n);
+    }
+  });
+
+  it('currency-formatted values always parse correctly', () => {
+    for (let i = 0; i < 100; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = `$${n.toLocaleString('en-US')}`;
+      expect(tryParseNumeric(formatted)).toBe(n);
+    }
+  });
+
+  it('parenthetical negatives always parse correctly', () => {
+    for (let i = 0; i < 100; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = `(${n.toLocaleString('en-US')})`;
+      expect(tryParseNumeric(formatted)).toBe(-n);
+    }
+  });
+
+  it('non-numeric strings never produce a value', () => {
+    const words = ['Revenue', 'Total', 'N/A', 'abc', 'Item 1', 'million', ''];
+    for (const w of words) {
+      expect(tryParseNumeric(w)).toBeUndefined();
+    }
+  });
+});
+```
+
+### 7.4 Generator coverage dimensions
+
+The `TableHtmlGenerator` randomizes across these dimensions:
+
+| Dimension | Range | Purpose |
+|-----------|-------|---------|
+| Row count | 0-20 | Empty table, single row, many rows |
+| Column count | 0-10 | Empty row, single cell, wide tables |
+| colspan | 1-3 | Merged columns |
+| rowspan | 1-3 | Merged rows |
+| Header pattern | none / thead / all-th | Header detection logic |
+| Cell content | text, $, %, (neg), number, dash, empty, span, ixbrl | Numeric parsing paths |
+| Structural wrappers | none / thead+tbody / thead+tbody+tfoot | Section element handling |
+
+This replaces the need for many manual boundary/edge-case tests by covering the combinatorial
+space randomly. The exact-match assertions (P1-P8) ensure the parser output matches the
+generated expectation, not just invariants.
+
+---
+
+## 8. Test Data
 
 ### 7.1 Inline HTML fixtures (unit tests)
 
@@ -1175,27 +1370,30 @@ Uses `makeRawFiling(html)` from `tests/helpers/ground-truth.ts` (shared with US-
 
 ---
 
-## 8. Test File Organization
+## 9. Test File Organization
 
 ```
 tests/
   unit/
-    table-extractor.test.ts        # T1-T28, B1-B8, E1-E4
+    table-extractor.test.ts              # T1-T28, B1-B8, E1-E4
   integration/
     table-extractor.integration.test.ts  # §3.1-3.7
   e2e/
-    table-parser-e2e.test.ts       # E2E-1, E2E-2, E2E-3
+    table-parser-e2e.test.ts             # E2E-1, E2E-2, E2E-3
+  fuzz/
+    table-extractor.fuzz.test.ts         # §7.2-7.3 (property tests, N=200 per run)
+    table-html-generator.ts              # §7.1 (TableHtmlGenerator + ExpectedTable)
   helpers/
-    ground-truth.ts                # Shared: makeRawFiling(), loadFixture(), etc.
+    ground-truth.ts                      # Shared: makeRawFiling(), loadFixture(), etc.
   integration/
     fixtures/
-      10k-*.html                   # Real filing HTML (already committed)
-      meta-10k-*.json              # Ground truth (already committed)
+      10k-*.html                         # Real filing HTML (already committed)
+      meta-10k-*.json                    # Ground truth (already committed)
 ```
 
 ---
 
-## 9. Design Decisions (Resolved per Implementation Design)
+## 10. Design Decisions (Resolved per Implementation Design)
 
 The following decisions are now aligned between the test plan and implementation design:
 
@@ -1220,3 +1418,7 @@ The following decisions are now aligned between the test plan and implementation
 ### Remaining open question
 
 - **`<br>` implementation**: The shared `getTextContent()` in content-extractor currently ignores `<br>`. Modifying it to insert a space affects both paragraph and table text extraction. Should this be scoped to table-extractor only, or applied globally? Test T27 validates the expected behavior.
+
+### Future work
+
+- **Enhanced complex table handling** (deeply nested, multi-level colspan/rowspan): Filed as `edgar-diff-dw8` (P3). Current v1 handles basic colspan/rowspan and folds nested table text into parent cells. Future enhancement to handle independent nested table extraction and overlapping span grids.
