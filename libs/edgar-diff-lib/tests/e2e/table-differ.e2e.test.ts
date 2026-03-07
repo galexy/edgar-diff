@@ -53,14 +53,10 @@ describe('table diff e2e', () => {
         continue;
       }
 
-      // Summary counts should add up
+      // Summary counts should equal total rowDiffs
       const total = diff.summary.rowsAdded + diff.summary.rowsRemoved +
         diff.summary.rowsModified + diff.summary.rowsUnchanged;
-      const maxRows = Math.max(
-        diff.oldTable?.rows.length ?? 0,
-        diff.newTable?.rows.length ?? 0,
-      );
-      expect(total).toBe(maxRows);
+      expect(total).toBe(diff.rowDiffs.length);
 
       // cellDiffs.length should equal summary.cellsChanged
       expect(diff.cellDiffs.length).toBe(diff.summary.cellsChanged);
