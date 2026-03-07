@@ -40,13 +40,17 @@ export function matchTables(
     return { matched: [], added: [], removed: [...oldTables] };
   }
 
+  // Precompute header text to avoid redundant extraction inside O(n×m) loop
+  const oldHeaders = oldTables.map(getHeaderText);
+  const newHeaders = newTables.map(getHeaderText);
+
   // Build similarity matrix
   const candidates: Array<{ oldIdx: number; newIdx: number; similarity: number; score: number }> = [];
 
   for (let i = 0; i < oldTables.length; i++) {
     for (let j = 0; j < newTables.length; j++) {
-      const oldHeader = getHeaderText(oldTables[i]);
-      const newHeader = getHeaderText(newTables[j]);
+      const oldHeader = oldHeaders[i];
+      const newHeader = newHeaders[j];
 
       let similarity: number;
       if (oldHeader === '' && newHeader === '') {
