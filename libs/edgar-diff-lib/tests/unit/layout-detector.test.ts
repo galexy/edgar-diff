@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { parseDocument } from 'htmlparser2';
 import type { Element } from 'domhandler';
 import { isTag } from 'domhandler';
@@ -23,8 +23,8 @@ describe('isLayoutTable', () => {
       '<table><tr><td>Revenue</td><td>$100B</td></tr></table>',
       { withStartIndices: true, withEndIndices: true },
     );
-    const table = findTable(doc)!;
-    expect(table).not.toBeNull();
+    const table = findTable(doc);
+    assertDefined(table);
     expect(isLayoutTable(table)).toBe(false);
   });
 
@@ -33,7 +33,8 @@ describe('isLayoutTable', () => {
       '<table><tr><td><table><tr><td>Inner</td></tr></table></td></tr></table>',
       { withStartIndices: true, withEndIndices: true },
     );
-    const table = findTable(doc)!;
+    const table = findTable(doc);
+    assertDefined(table);
     expect(isLayoutTable(table)).toBe(true);
   });
 
@@ -42,7 +43,8 @@ describe('isLayoutTable', () => {
       '<table><tbody><tr><td><div><table><tr><td>Deep</td></tr></table></div></td></tr></tbody></table>',
       { withStartIndices: true, withEndIndices: true },
     );
-    const table = findTable(doc)!;
+    const table = findTable(doc);
+    assertDefined(table);
     expect(isLayoutTable(table)).toBe(true);
   });
 
@@ -51,8 +53,8 @@ describe('isLayoutTable', () => {
       '<table></table>',
       { withStartIndices: true, withEndIndices: true },
     );
-    const table = findTable(doc)!;
-    expect(table).not.toBeNull();
+    const table = findTable(doc);
+    assertDefined(table);
     expect(isLayoutTable(table)).toBe(false);
   });
 
@@ -61,7 +63,8 @@ describe('isLayoutTable', () => {
       '<table><tr><td><div><p>Text</p><span>More</span></div></td></tr></table>',
       { withStartIndices: true, withEndIndices: true },
     );
-    const table = findTable(doc)!;
+    const table = findTable(doc);
+    assertDefined(table);
     expect(isLayoutTable(table)).toBe(false);
   });
 });

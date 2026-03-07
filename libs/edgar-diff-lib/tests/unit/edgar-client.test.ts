@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect, vi } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
@@ -56,10 +56,11 @@ function createMockFetchSequence(
   let callIndex = 0;
   return vi.fn().mockImplementation(() => {
     const resp = responses[callIndex] ?? responses[responses.length - 1];
+    assertDefined(resp);
     callIndex++;
-    return Promise.resolve(new Response(resp!.body, {
-      status: resp!.status,
-      headers: resp!.headers,
+    return Promise.resolve(new Response(resp.body, {
+      status: resp.status,
+      headers: resp.headers,
     }));
   }) as typeof globalThis.fetch;
 }
@@ -574,9 +575,8 @@ describe('createEdgarClient', () => {
 
   describe('accession number validation', () => {
     it('should throw on invalid accession number without making requests', async () => {
-      const mockFetch = vi.fn();
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const client = createEdgarClient({ userAgent: 'TestCo test@example.com', fetch: mockFetch as any });
+      const mockFetch = vi.fn<typeof globalThis.fetch>();
+      const client = createEdgarClient({ userAgent: 'TestCo test@example.com', fetch: mockFetch });
 
       await expect(client.fetchFiling('invalid')).rejects.toThrow();
       expect(mockFetch).not.toHaveBeenCalled();
@@ -691,7 +691,8 @@ describe('createEdgarClient', () => {
       await Promise.all(promises);
 
       // Some filings should have been delayed, proving a real rate limiter is active
-      const startTime = fetchTimestamps[0]!;
+      const startTime = fetchTimestamps[0];
+      assertDefined(startTime);
       const delayedFilings = fetchTimestamps.filter((ts) => ts > startTime);
       expect(delayedFilings.length).toBeGreaterThan(0);
 
@@ -733,7 +734,8 @@ describe('createEdgarClient', () => {
       ];
       const mockFetch = vi.fn().mockImplementation(() => {
         callOrder.push('fetch');
-        const resp = responses[fetchCallIndex++]!;
+        const resp = responses[fetchCallIndex++];
+        assertDefined(resp);
         return Promise.resolve(new Response(resp.body, { status: resp.status }));
       }) as typeof globalThis.fetch;
 

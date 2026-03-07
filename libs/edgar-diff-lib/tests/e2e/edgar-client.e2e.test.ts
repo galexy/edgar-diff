@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
 import { createEdgarClient } from '../../src/client/edgar-client.js';
 import { EdgarNetworkError } from '../../src/client/types.js';
+import { assertDefined } from '../helpers/assert-defined.js';
 
 // --- Mock Data ---
 
@@ -30,14 +31,13 @@ function createMockFetchSequence(
   return vi.fn().mockImplementation(() => {
     const resp = responses[callIndex] ?? responses[responses.length - 1];
     callIndex++;
-    /* eslint-disable @typescript-eslint/no-non-null-assertion */
+    assertDefined(resp);
     return Promise.resolve(
-      new Response(resp!.body, {
-        status: resp!.status,
-        headers: resp!.headers,
+      new Response(resp.body, {
+        status: resp.status,
+        headers: resp.headers,
       }),
     );
-    /* eslint-enable @typescript-eslint/no-non-null-assertion */
   }) as typeof globalThis.fetch;
 }
 

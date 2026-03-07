@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect, vi } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { Temporal } from '@js-temporal/polyfill';
 import { extractItemNumber, normalizeHeading } from '../../src/parser/section-extractor.js';
 import { parseFiling } from '../../src/parser/parser.js';
@@ -268,8 +268,8 @@ describe('empty sections / table stubs', () => {
 </body></html>`;
     const doc = parseFiling(makeRawFiling(htmlEmpty));
     const item4 = doc.sections.find(s => s.id === 'item-4');
-    expect(item4).toBeDefined();
-    expect(item4!.blocks).toHaveLength(0);
+    assertDefined(item4);
+    expect(item4.blocks).toHaveLength(0);
   });
 
   it('U25: section with only a table -- table emitted with populated rows', () => {
@@ -280,9 +280,9 @@ describe('empty sections / table stubs', () => {
 </body></html>`;
     const doc2 = parseFiling(makeRawFiling(htmlTable));
     const item8 = doc2.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
-    expect(item8!.blocks).toHaveLength(1);
-    const table = item8!.blocks[0] as Table;
+    assertDefined(item8);
+    expect(item8.blocks).toHaveLength(1);
+    const table = item8.blocks[0] as Table;
     expect(table.type).toBe('table');
     expect(table.rows).toHaveLength(1);
     expect(table.rows[0].cells[0].text).toBe('Revenue');
@@ -419,8 +419,8 @@ describe('whitespace-only content', () => {
 </body></html>`;
     const doc = parseFiling(makeRawFiling(htmlWs));
     const item4 = doc.sections.find(s => s.id === 'item-4');
-    expect(item4).toBeDefined();
-    expect(item4!.blocks.every(b => b.type !== 'paragraph' || b.text.trim().length > 0)).toBe(true);
+    assertDefined(item4);
+    expect(item4.blocks.every(b => b.type !== 'paragraph' || b.text.trim().length > 0)).toBe(true);
   });
 });
 
@@ -492,8 +492,8 @@ describe('layout table transparency', () => {
 </body></html>`;
     const doc = parseFiling(makeRawFiling(html));
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
-    const tables = item8!.blocks.filter(b => b.type === 'table');
+    assertDefined(item8);
+    const tables = item8.blocks.filter(b => b.type === 'table');
     expect(tables).toHaveLength(2);
   });
 
@@ -510,9 +510,9 @@ describe('layout table transparency', () => {
 </body></html>`;
     const doc = parseFiling(makeRawFiling(html));
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
-    const paragraphs = item8!.blocks.filter(b => b.type === 'paragraph');
-    const tables = item8!.blocks.filter(b => b.type === 'table');
+    assertDefined(item8);
+    const paragraphs = item8.blocks.filter(b => b.type === 'paragraph');
+    const tables = item8.blocks.filter(b => b.type === 'table');
     expect(paragraphs.length).toBeGreaterThanOrEqual(1);
     expect(tables.length).toBeGreaterThanOrEqual(1);
     expect(paragraphs[0].text).toContain('summarizes revenue');
@@ -535,8 +535,8 @@ describe('layout table transparency', () => {
 </body></html>`;
     const doc = parseFiling(makeRawFiling(html));
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
-    const tables = item8!.blocks.filter(b => b.type === 'table');
+    assertDefined(item8);
+    const tables = item8.blocks.filter(b => b.type === 'table');
     expect(tables).toHaveLength(2);
     const tableTexts = tables.map(t => (t as Table).rows[0].cells[0].text);
     expect(tableTexts).toContain('Revenue');

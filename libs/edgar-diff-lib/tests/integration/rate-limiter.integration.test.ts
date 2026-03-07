@@ -25,7 +25,7 @@ const EFTS_JSON = JSON.stringify({
 
 const FILING_HTML = '<html><body>Filing</body></html>';
 
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { assertDefined } from '../helpers/assert-defined.js';
 
 /** URL-aware mock that handles concurrent requests correctly */
 function createUrlAwareMockFetch(opts?: {
@@ -38,9 +38,10 @@ function createUrlAwareMockFetch(opts?: {
   return vi.fn().mockImplementation((url: string) => {
     if (url.includes('efts.sec.gov')) {
       const resp = eftsResponses[eftsCallIndex] ?? eftsResponses[eftsResponses.length - 1];
+      assertDefined(resp);
       eftsCallIndex++;
       return Promise.resolve(
-        new Response(resp!.body, { status: resp!.status, headers: resp!.headers }),
+        new Response(resp.body, { status: resp.status, headers: resp.headers }),
       );
     }
     // HTML document fetch
@@ -71,7 +72,9 @@ describe('rate limiter + client integration', () => {
     const baseMockFetch = createUrlAwareMockFetch();
     const mockFetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       fetchTimestamps.push(Date.now());
-      return (baseMockFetch as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+      const impl = (baseMockFetch as ReturnType<typeof vi.fn>).getMockImplementation();
+      assertDefined(impl);
+      return impl(url, init);
     }) as typeof globalThis.fetch;
 
     const client = createEdgarClient({
@@ -94,7 +97,8 @@ describe('rate limiter + client integration', () => {
     expect(mockFetch).toHaveBeenCalledTimes(6);
 
     // Some fetch calls should be delayed (tokens had to refill for 3 of 6 acquires)
-    const startTime = fetchTimestamps[0]!;
+    const startTime = fetchTimestamps[0];
+    assertDefined(startTime);
     const delayedCalls = fetchTimestamps.filter((ts) => ts > startTime);
     expect(delayedCalls.length).toBeGreaterThan(0);
 
@@ -109,7 +113,9 @@ describe('rate limiter + client integration', () => {
     const baseMockFetch = createUrlAwareMockFetch();
     const mockFetch = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       fetchTimestamps.push(Date.now());
-      return (baseMockFetch as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+      const impl = (baseMockFetch as ReturnType<typeof vi.fn>).getMockImplementation();
+      assertDefined(impl);
+      return impl(url, init);
     }) as typeof globalThis.fetch;
 
     const client = createEdgarClient({
@@ -223,13 +229,17 @@ describe('shared rate limiter', () => {
     const baseMockFetch1 = createUrlAwareMockFetch();
     const mockFetch1 = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       fetchTimestamps.push(Date.now());
-      return (baseMockFetch1 as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+      const impl1 = (baseMockFetch1 as ReturnType<typeof vi.fn>).getMockImplementation();
+      assertDefined(impl1);
+      return impl1(url, init);
     }) as typeof globalThis.fetch;
 
     const baseMockFetch2 = createUrlAwareMockFetch();
     const mockFetch2 = vi.fn().mockImplementation((url: string, init?: RequestInit) => {
       fetchTimestamps.push(Date.now());
-      return (baseMockFetch2 as ReturnType<typeof vi.fn>).getMockImplementation()!(url, init);
+      const impl2 = (baseMockFetch2 as ReturnType<typeof vi.fn>).getMockImplementation();
+      assertDefined(impl2);
+      return impl2(url, init);
     }) as typeof globalThis.fetch;
 
     const client1 = createEdgarClient({
@@ -254,7 +264,8 @@ describe('shared rate limiter', () => {
     expect(acquireSpy).toHaveBeenCalledTimes(4);
 
     // The 4th acquire should have been delayed (proves rate enforcement)
-    const startTime = fetchTimestamps[0]!;
+    const startTime = fetchTimestamps[0];
+    assertDefined(startTime);
     const delayedCalls = fetchTimestamps.filter((ts) => ts > startTime);
     expect(delayedCalls.length).toBeGreaterThan(0);
 

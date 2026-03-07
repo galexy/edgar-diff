@@ -1,5 +1,5 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
 import { describe, it, expect } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { diffParagraphs } from '../../src/diff/paragraph-differ.js';
 import { makeParagraph, makeSection } from '../helpers/diff-fixtures.js';
 import type { SectionMatch } from '../../src/diff/section-aligner.js';
@@ -95,7 +95,8 @@ describe('diff type contracts', () => {
     const modified = changes.filter(c => c.changeType === 'modified');
     for (const c of modified) {
       expect(c.wordChanges).toBeDefined();
-      expect(c.wordChanges!.length).toBeGreaterThan(0);
+      assertDefined(c.wordChanges);
+      expect(c.wordChanges.length).toBeGreaterThan(0);
     }
   });
 
@@ -134,7 +135,8 @@ describe('diff type contracts', () => {
     const withTextChange = moved.filter(m => m.oldParagraph?.text !== m.newParagraph?.text);
     for (const m of withTextChange) {
       expect(m.wordChanges).toBeDefined();
-      expect(m.wordChanges!.length).toBeGreaterThan(0);
+      assertDefined(m.wordChanges);
+      expect(m.wordChanges.length).toBeGreaterThan(0);
     }
   });
 });

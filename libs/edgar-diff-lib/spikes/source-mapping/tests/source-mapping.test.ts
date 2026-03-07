@@ -7,9 +7,8 @@ import { parseDocument } from 'htmlparser2';
 import { readFile, access } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Document, Element, ChildNode } from 'domhandler';
-
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+import type { Document, Element, ChildNode, Text } from 'domhandler';
+import { assertDefined } from '../../../tests/helpers/assert-defined.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '..', 'fixtures');
@@ -47,7 +46,9 @@ function findByTag(doc: Document, tag: string): Element | undefined {
 
 /** Extract element including its closing tag using slice(start, end+1). */
 function sliceNode(html: string, node: ChildNode): string {
-  return html.slice(node.startIndex!, node.endIndex! + 1);
+  assertDefined(node.startIndex);
+  assertDefined(node.endIndex);
+  return html.slice(node.startIndex, node.endIndex + 1);
 }
 
 // ── Offset accuracy on known small strings ──────────────────────────
@@ -56,16 +57,18 @@ describe('offset accuracy on small HTML strings', () => {
   it('should capture a simple paragraph', () => {
     const html = '<p>Hello</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
-    expect(p).toBeDefined();
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
     expect(sliceNode(html, p)).toBe('<p>Hello</p>');
   });
 
   it('should capture nested elements', () => {
     const html = '<div><span>text</span></div>';
     const doc = parse(html);
-    const div = findByTag(doc, 'div')!;
-    const span = findByTag(doc, 'span')!;
+    const div = findByTag(doc, 'div');
+    assertDefined(div);
+    const span = findByTag(doc, 'span');
+    assertDefined(span);
     expect(sliceNode(html, div)).toBe('<div><span>text</span></div>');
     expect(sliceNode(html, span)).toBe('<span>text</span>');
   });
@@ -73,15 +76,18 @@ describe('offset accuracy on small HTML strings', () => {
   it('should capture elements with attributes', () => {
     const html = '<a href="https://example.com" class="link">click</a>';
     const doc = parse(html);
-    const a = findByTag(doc, 'a')!;
+    const a = findByTag(doc, 'a');
+    assertDefined(a);
     expect(sliceNode(html, a)).toBe(html);
   });
 
   it('should handle text nodes', () => {
     const html = '<p>hello world</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
-    const textNode = p.children[0]!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
+    const textNode = p.children[0];
+    assertDefined(textNode);
     expect(textNode.type).toBe('text');
     expect(sliceNode(html, textNode)).toBe('hello world');
   });
@@ -92,9 +98,12 @@ describe('offset accuracy on small HTML strings', () => {
     const nodes = collectNodes(doc);
     const lis = nodes.filter((n) => isElement(n) && n.tagName === 'li') as Element[];
     expect(lis).toHaveLength(3);
-    expect(sliceNode(html, lis[0]!)).toBe('<li>a</li>');
-    expect(sliceNode(html, lis[1]!)).toBe('<li>b</li>');
-    expect(sliceNode(html, lis[2]!)).toBe('<li>c</li>');
+    const li0 = lis[0]; assertDefined(li0);
+    const li1 = lis[1]; assertDefined(li1);
+    const li2 = lis[2]; assertDefined(li2);
+    expect(sliceNode(html, li0)).toBe('<li>a</li>');
+    expect(sliceNode(html, li1)).toBe('<li>b</li>');
+    expect(sliceNode(html, li2)).toBe('<li>c</li>');
   });
 });
 
@@ -104,36 +113,42 @@ describe('multi-byte characters', () => {
   it('should handle emoji in text', () => {
     const html = '<p>🚀 launch</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
     expect(sliceNode(html, p)).toBe('<p>🚀 launch</p>');
   });
 
   it('should handle CJK characters', () => {
     const html = '<p>中文测试</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
     expect(sliceNode(html, p)).toBe('<p>中文测试</p>');
   });
 
   it('should handle accented characters', () => {
     const html = '<p>résumé café naïve</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
     expect(sliceNode(html, p)).toBe('<p>résumé café naïve</p>');
   });
 
   it('should handle mixed multi-byte and ASCII', () => {
     const html = '<div>Hello世界🌍test</div>';
     const doc = parse(html);
-    const div = findByTag(doc, 'div')!;
+    const div = findByTag(doc, 'div');
+    assertDefined(div);
     expect(sliceNode(html, div)).toBe('<div>Hello世界🌍test</div>');
   });
 
   it('should have correct text node indices with emoji prefix', () => {
     const html = '<span>🚀abc</span>';
     const doc = parse(html);
-    const span = findByTag(doc, 'span')!;
-    const text = span.children[0]!;
+    const span = findByTag(doc, 'span');
+    assertDefined(span);
+    const text = span.children[0];
+    assertDefined(text);
     // 🚀 is 2 UTF-16 code units, then 'abc' is 3
     expect(sliceNode(html, text)).toBe('🚀abc');
   });
@@ -141,7 +156,8 @@ describe('multi-byte characters', () => {
   it('should handle compound emoji (ZWJ sequences)', () => {
     const html = '<p>👨‍👩‍👧‍👦</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
     expect(sliceNode(html, p)).toBe('<p>👨‍👩‍👧‍👦</p>');
   });
 });
@@ -152,15 +168,16 @@ describe('CDATA sections', () => {
   it('should handle CDATA-like content in script tags', () => {
     const html = '<script>//<![CDATA[\nvar x = 1;\n//]]></script>';
     const doc = parse(html);
-    const script = findByTag(doc, 'script')!;
-    expect(script).toBeDefined();
+    const script = findByTag(doc, 'script');
+    assertDefined(script);
     expect(sliceNode(html, script)).toBe(html);
   });
 
   it('should handle script content with angle brackets', () => {
     const html = '<script>if (a < b && c > d) {}</script>';
     const doc = parse(html);
-    const script = findByTag(doc, 'script')!;
+    const script = findByTag(doc, 'script');
+    assertDefined(script);
     expect(sliceNode(html, script)).toBe(html);
   });
 });
@@ -171,8 +188,10 @@ describe('HTML comments', () => {
   it('should track comment node indices', () => {
     const html = '<div><!-- hello --></div>';
     const doc = parse(html);
-    const div = findByTag(doc, 'div')!;
-    const comment = div.children[0]!;
+    const div = findByTag(doc, 'div');
+    assertDefined(div);
+    const comment = div.children[0];
+    assertDefined(comment);
     expect(comment.type).toBe('comment');
     expect(sliceNode(html, comment)).toBe('<!-- hello -->');
   });
@@ -181,16 +200,18 @@ describe('HTML comments', () => {
     const html = '<p>a</p><!-- mid --><p>b</p>';
     const doc = parse(html);
     const nodes = collectNodes(doc);
-    const comment = nodes.find((n) => n.type === 'comment')!;
-    expect(comment).toBeDefined();
+    const comment = nodes.find((n) => n.type === 'comment');
+    assertDefined(comment);
     expect(sliceNode(html, comment)).toBe('<!-- mid -->');
   });
 
   it('should handle multi-line comments', () => {
     const html = '<div><!--\n  multi\n  line\n--></div>';
     const doc = parse(html);
-    const div = findByTag(doc, 'div')!;
-    const comment = div.children[0]!;
+    const div = findByTag(doc, 'div');
+    assertDefined(div);
+    const comment = div.children[0];
+    assertDefined(comment);
     expect(comment.type).toBe('comment');
     expect(sliceNode(html, comment)).toBe('<!--\n  multi\n  line\n-->');
   });
@@ -212,10 +233,12 @@ describe('deeply nested structures', () => {
     expect(divs).toHaveLength(depth);
 
     // Outermost div captures everything
-    expect(sliceNode(html, divs[0]!)).toBe(html);
+    const outerDiv = divs[0]; assertDefined(outerDiv);
+    expect(sliceNode(html, outerDiv)).toBe(html);
 
     // Innermost div captures just its content
-    const innermost = divs[depth - 1]!;
+    const innermost = divs[depth - 1];
+    assertDefined(innermost);
     expect(sliceNode(html, innermost)).toBe('<div>innermost</div>');
   });
 
@@ -225,8 +248,10 @@ describe('deeply nested structures', () => {
     const nodes = collectNodes(doc);
     const tables = nodes.filter((n) => isElement(n) && n.tagName === 'table') as Element[];
     expect(tables).toHaveLength(2);
-    expect(sliceNode(html, tables[0]!)).toBe(html);
-    expect(sliceNode(html, tables[1]!)).toBe('<table><tr><td>nested</td></tr></table>');
+    const table0 = tables[0]; assertDefined(table0);
+    const table1 = tables[1]; assertDefined(table1);
+    expect(sliceNode(html, table0)).toBe(html);
+    expect(sliceNode(html, table1)).toBe('<table><tr><td>nested</td></tr></table>');
   });
 });
 
@@ -245,28 +270,32 @@ describe('self-closing tags', () => {
   it('should handle <img> with attributes', () => {
     const html = '<img src="test.png" alt="photo">';
     const doc = parse(html);
-    const img = findByTag(doc, 'img')!;
+    const img = findByTag(doc, 'img');
+    assertDefined(img);
     expect(sliceNode(html, img)).toBe(html);
   });
 
   it('should handle <hr>', () => {
     const html = '<div><hr></div>';
     const doc = parse(html);
-    const hr = findByTag(doc, 'hr')!;
+    const hr = findByTag(doc, 'hr');
+    assertDefined(hr);
     expect(sliceNode(html, hr)).toBe('<hr>');
   });
 
   it('should handle <input> with many attributes', () => {
     const html = '<input type="text" name="q" value="search" placeholder="Search...">';
     const doc = parse(html);
-    const input = findByTag(doc, 'input')!;
+    const input = findByTag(doc, 'input');
+    assertDefined(input);
     expect(sliceNode(html, input)).toBe(html);
   });
 
   it('should handle XHTML self-closing syntax', () => {
     const html = '<br/>';
     const doc = parse(html);
-    const br = findByTag(doc, 'br')!;
+    const br = findByTag(doc, 'br');
+    assertDefined(br);
     expect(sliceNode(html, br)).toBe('<br/>');
   });
 });
@@ -283,7 +312,8 @@ describe('index boundary validation', () => {
       expect(node.startIndex).toBeLessThanOrEqual(html.length);
       expect(node.endIndex).toBeGreaterThanOrEqual(0);
       expect(node.endIndex).toBeLessThanOrEqual(html.length);
-      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex!);
+      assertDefined(node.endIndex);
+      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex);
     }
   });
 
@@ -296,7 +326,8 @@ describe('index boundary validation', () => {
       expect(node.startIndex).toBeLessThanOrEqual(html.length);
       expect(node.endIndex).toBeGreaterThanOrEqual(0);
       expect(node.endIndex).toBeLessThanOrEqual(html.length);
-      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex!);
+      assertDefined(node.endIndex);
+      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex);
     }
   });
 
@@ -306,7 +337,8 @@ describe('index boundary validation', () => {
     const nodes = collectNodes(doc);
     const elements = nodes.filter((n) => isElement(n)) as Element[];
     for (const el of elements) {
-      expect(el.startIndex).toBeLessThan(el.endIndex!);
+      assertDefined(el.endIndex);
+      expect(el.startIndex).toBeLessThan(el.endIndex);
     }
   });
 });
@@ -347,8 +379,10 @@ describe('performance', () => {
     expect(nodes1.length).toBe(nodes2.length);
     // Spot-check a few indices
     for (let i = 0; i < Math.min(100, nodes1.length); i++) {
-      expect(nodes1[i]!.startIndex).toBe(nodes2[i]!.startIndex);
-      expect(nodes1[i]!.endIndex).toBe(nodes2[i]!.endIndex);
+      const n1 = nodes1[i]; assertDefined(n1);
+      const n2 = nodes2[i]; assertDefined(n2);
+      expect(n1.startIndex).toBe(n2.startIndex);
+      expect(n1.endIndex).toBe(n2.endIndex);
     }
   });
 });
@@ -359,21 +393,28 @@ describe('endIndex semantics', () => {
   it('endIndex is inclusive — need slice(start, end + 1) for full capture', () => {
     const html = '<b>bold</b>';
     const doc = parse(html);
-    const b = findByTag(doc, 'b')!;
+    const b = findByTag(doc, 'b');
+    assertDefined(b);
+    assertDefined(b.startIndex);
+    assertDefined(b.endIndex);
     // endIndex points to the last character of the closing tag (the '>')
-    expect(html[b.endIndex!]).toBe('>');
+    expect(html[b.endIndex]).toBe('>');
     // slice(start, end) misses the last char
-    expect(html.slice(b.startIndex!, b.endIndex!)).toBe('<b>bold</b');
+    expect(html.slice(b.startIndex, b.endIndex)).toBe('<b>bold</b');
     // slice(start, end + 1) captures everything
-    expect(html.slice(b.startIndex!, b.endIndex! + 1)).toBe('<b>bold</b>');
+    expect(html.slice(b.startIndex, b.endIndex + 1)).toBe('<b>bold</b>');
   });
 
   it('endIndex for text nodes is inclusive', () => {
     const html = '<p>text</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
-    const text = p.children[0]!;
-    expect(html.slice(text.startIndex!, text.endIndex! + 1)).toBe('text');
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
+    const text = p.children[0];
+    assertDefined(text);
+    assertDefined(text.startIndex);
+    assertDefined(text.endIndex);
+    expect(html.slice(text.startIndex, text.endIndex + 1)).toBe('text');
   });
 });
 
@@ -383,12 +424,16 @@ describe('indices are JS string indices', () => {
   it('should use char indices not byte indices for emoji', () => {
     const html = '<p>🚀x</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
-    const text = p.children[0]!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
+    const text = p.children[0];
+    assertDefined(text);
+    assertDefined(text.startIndex);
+    assertDefined(text.endIndex);
 
     // '🚀' is 2 UTF-16 code units, 'x' is 1 = 3 total
     // As bytes (UTF-8), '🚀' is 4 bytes, 'x' is 1 = 5 total
-    const slice = html.slice(text.startIndex!, text.endIndex! + 1);
+    const slice = html.slice(text.startIndex, text.endIndex + 1);
     expect(slice).toBe('🚀x');
 
     // If they were byte indices, the slice would be wrong
@@ -401,12 +446,16 @@ describe('indices are JS string indices', () => {
   it('should use char indices for CJK', () => {
     const html = '<p>中x</p>';
     const doc = parse(html);
-    const p = findByTag(doc, 'p')!;
-    const text = p.children[0]!;
+    const p = findByTag(doc, 'p');
+    assertDefined(p);
+    const text = p.children[0];
+    assertDefined(text);
+    assertDefined(text.startIndex);
+    assertDefined(text.endIndex);
 
     // '中' is 1 UTF-16 code unit but 3 UTF-8 bytes
     expect(text.startIndex).toBe(3); // after <p>
-    expect(html.slice(text.startIndex!, text.endIndex! + 1)).toBe('中x');
+    expect(html.slice(text.startIndex, text.endIndex + 1)).toBe('中x');
   });
 });
 
@@ -425,8 +474,9 @@ describe('empty HTML', () => {
     const nodes = collectNodes(doc);
     // Should have one text node
     expect(nodes).toHaveLength(1);
-    expect(nodes[0]!.type).toBe('text');
-    expect(sliceNode(html, nodes[0]!)).toBe(html);
+    const node0 = nodes[0]; assertDefined(node0);
+    expect(node0.type).toBe('text');
+    expect(sliceNode(html, node0)).toBe(html);
   });
 });
 
@@ -482,8 +532,7 @@ describe('malformed HTML', () => {
 
 describe('section boundary detection', () => {
   function getTextContent(node: ChildNode): string {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    if (node.type === 'text') return (node as any).data;
+    if (node.type === 'text') return (node as Text).data;
     if (isElement(node)) return node.children.map(getTextContent).join('');
     return '';
   }
