@@ -275,3 +275,50 @@ describe('extractTable — header detection', () => {
     expect(table.rows[0].isHeader).toBe(false);
   });
 });
+
+describe('extractTable — colspan/rowspan', () => {
+  it('T5: cell with colspan=2 preserved', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td colspan="2">Merged Header</td></tr>
+  <tr><td>A</td><td>B</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].colspan).toBe(2);
+    expect(table.rows[0].cells[0].text).toBe('Merged Header');
+    expect(table.rows[1].cells[0].colspan).toBe(1);
+  });
+
+  it('T6: cell with rowspan=3 preserved', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td rowspan="3">Category</td><td>A</td></tr>
+  <tr><td>B</td></tr>
+  <tr><td>C</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].rowspan).toBe(3);
+    expect(table.rows[0].cells[0].text).toBe('Category');
+  });
+
+  it('T7: cell with both colspan=2 and rowspan=2', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td colspan="2" rowspan="2">Big Cell</td><td>C</td></tr>
+  <tr><td>D</td></tr>
+  <tr><td>E</td><td>F</td><td>G</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].colspan).toBe(2);
+    expect(table.rows[0].cells[0].rowspan).toBe(2);
+  });
+});
