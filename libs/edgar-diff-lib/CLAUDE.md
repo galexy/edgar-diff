@@ -25,12 +25,12 @@ npx vitest run --config vitest.live.config.ts
 - **Speed**: ~30-60 seconds (network-dependent).
 - **Do NOT run** during the normal edit-test cycle — saves time and avoids unnecessary EDGAR traffic.
 
-### 3. Fuzz — CI / PERIODIC
+### 3. Acceptance (Property-Based) — CI / EVERY CHANGE
 ```bash
-npx vitest run tests/fuzz/
+npx vitest run tests/acceptance/
 ```
-- **When to run**: In CI. Periodically during development for thoroughness.
-- **What it covers**: Randomly generated HTML structures to catch edge cases.
+- **When to run**: Every change / CI. These are the BDD acceptance tests.
+- **What it covers**: Property-based tests implementing BDD acceptance criteria from the test plan. Uses randomly generated HTML structures to verify structural invariants.
 
 ## Key Commands
 
