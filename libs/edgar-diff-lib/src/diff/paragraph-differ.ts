@@ -122,49 +122,135 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
 
   if (removedIndices.length === 0 || addedIndices.length === 0) return changes;
 
-  const pairs: { removedIdx: number; addedIdx: number; similarity: number }[] = [];
+  // Pre-compute normalized text for all candidates (avoids redundant normalizeText calls)
+  const removedNorms = new Map<number, string>();
   for (const ri of removedIndices) {
-    const oldP = changes[ri].oldParagraph;
-    if (!oldP) continue;
-    const rNorm = normalizeText(oldP.text);
-    for (const ai of addedIndices) {
-      const newP = changes[ai].newParagraph;
-      if (!newP) continue;
-      const aNorm = normalizeText(newP.text);
-      const sim = rNorm === aNorm ? 1.0 : jaroWinkler(rNorm, aNorm);
-      if (sim >= MOVE_THRESHOLD) {
-        pairs.push({ removedIdx: ri, addedIdx: ai, similarity: sim });
-      }
-    }
+    const p = changes[ri].oldParagraph;
+    if (p) removedNorms.set(ri, normalizeText(p.text));
+  }
+  const addedNorms = new Map<number, string>();
+  for (const ai of addedIndices) {
+    const p = changes[ai].newParagraph;
+    if (p) addedNorms.set(ai, normalizeText(p.text));
   }
 
-  pairs.sort((a, b) => b.similarity - a.similarity);
   const usedRemoved = new Set<number>();
   const usedAdded = new Set<number>();
   const result = [...changes];
 
-  for (const pair of pairs) {
-    if (usedRemoved.has(pair.removedIdx) || usedAdded.has(pair.addedIdx)) continue;
-    usedRemoved.add(pair.removedIdx);
-    usedAdded.add(pair.addedIdx);
+  // Phase 1: Exact-match hash pass — O(n) instead of O(n²)
+  const addedByText = new Map<string, number[]>();
+  for (const [ai, norm] of addedNorms) {
+    const list = addedByText.get(norm);
+    if (list) list.push(ai);
+    else addedByText.set(norm, [ai]);
+  }
+  for (const ri of removedIndices) {
+    const rNorm = removedNorms.get(ri);
+    if (!rNorm) continue;
+    const candidates = addedByText.get(rNorm);
+    if (!candidates) continue;
+    for (const ai of candidates) {
+      if (usedAdded.has(ai)) continue;
+      usedRemoved.add(ri);
+      usedAdded.add(ai);
+      const oldPara = changes[ri].oldParagraph!;
+      const newPara = changes[ai].newParagraph!;
+      const movedEntry: ParagraphDiff = {
+        changeType: 'moved',
+        oldParagraph: oldPara,
+        newParagraph: newPara,
+        sourceMapping: { old: oldPara.source, new: newPara.source },
+      };
+      result[ri] = movedEntry;
+      result[ai] = movedEntry;
+      break;
+    }
+  }
 
-    const oldPara = changes[pair.removedIdx].oldParagraph;
-    const newPara = changes[pair.addedIdx].newParagraph;
-    if (!oldPara || !newPara) continue;
-    const isExact = normalizeText(oldPara.text) === normalizeText(newPara.text);
+  // Phase 2: Jaro-Winkler fuzzy matching on remaining unmatched items
+  const remainingRemoved = removedIndices.filter(ri => !usedRemoved.has(ri) && removedNorms.has(ri));
+  const remainingAdded = addedIndices.filter(ai => !usedAdded.has(ai) && addedNorms.has(ai));
 
-    const movedEntry: ParagraphDiff = {
-      changeType: 'moved',
-      oldParagraph: oldPara,
-      newParagraph: newPara,
-      sourceMapping: { old: oldPara.source, new: newPara.source },
-    };
-    if (!isExact) {
-      movedEntry.wordChanges = computeWordChanges(oldPara.text, newPara.text);
+  if (remainingRemoved.length > 0 && remainingAdded.length > 0) {
+    // Pre-compute word sets for cheap overlap pre-filter on long texts
+    const WORD_FILTER_MIN_LEN = 100;
+    const removedWordSets = new Map<number, Set<string>>();
+    const addedWordSets = new Map<number, Set<string>>();
+    for (const ri of remainingRemoved) {
+      const norm = removedNorms.get(ri)!;
+      if (norm.length >= WORD_FILTER_MIN_LEN) {
+        removedWordSets.set(ri, new Set(norm.split(' ')));
+      }
+    }
+    for (const ai of remainingAdded) {
+      const norm = addedNorms.get(ai)!;
+      if (norm.length >= WORD_FILTER_MIN_LEN) {
+        addedWordSets.set(ai, new Set(norm.split(' ')));
+      }
     }
 
-    result[pair.removedIdx] = movedEntry;
-    result[pair.addedIdx] = movedEntry;
+    const pairs: { removedIdx: number; addedIdx: number; similarity: number }[] = [];
+
+    for (const ri of remainingRemoved) {
+      const rNorm = removedNorms.get(ri)!;
+      const rLen = rNorm.length;
+      const rWords = removedWordSets.get(ri);
+      for (const ai of remainingAdded) {
+        const aNorm = addedNorms.get(ai)!;
+        const aLen = aNorm.length;
+        // Length-ratio filter
+        const shorter = rLen < aLen ? rLen : aLen;
+        const longer = rLen < aLen ? aLen : rLen;
+        if (shorter < longer * MOVE_THRESHOLD) continue;
+
+        // Word-overlap pre-filter for longer texts: if less than 50% of words
+        // overlap, JW similarity can't reach 0.9
+        if (rWords) {
+          const aWords = addedWordSets.get(ai);
+          if (aWords) {
+            const smaller = rWords.size < aWords.size ? rWords : aWords;
+            const larger = rWords.size < aWords.size ? aWords : rWords;
+            let overlap = 0;
+            for (const w of smaller) {
+              if (larger.has(w)) overlap++;
+            }
+            if (overlap < smaller.size * 0.5) continue;
+          }
+        }
+
+        const sim = jaroWinkler(rNorm, aNorm);
+        if (sim >= MOVE_THRESHOLD) {
+          pairs.push({ removedIdx: ri, addedIdx: ai, similarity: sim });
+        }
+      }
+    }
+
+    pairs.sort((a, b) => b.similarity - a.similarity);
+
+    for (const pair of pairs) {
+      if (usedRemoved.has(pair.removedIdx) || usedAdded.has(pair.addedIdx)) continue;
+      usedRemoved.add(pair.removedIdx);
+      usedAdded.add(pair.addedIdx);
+
+      const oldPara = changes[pair.removedIdx].oldParagraph!;
+      const newPara = changes[pair.addedIdx].newParagraph!;
+      const rNorm = removedNorms.get(pair.removedIdx)!;
+      const aNorm = addedNorms.get(pair.addedIdx)!;
+
+      const movedEntry: ParagraphDiff = {
+        changeType: 'moved',
+        oldParagraph: oldPara,
+        newParagraph: newPara,
+        sourceMapping: { old: oldPara.source, new: newPara.source },
+      };
+      if (rNorm !== aNorm) {
+        movedEntry.wordChanges = computeWordChanges(oldPara.text, newPara.text);
+      }
+
+      result[pair.removedIdx] = movedEntry;
+      result[pair.addedIdx] = movedEntry;
+    }
   }
 
   // Filter out added entries that were paired into moved entries above.
