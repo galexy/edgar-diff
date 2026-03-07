@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { diffParagraphs } from '../../src/diff/paragraph-differ.js';
 import { makeParagraph, makeTable, makeSection } from '../helpers/diff-fixtures.js';
 import type { SectionMatch } from '../../src/diff/section-aligner.js';
@@ -52,7 +53,8 @@ describe('paragraph-differ', () => {
     expect(changes).toHaveLength(1);
     expect(changes[0].changeType).toBe('modified');
     expect(changes[0].wordChanges).toBeDefined();
-    expect(changes[0].wordChanges!.length).toBeGreaterThan(0);
+    assertDefined(changes[0].wordChanges);
+    expect(changes[0].wordChanges.length).toBeGreaterThan(0);
   });
 
   // PD-U5: Multiple changes in one section
@@ -103,8 +105,8 @@ describe('paragraph-differ', () => {
     const moved = changes.filter(c => c.changeType === 'moved');
     expect(moved.length).toBeGreaterThanOrEqual(1);
     const revenueMove = moved.find(c => c.oldParagraph?.text.includes('revenue growth'));
-    expect(revenueMove).toBeDefined();
-    expect(revenueMove!.wordChanges).toBeDefined();
+    assertDefined(revenueMove);
+    expect(revenueMove.wordChanges).toBeDefined();
     expect(changes.filter(c => c.changeType === 'added')).toHaveLength(0);
     expect(changes.filter(c => c.changeType === 'removed')).toHaveLength(0);
   });
@@ -160,7 +162,8 @@ describe('paragraph-differ', () => {
     const neu = makeSection('s1', 'S', [makeParagraph('The dog sat on the rug.', 100)]);
     const changes = paragraphDiffs(match(old, neu));
     expect(changes[0].changeType).toBe('modified');
-    const wc = changes[0].wordChanges!;
+    assertDefined(changes[0].wordChanges);
+    const wc = changes[0].wordChanges;
     const removed = wc.filter(w => w.type === 'removed').map(w => w.value);
     const added = wc.filter(w => w.type === 'added').map(w => w.value);
     expect(removed.join('')).toContain('cat');
@@ -173,7 +176,8 @@ describe('paragraph-differ', () => {
     const neu = makeSection('s1', 'S', [makeParagraph('Revenue was $150M.', 100)]);
     const changes = paragraphDiffs(match(old, neu));
     expect(changes[0].changeType).toBe('modified');
-    const wc = changes[0].wordChanges!;
+    assertDefined(changes[0].wordChanges);
+    const wc = changes[0].wordChanges;
     expect(wc.some(w => w.type === 'removed' && w.value.includes('100M'))).toBe(true);
     expect(wc.some(w => w.type === 'added' && w.value.includes('150M'))).toBe(true);
   });
@@ -183,7 +187,8 @@ describe('paragraph-differ', () => {
     const old = makeSection('s1', 'S', [makeParagraph('Revenue increased by 10% in fiscal 2023.', 100)]);
     const neu = makeSection('s1', 'S', [makeParagraph('Revenue increased by 15% in fiscal 2024.', 100)]);
     const changes = paragraphDiffs(match(old, neu));
-    const wc = changes[0].wordChanges!;
+    assertDefined(changes[0].wordChanges);
+    const wc = changes[0].wordChanges;
     const unchanged = wc.filter(w => w.type === 'unchanged').map(w => w.value).join('');
     expect(unchanged).toContain('Revenue increased by');
   });

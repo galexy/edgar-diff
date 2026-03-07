@@ -5,7 +5,6 @@ import type {
   Paragraph,
   Table,
   TableCell,
-  StructuredDocument,
 } from '../types.js';
 import type { RawFiling } from '../client/types.js';
 
@@ -141,4 +140,4 @@ export interface AlignmentOptions {
 }
 
 /** Options for diffFilings. */
-export interface DiffOptions extends AlignmentOptions {}
+export type DiffOptions = AlignmentOptions;

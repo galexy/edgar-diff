@@ -66,7 +66,6 @@ export function extractSections(html: string): Section[] {
   // Accumulate text within potential heading elements
   let currentText = '';
   let currentStartIndex = -1;
-  let depth = 0;
   let inHeadingContext = false;
   // Track bold/font-weight context for heading detection
   let boldDepth = 0;
@@ -74,7 +73,6 @@ export function extractSections(html: string): Section[] {
   const parser = new Parser(
     {
       onopentag(name, attribs) {
-        depth++;
         const style = attribs['style'] ?? '';
         const isBold =
           style.includes('font-weight:bold') ||
@@ -117,7 +115,6 @@ export function extractSections(html: string): Section[] {
         }
 
         if (boldDepth > 0) boldDepth--;
-        depth--;
       },
     },
   );
@@ -176,12 +173,10 @@ export function extractSections(html: string): Section[] {
 function extractParagraphs(sectionHtml: string): string[] {
   const paragraphs: string[] = [];
   let currentParagraph = '';
-  let blockDepth = 0;
 
   const parser = new Parser({
     onopentag(name) {
       if (['p', 'div'].includes(name)) {
-        blockDepth++;
         if (currentParagraph.trim()) {
           paragraphs.push(currentParagraph.trim());
           currentParagraph = '';
@@ -193,7 +188,6 @@ function extractParagraphs(sectionHtml: string): string[] {
     },
     onclosetag(name) {
       if (['p', 'div'].includes(name)) {
-        blockDepth--;
         if (currentParagraph.trim()) {
           paragraphs.push(currentParagraph.trim());
           currentParagraph = '';

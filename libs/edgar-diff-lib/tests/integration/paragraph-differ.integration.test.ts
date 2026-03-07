@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { parseFiling } from '../../src/parser/index.js';
 import { diffFilings } from '../../src/diff/index.js';
-import type { StructuredDiff, ParagraphDiff } from '../../src/diff/types.js';
+import type { StructuredDiff } from '../../src/diff/types.js';
 import { loadFixture, makeRawFiling } from '../helpers/ground-truth.js';
+import { assertDefined } from '../helpers/assert-defined.js';
 
 // ============================================================
 // Helper: parse and diff two fixtures
@@ -64,8 +65,9 @@ describe('PD-I2: cross-year diff detects modifications', () => {
 
     // Modified paragraphs should have word-level diffs
     for (const m of modified) {
-      expect(m.wordChanges).toBeDefined();
-      expect(m.wordChanges!.length).toBeGreaterThan(0);
+      const wordChanges = m.wordChanges;
+      assertDefined(wordChanges);
+      expect(wordChanges.length).toBeGreaterThan(0);
     }
   });
 });
@@ -193,23 +195,27 @@ describe('PD-I8: source location validity', () => {
     for (const sd of result.sectionDiffs) {
       for (const pd of sd.paragraphDiffs) {
         if (pd.changeType === 'added') {
-          expect(pd.sourceMapping.new).toBeDefined();
-          expect(pd.sourceMapping.new!.start).toBeGreaterThanOrEqual(0);
-          expect(pd.sourceMapping.new!.start).toBeLessThan(pd.sourceMapping.new!.end);
-          expect(pd.sourceMapping.new!.end).toBeLessThanOrEqual(htmlB.length);
+          const newMapping = pd.sourceMapping.new;
+          assertDefined(newMapping);
+          expect(newMapping.start).toBeGreaterThanOrEqual(0);
+          expect(newMapping.start).toBeLessThan(newMapping.end);
+          expect(newMapping.end).toBeLessThanOrEqual(htmlB.length);
         } else if (pd.changeType === 'removed') {
-          expect(pd.sourceMapping.old).toBeDefined();
-          expect(pd.sourceMapping.old!.start).toBeGreaterThanOrEqual(0);
-          expect(pd.sourceMapping.old!.start).toBeLessThan(pd.sourceMapping.old!.end);
-          expect(pd.sourceMapping.old!.end).toBeLessThanOrEqual(htmlA.length);
+          const oldMapping = pd.sourceMapping.old;
+          assertDefined(oldMapping);
+          expect(oldMapping.start).toBeGreaterThanOrEqual(0);
+          expect(oldMapping.start).toBeLessThan(oldMapping.end);
+          expect(oldMapping.end).toBeLessThanOrEqual(htmlA.length);
         } else {
           // modified, unchanged, moved: both sources
-          expect(pd.sourceMapping.old).toBeDefined();
-          expect(pd.sourceMapping.new).toBeDefined();
-          expect(pd.sourceMapping.old!.start).toBeLessThan(pd.sourceMapping.old!.end);
-          expect(pd.sourceMapping.new!.start).toBeLessThan(pd.sourceMapping.new!.end);
-          expect(pd.sourceMapping.old!.end).toBeLessThanOrEqual(htmlA.length);
-          expect(pd.sourceMapping.new!.end).toBeLessThanOrEqual(htmlB.length);
+          const oldMapping = pd.sourceMapping.old;
+          const newMapping = pd.sourceMapping.new;
+          assertDefined(oldMapping);
+          assertDefined(newMapping);
+          expect(oldMapping.start).toBeLessThan(oldMapping.end);
+          expect(newMapping.start).toBeLessThan(newMapping.end);
+          expect(oldMapping.end).toBeLessThanOrEqual(htmlA.length);
+          expect(newMapping.end).toBeLessThanOrEqual(htmlB.length);
         }
       }
     }

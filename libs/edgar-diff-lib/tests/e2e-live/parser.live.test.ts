@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createEdgarClient } from '../../src/client/index.js';
 import { parseFiling } from '../../src/parser/index.js';
 import type { FilingSection } from '../../src/types.js';
+import { assertDefined } from '../helpers/assert-defined.js';
 
 // Apple FY2024 10-K — a well-known Workiva-filed document (Pattern Family A)
 const APPLE_ACCESSION = '0000320193-24-000123';
@@ -34,7 +35,6 @@ function stripHtml(html: string): string {
 describe('live EDGAR: fetch + parse Apple 10-K', () => {
   let sections: FilingSection[];
   let html: string;
-  let parseWarnings: string[];
   let parseMs: number;
 
   // Fetch once, reuse across tests
@@ -57,7 +57,6 @@ describe('live EDGAR: fetch + parse Apple 10-K', () => {
       parseMs = performance.now() - t0;
 
       sections = doc.sections;
-      parseWarnings = doc.parseWarnings;
 
       expect(sections.length).toBeGreaterThan(0);
     } finally {
@@ -141,14 +140,14 @@ describe('live EDGAR: fetch + parse Apple 10-K', () => {
   });
 
   it('key sections have expected content', () => {
-    const item1 = sections.find(s => s.id === 'item-1')!;
-    expect(item1).toBeDefined();
+    const item1 = sections.find(s => s.id === 'item-1');
+    assertDefined(item1);
     expect(item1.blocks.length).toBeGreaterThan(5);
     const firstPara = item1.blocks.find(b => b.type === 'paragraph');
     expect(firstPara).toBeDefined();
 
-    const item8 = sections.find(s => s.id === 'item-8')!;
-    expect(item8).toBeDefined();
+    const item8 = sections.find(s => s.id === 'item-8');
+    assertDefined(item8);
     // Item 8 (Financial Statements) should have tables
     const tables = item8.blocks.filter(b => b.type === 'table');
     expect(tables.length).toBeGreaterThan(0);

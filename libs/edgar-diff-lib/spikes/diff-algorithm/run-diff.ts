@@ -153,8 +153,10 @@ async function main(): Promise<void> {
     }
 
     // Check alignment accuracy against ground truth
-    const matchedOldItems = new Set(alignment.matched.map((m) => extractItemNumber(m.oldSection.heading)));
-    const matchedNewItems = new Set(alignment.matched.map((m) => extractItemNumber(m.newSection.heading)));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for diagnostic/debugging use during spike development
+    const _matchedOldItems = new Set(alignment.matched.map((m) => extractItemNumber(m.oldSection.heading)));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- kept for diagnostic/debugging use during spike development
+    const _matchedNewItems = new Set(alignment.matched.map((m) => extractItemNumber(m.newSection.heading)));
     const oldExtracted = new Set(oldSections.map((s) => extractItemNumber(s.heading)));
     const newExtracted = new Set(newSections.map((s) => extractItemNumber(s.heading)));
 

@@ -1,8 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { alignSections } from '../../src/diff/index.js';
 import { diffFilings } from '../../src/diff/index.js';
-import type { ParagraphDiff } from '../../src/diff/types.js';
-import { makeSection, makeStructuredDoc, makeParagraph } from '../helpers/diff-fixtures.js';
+import { makeSection, makeStructuredDoc } from '../helpers/diff-fixtures.js';
 import { generateParagraphPair, generateSectionPair } from './diff-test-generator.js';
 
 const DIFF_TEST_COUNT = Number(process.env['DIFF_TEST_COUNT'] ?? 200);

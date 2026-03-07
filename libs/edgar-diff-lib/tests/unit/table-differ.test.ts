@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { assertDefined } from '../helpers/assert-defined.js';
 import { diffTable, diffTables } from '../../src/diff/table-differ.js';
 import { makeTable, makeTableRow, makeTableCell, makeFinancialTable } from '../helpers/table-diff-helpers.js';
 
@@ -29,9 +30,9 @@ describe('row alignment', () => {
     expect(result.changeType).toBe('modified');
     expect(result.summary.rowsAdded).toBe(1);
     const addedRow = result.rowDiffs.find((rd) => rd.changeType === 'added');
-    expect(addedRow).toBeDefined();
-    expect(addedRow!.newRowIndex).toBeDefined();
-    expect(addedRow!.oldRowIndex).toBeUndefined();
+    assertDefined(addedRow);
+    expect(addedRow.newRowIndex).toBeDefined();
+    expect(addedRow.oldRowIndex).toBeUndefined();
   });
 
   it('removed row in the middle => RowDiff with changeType removed, oldRowIndex set', () => {
@@ -48,9 +49,9 @@ describe('row alignment', () => {
     expect(result.changeType).toBe('modified');
     expect(result.summary.rowsRemoved).toBe(1);
     const removedRow = result.rowDiffs.find((rd) => rd.changeType === 'removed');
-    expect(removedRow).toBeDefined();
-    expect(removedRow!.oldRowIndex).toBeDefined();
-    expect(removedRow!.newRowIndex).toBeUndefined();
+    assertDefined(removedRow);
+    expect(removedRow.oldRowIndex).toBeDefined();
+    expect(removedRow.newRowIndex).toBeUndefined();
   });
 
   it('modified row (same position, different content) => changeType modified with cellDiffs', () => {
@@ -63,8 +64,8 @@ describe('row alignment', () => {
     const result = diffTable(oldTable, newTable);
     expect(result.changeType).toBe('modified');
     const modRow = result.rowDiffs.find((rd) => rd.changeType === 'modified');
-    expect(modRow).toBeDefined();
-    expect(modRow!.cellDiffs.length).toBeGreaterThan(0);
+    assertDefined(modRow);
+    expect(modRow.cellDiffs.length).toBeGreaterThan(0);
   });
 
   it('all rows different => all modified', () => {
@@ -107,9 +108,9 @@ describe('cell comparison', () => {
     const newTable = makeTable([makeTableRow([makeTableCell('New')])]);
     const result = diffTable(oldTable, newTable);
     const cd = result.cellDiffs.find((c) => c.changeType === 'modified');
-    expect(cd).toBeDefined();
-    expect(cd!.oldValue).toBe('Old');
-    expect(cd!.newValue).toBe('New');
+    assertDefined(cd);
+    expect(cd.oldValue).toBe('Old');
+    expect(cd.newValue).toBe('New');
   });
 
   it('empty vs non-empty => modified', () => {
@@ -128,9 +129,9 @@ describe('cell comparison', () => {
     ]);
     const result = diffTable(oldTable, newTable);
     const cd = result.cellDiffs.find((c) => c.changeType === 'modified');
-    expect(cd).toBeDefined();
-    expect(cd!.oldNumericValue).toBe(100);
-    expect(cd!.newNumericValue).toBe(120);
+    assertDefined(cd);
+    expect(cd.oldNumericValue).toBe(100);
+    expect(cd.newNumericValue).toBe(120);
   });
 
   it('numeric formatting change (same numericValue, different text) => unchanged', () => {

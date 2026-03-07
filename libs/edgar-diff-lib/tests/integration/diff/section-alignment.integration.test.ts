@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseFiling } from '../../../src/parser/parser.js';
 import { alignSections } from '../../../src/diff/section-aligner.js';
-import { diffFilings, buildSummary } from '../../../src/diff/diff-engine.js';
+import { diffFilings } from '../../../src/diff/diff-engine.js';
 import { makeRawFiling } from '../../helpers/ground-truth.js';
 
 const SPIKE_FIXTURES = join(import.meta.dirname, '..', '..', '..', 'spikes', 'diff-algorithm', 'fixtures');
@@ -81,7 +81,6 @@ describe('Integration: Section Alignment with Real Filings', () => {
       expect(result.matched.length).toBeGreaterThan(0);
 
       // But may have added/removed sections due to company-specific items
-      const totalUnique = aapl.sections.length + msft.sections.length - result.matched.length * 2;
       // At least some sections should match (standard 10-K items)
       expect(result.matched.length).toBeGreaterThanOrEqual(5);
     });

@@ -5,6 +5,7 @@ import {
   loadFixture,
   makeRawFiling,
 } from '../helpers/ground-truth.js';
+import { assertDefined } from '../helpers/assert-defined.js';
 
 // ============================================================
 // §3.1 Table extraction in real filings -- Item 8
@@ -16,9 +17,9 @@ describe('table extraction in real filings', () => {
     const doc = parseFiling(makeRawFiling(html));
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
+    assertDefined(item8);
 
-    const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+    const tables = item8.blocks.filter(b => b.type === 'table') as Table[];
     expect(tables.length).toBeGreaterThan(0);
 
     // Tables should now have populated rows (not stubs)
@@ -50,9 +51,9 @@ describe('table count in known filings', () => {
       const doc = parseFiling(makeRawFiling(html));
 
       const item8 = doc.sections.find(s => s.id === 'item-8');
-      expect(item8).toBeDefined();
+      assertDefined(item8);
 
-      const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+      const tables = item8.blocks.filter(b => b.type === 'table') as Table[];
       expect(tables.length).toBeGreaterThanOrEqual(minTables);
     });
   }
@@ -122,9 +123,9 @@ describe('header detection in real filings', () => {
     const doc = parseFiling(makeRawFiling(html));
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
+    assertDefined(item8);
 
-    const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+    const tables = item8.blocks.filter(b => b.type === 'table') as Table[];
     const tablesWithHeaders = tables.filter(t =>
       t.rows.some(r => r.isHeader)
     );
@@ -148,9 +149,9 @@ describe('numeric value detection in real filings', () => {
     const doc = parseFiling(makeRawFiling(html));
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
+    assertDefined(item8);
 
-    const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+    const tables = item8.blocks.filter(b => b.type === 'table') as Table[];
     const cellsWithNumeric = tables.flatMap(t =>
       t.rows.flatMap(r => r.cells.filter(c => c.numericValue !== undefined))
     );
@@ -214,9 +215,9 @@ describe('layout table unwrapping', () => {
     const doc = parseFiling(makeRawFiling(html));
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
-    expect(item8).toBeDefined();
+    assertDefined(item8);
 
-    const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+    const tables = item8.blocks.filter(b => b.type === 'table') as Table[];
     expect(tables.length).toBeGreaterThan(1);
 
     // Compute total source span across all tables

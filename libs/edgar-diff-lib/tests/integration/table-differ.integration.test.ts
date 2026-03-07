@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { parseFiling } from '../../src/parser/index.js';
 import type { Table } from '../../src/types.js';
 import { diffTable, diffTables } from '../../src/diff/table-differ.js';
-import { matchTables } from '../../src/diff/table-matcher.js';
 import { makeRawFiling } from '../helpers/ground-truth.js';
 
 // ============================================================

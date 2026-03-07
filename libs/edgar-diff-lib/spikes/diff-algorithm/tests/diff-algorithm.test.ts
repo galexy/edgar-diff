@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractSections, normalizeHeading, type Section } from '../section-extractor.js';
+import { assertDefined } from '../../../tests/helpers/assert-defined.js';
 import {
   alignSections,
   jaroWinklerSimilarity,
@@ -92,14 +93,14 @@ describe('section extraction', () => {
 
   it('finds Item 1 (Business)', () => {
     const item1 = appleSections.find((s) => /item\s+1\b/i.test(s.heading) && !/item\s+1[a-z]/i.test(s.heading));
-    expect(item1).toBeDefined();
-    expect(item1!.paragraphs.length).toBeGreaterThan(0);
+    assertDefined(item1);
+    expect(item1.paragraphs.length).toBeGreaterThan(0);
   });
 
   it('finds Item 1A (Risk Factors)', () => {
     const item1a = appleSections.find((s) => /item\s+1a/i.test(s.heading));
-    expect(item1a).toBeDefined();
-    expect(item1a!.paragraphs.length).toBeGreaterThan(5); // Risk factors has many paragraphs
+    assertDefined(item1a);
+    expect(item1a.paragraphs.length).toBeGreaterThan(5); // Risk factors has many paragraphs
   });
 
   it('finds Item 7 (MD&A)', () => {
@@ -214,8 +215,8 @@ describe('paragraph diff', () => {
 
     if (modified.length > 0) {
       for (const m of modified.slice(0, 5)) {
-        expect(m.wordDiff).toBeDefined();
-        expect(m.wordDiff!.length).toBeGreaterThan(0);
+        assertDefined(m.wordDiff);
+        expect(m.wordDiff.length).toBeGreaterThan(0);
       }
     }
   });
