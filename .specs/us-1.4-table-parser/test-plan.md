@@ -25,6 +25,12 @@ Design notes affecting tests:
 
 ## 1. BDD Acceptance Criteria
 
+**Implementation approach:** Scenarios 1-5 and 7 are verified via **property-based tests** using a
+`TableHtmlGenerator` that produces random table HTML paired with the expected parse result. This
+enables exact structural assertions across hundreds of generated inputs per CI run, rather than
+relying solely on handwritten examples. Scenario 6 uses real filing fixtures. See section 7 for
+the generator specification and property test implementation.
+
 ### Scenario 1: HTML tables extracted into row/column data structure
 ```gherkin
 Given a RawFiling containing HTML with <table> elements
@@ -35,6 +41,9 @@ And each TableCell has a non-empty text or whitespace-only text
 And each TableCell has colspan >= 1 and rowspan >= 1
 ```
 
+**Property test:** Generate N=200 random tables. For each, assert `table.rows.length === expected.rowCount`
+and `row.cells.length === expected.cellCount`. (Properties P1, P2)
+
 ### Scenario 2: Header rows and column labels preserved
 ```gherkin
 Given a table with <thead> containing <th> elements
@@ -44,6 +53,9 @@ And cells from <th> elements are included in header rows
 And header row text preserves the column label content
 ```
 
+**Property test:** Generator randomizes header patterns (none / `<thead>` / all-`<th>`). For each
+generated table, assert `row.isHeader === expected.isHeader`. (Property P3)
+
 ### Scenario 3: Merged cells handled gracefully
 ```gherkin
 Given a table with cells using colspan and rowspan attributes
@@ -52,6 +64,10 @@ Then each TableCell.colspan reflects the HTML colspan attribute (default 1)
 And each TableCell.rowspan reflects the HTML rowspan attribute (default 1)
 And cells without colspan/rowspan attributes have colspan=1, rowspan=1
 ```
+
+**Property test:** Generator randomizes colspan (1-3) and rowspan (1-3). For each cell, assert
+`cell.colspan === expected.colspan` and `cell.rowspan === expected.rowspan`. Also assert
+`colspan >= 1` and `rowspan >= 1` as invariants. (Properties P5, P8)
 
 ### Scenario 4: Numeric values retained as numbers
 ```gherkin
@@ -64,6 +80,11 @@ And cells with plain numbers like "42" have numericValue = 42
 And cells with non-numeric text like "Revenue" have numericValue = undefined
 ```
 
+**Property test:** Generator produces cells with randomized content types (text, currency, percentage,
+parenthetical negative, plain number, dash-zero, empty). For each cell, assert
+`cell.numericValue === expected.numericValue`. Also fuzz `tryParseNumeric` directly with random
+integers, currency strings, and parenthetical negatives. (Property P7, plus standalone numeric fuzz)
+
 ### Scenario 5: Source mappings for each cell
 ```gherkin
 Given a parsed table with rows and cells
@@ -74,6 +95,9 @@ And html.slice(cell.source.start, cell.source.end) contains the cell's text cont
 And all source offsets are within [0, html.length)
 ```
 
+**Property test:** For every generated table, assert source offset bounds, containment (cell within
+row), and monotonic row ordering. (Properties P4, P9)
+
 ### Scenario 6: Full pipeline produces populated tables
 ```gherkin
 Given a RawFiling from a real 10-K filing with financial statements
@@ -83,6 +107,8 @@ And those Table blocks have rows.length > 0
 And table cells contain recognizable financial data (numbers, labels)
 ```
 
+*Not property-tested — uses real filing fixtures in integration/E2E tests (sections 3-4).*
+
 ### Scenario 7: Empty/edge-case tables handled gracefully
 ```gherkin
 Given a table with no <tr> elements
@@ -90,6 +116,9 @@ When the table is extracted
 Then the Table block has rows = [] (valid empty table)
 And no exception is thrown
 ```
+
+**Property test:** Generator includes row count range 0-20, so empty tables (0 rows) are covered.
+The invariant "no exception thrown" is implicit — if the test reaches assertions, no exception occurred. (Property P10)
 
 ---
 
@@ -192,6 +221,8 @@ expect(table.rows[1].isHeader).toBe(false);
 
 ### 2.5 Colspan handling
 
+*Also covered by property test P8 with randomized colspan values.*
+
 ```typescript
 // T5: Cell with colspan=2 preserved
 const html = `<html><body>
@@ -209,6 +240,8 @@ expect(table.rows[1].cells[0].colspan).toBe(1);
 ```
 
 ### 2.6 Rowspan handling
+
+*Also covered by property test P8 with randomized rowspan values.*
 
 ```typescript
 // T6: Cell with rowspan=3 preserved
@@ -261,6 +294,8 @@ expect(table.rows[0].cells[0].rowspan).toBe(1);
 ```
 
 ### 2.9 Numeric value detection -- currency
+
+*Also covered by property test P7 and standalone numeric fuzz (section 7.3).*
 
 ```typescript
 // T9: Currency values parsed to numericValue
@@ -375,6 +410,8 @@ expect(table.rows[1].cells[0].numericValue).toBeUndefined();
 ```
 
 ### 2.15 Source mappings -- cell level
+
+*Also covered by property tests P4, P9 across all generated tables.*
 
 ```typescript
 // T15: Each cell has valid SourceLocation, round-trip works
@@ -1134,14 +1171,16 @@ for (const row of table.rows) {
 
 ---
 
-## 7. Property-Based / Fuzz Tests
+## 7. Property-Based Tests (Acceptance Criteria Implementation)
 
 Test file: `tests/fuzz/table-extractor.fuzz.test.ts`.
 
-The unit tests above cover specific scenarios, but the table extraction domain has high combinatorial
-complexity (varying row/column counts, colspan/rowspan combinations, mixed header patterns, numeric
-formats, nesting). Property-based testing generates hundreds of random table structures per CI run
-and validates structural invariants that must hold for ANY valid table input.
+This section specifies the `TableHtmlGenerator` and property tests that implement the BDD acceptance
+criteria (section 1, Scenarios 1-5, 7). Property testing is the primary verification strategy for
+acceptance criteria because the table extraction domain has high combinatorial complexity. The
+generator produces random table HTML paired with exact expected results, enabling hundreds of
+precise structural assertions per CI run. Unit tests (section 2) remain hardcoded for specific
+edge cases and regression scenarios.
 
 ### 7.1 Table HTML Generator
 
@@ -1331,7 +1370,7 @@ generated expectation, not just invariants.
 
 ## 8. Test Data
 
-### 7.1 Inline HTML fixtures (unit tests)
+### 8.1 Inline HTML fixtures (unit tests)
 
 Each test case has a dedicated inline fixture (T1-T28) with minimal HTML. All fixtures are wrapped in a section heading so the table is part of a parsed section. Fixtures cover:
 - Basic extraction (T1)
@@ -1350,7 +1389,7 @@ Each test case has a dedicated inline fixture (T1-T28) with minimal HTML. All fi
 - Boundary conditions (B1-B8)
 - Error conditions (E1-E4)
 
-### 7.2 Real filing fixtures (integration tests)
+### 8.2 Real filing fixtures (integration tests)
 
 Same fixtures as US-1.3, available in `tests/integration/fixtures/`:
 
@@ -1364,7 +1403,7 @@ Same fixtures as US-1.3, available in `tests/integration/fixtures/`:
 | 10k-wmt-2024.html | 2.2 MB | Table-based layout (Family D) |
 | 10k-xom-2012.html | 8.7 MB | Legacy font tags, older table patterns |
 
-### 7.3 Test utility: makeRawFiling()
+### 8.3 Test utility: makeRawFiling()
 
 Uses `makeRawFiling(html)` from `tests/helpers/ground-truth.ts` (shared with US-1.3 tests).
 
