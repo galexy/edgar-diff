@@ -3,17 +3,40 @@ import { parseFiling } from '../../src/parser/index.js';
 import type { Table } from '../../src/types.js';
 import { makeRawFiling } from '../helpers/ground-truth.js';
 import { generateTable, wrapInSection } from './table-html-generator.js';
+import type { GeneratedTable } from './table-html-generator.js';
 
 // ============================================================
 // Property-based tests: table extraction structural invariants
+//
+// Each iteration generates a random table with varying structure
+// (row/col counts, thead/tbody/tfoot, th/td, colspan, rowspan,
+// mixed content types) and verifies 10 structural properties.
+// Vitest registers each element as an individual test case.
 // ============================================================
 
-describe('property: table extraction invariants', () => {
-  const N = 200;
+const TABLE_TEST_COUNT = Number(process.env['TABLE_TEST_COUNT'] ?? 200);
 
-  for (let i = 0; i < N; i++) {
-    it(`generated table #${i}: structural invariants hold`, () => {
-      const { html: tableHtml, expected } = generateTable();
+interface LabeledTestCase {
+  label: string;
+  generated: GeneratedTable;
+}
+
+// Pre-generate all test cases so vitest can enumerate them upfront
+const tableTestCases: LabeledTestCase[] = Array.from(
+  { length: TABLE_TEST_COUNT },
+  (_, i) => {
+    const generated = generateTable();
+    const { expected } = generated;
+    const headerCount = expected.rows.filter(r => r.isHeader).length;
+    const label = `#${i} (${expected.rowCount} rows, ${headerCount} headers)`;
+    return { label, generated };
+  },
+);
+
+describe('property: table extraction invariants', () => {
+  it.each(tableTestCases)(
+    'generated table $label: structural invariants hold',
+    ({ generated: { html: tableHtml, expected } }) => {
       const html = wrapInSection(tableHtml);
       const doc = parseFiling(makeRawFiling(html));
 
@@ -91,8 +114,8 @@ describe('property: table extraction invariants', () => {
       }
 
       // P10: No exception thrown (implicit -- test reaches this point)
-    });
-  }
+    },
+  );
 });
 
 // ============================================================
