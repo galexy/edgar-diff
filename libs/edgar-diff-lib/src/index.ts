@@ -25,3 +25,5 @@ export type {
   StructuredDocument,
   Logger,
 } from './types.js';
+
+export * from './diff/index.js';
