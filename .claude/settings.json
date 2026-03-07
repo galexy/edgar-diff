@@ -1,6 +1,7 @@
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
+    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
+    "BEADS_DIR": "/workspace/.beads"
   },
   "permissions": {
     "deny": [
@@ -53,7 +54,7 @@
    },
   "statusLine": {
     "type": "command",
-    "command": "bash /workspace/.claude/statusline-command.sh"
+    "command": "python3 /workspace/.claude/scripts/claude-context-bar.py"
   },
   "enabledPlugins": {
     "metapowers@metapowers": true

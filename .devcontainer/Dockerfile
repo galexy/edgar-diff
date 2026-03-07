@@ -124,10 +124,13 @@ RUN mkdir -p /workspace && chown vscode:vscode /workspace
 USER vscode
 WORKDIR /home/vscode
 
-# Configure tmux for truecolor and zsh
+# Configure tmux for truecolor and zsh, with context window bar
 RUN echo 'set -g default-terminal "tmux-256color"' > ~/.tmux.conf \
     && echo 'set -ag terminal-overrides ",xterm*:Tc"' >> ~/.tmux.conf \
-    && echo 'set -g default-shell /bin/zsh' >> ~/.tmux.conf
+    && echo 'set -g default-shell /bin/zsh' >> ~/.tmux.conf \
+    && echo 'set -g status-right-length 60' >> ~/.tmux.conf \
+    && echo 'set -g status-right "#(python3 /workspace/.claude/scripts/claude-context-bar.py --tmux) %H:%M"' >> ~/.tmux.conf \
+    && echo 'set -g status-interval 10' >> ~/.tmux.conf
 
 # Install zsh-in-docker (must run as vscode so config goes to /home/vscode)
 RUN sh -c "$(curl -fsSL https://github.com/deluan/zsh-in-docker/releases/download/v1.2.1/zsh-in-docker.sh)" -- \
@@ -145,5 +148,8 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 
 # Ensure ~/.local/bin is on PATH
 ENV PATH="/home/vscode/.local/bin:${PATH}"
+
+# Create .ssh directory
+RUN mkdir /workspace/.ssh
 
 WORKDIR /workspace
