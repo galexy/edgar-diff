@@ -1,0 +1,219 @@
+import { describe, it, expect } from 'vitest';
+import { parseFiling } from '../../src/parser/index.js';
+import type { Table } from '../../src/types.js';
+import { makeRawFiling } from '../helpers/ground-truth.js';
+import { generateTable, wrapInSection } from './table-html-generator.js';
+
+// ============================================================
+// Property-based tests: table extraction structural invariants
+// ============================================================
+
+describe('property: table extraction invariants', () => {
+  const N = 200;
+
+  for (let i = 0; i < N; i++) {
+    it(`generated table #${i}: structural invariants hold`, () => {
+      const { html: tableHtml, expected } = generateTable();
+      const html = wrapInSection(tableHtml);
+      const doc = parseFiling(makeRawFiling(html));
+
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+
+      // Empty tables (0 rows) may not produce a table block at all
+      if (expected.rowCount === 0) {
+        if (!table) return; // acceptable: no table block for empty table
+        expect(table.rows).toHaveLength(0);
+        return;
+      }
+
+      expect(table).toBeDefined();
+
+      // P1: Row count matches expected
+      expect(table.rows.length).toBe(expected.rowCount);
+
+      // P2: Each row's cell count matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        expect(table.rows[r].cells.length).toBe(expected.rows[r].cellCount);
+      }
+
+      // P3: isHeader matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        expect(table.rows[r].isHeader).toBe(expected.rows[r].isHeader);
+      }
+
+      // P4: All source offsets valid
+      for (const row of table.rows) {
+        expect(row.source.start).toBeGreaterThanOrEqual(0);
+        expect(row.source.end).toBeLessThanOrEqual(html.length);
+        expect(row.source.start).toBeLessThan(row.source.end);
+        for (const cell of row.cells) {
+          expect(cell.source.start).toBeGreaterThanOrEqual(row.source.start);
+          expect(cell.source.end).toBeLessThanOrEqual(row.source.end);
+          expect(cell.source.start).toBeLessThan(cell.source.end);
+        }
+      }
+
+      // P5: colspan/rowspan >= 1
+      for (const row of table.rows) {
+        for (const cell of row.cells) {
+          expect(cell.colspan).toBeGreaterThanOrEqual(1);
+          expect(cell.rowspan).toBeGreaterThanOrEqual(1);
+        }
+      }
+
+      // P6: Cell text matches expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].text).toBe(expected.rows[r].cells[c].text);
+        }
+      }
+
+      // P7: Numeric values match expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].numericValue)
+            .toBe(expected.rows[r].cells[c].numericValue);
+        }
+      }
+
+      // P8: colspan/rowspan match expected
+      for (let r = 0; r < table.rows.length; r++) {
+        for (let c = 0; c < table.rows[r].cells.length; c++) {
+          expect(table.rows[r].cells[c].colspan).toBe(expected.rows[r].cells[c].colspan);
+          expect(table.rows[r].cells[c].rowspan).toBe(expected.rows[r].cells[c].rowspan);
+        }
+      }
+
+      // P9: Rows are in document order (source offsets monotonically increasing)
+      for (let r = 1; r < table.rows.length; r++) {
+        expect(table.rows[r].source.start)
+          .toBeGreaterThan(table.rows[r - 1].source.start);
+      }
+
+      // P10: No exception thrown (implicit -- test reaches this point)
+    });
+  }
+});
+
+// ============================================================
+// Property-based tests: tryParseNumeric round-trip
+// These tests will be enabled once tryParseNumeric is exported.
+// For now, test numeric parsing through the full pipeline.
+// ============================================================
+
+describe('property: numeric parsing through pipeline', () => {
+  it('plain integers always parse correctly', () => {
+    for (let i = 0; i < 50; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = n.toLocaleString('en-US');
+      const html = wrapInSection(`<table><tr><td>${formatted}</td></tr></table>`);
+      const doc = parseFiling(makeRawFiling(html));
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+      if (table && table.rows.length > 0) {
+        expect(table.rows[0].cells[0].numericValue).toBe(n);
+      }
+    }
+  });
+
+  it('currency-formatted values always parse correctly', () => {
+    for (let i = 0; i < 50; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = `$${n.toLocaleString('en-US')}`;
+      const html = wrapInSection(`<table><tr><td>${formatted}</td></tr></table>`);
+      const doc = parseFiling(makeRawFiling(html));
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+      if (table && table.rows.length > 0) {
+        expect(table.rows[0].cells[0].numericValue).toBe(n);
+      }
+    }
+  });
+
+  it('parenthetical negatives always parse correctly', () => {
+    for (let i = 0; i < 50; i++) {
+      const n = Math.floor(Math.random() * 1_000_000);
+      const formatted = `(${n.toLocaleString('en-US')})`;
+      const html = wrapInSection(`<table><tr><td>${formatted}</td></tr></table>`);
+      const doc = parseFiling(makeRawFiling(html));
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+      if (table && table.rows.length > 0) {
+        expect(table.rows[0].cells[0].numericValue).toBe(-n);
+      }
+    }
+  });
+
+  it('non-numeric strings never produce a value', () => {
+    const words = ['Revenue', 'Total', 'N/A', 'abc', 'Item 1', 'million'];
+    for (const w of words) {
+      const html = wrapInSection(`<table><tr><td>${w}</td></tr></table>`);
+      const doc = parseFiling(makeRawFiling(html));
+      const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+      if (table && table.rows.length > 0) {
+        expect(table.rows[0].cells[0].numericValue).toBeUndefined();
+      }
+    }
+  });
+});
+
+// ============================================================
+// Edge-case property tests (Scenario 7)
+// ============================================================
+
+describe('property: edge-case tables handled gracefully', () => {
+  it('empty table (0 rows) does not throw', () => {
+    const html = wrapInSection('<table></table>');
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+  });
+
+  it('single-cell table works correctly', () => {
+    const html = wrapInSection('<table><tr><td>Only cell</td></tr></table>');
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0].cells).toHaveLength(1);
+    expect(table.rows[0].cells[0].text).toBe('Only cell');
+  });
+
+  it('table with empty rows does not throw', () => {
+    const html = wrapInSection('<table><tr></tr><tr><td>Valid</td></tr></table>');
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows.some(r => r.cells.length > 0)).toBe(true);
+  });
+
+  it('very large table (100+ rows) does not crash', () => {
+    const rows = Array.from({ length: 100 }, (_, i) =>
+      `<tr><td>Row ${i}</td><td>${i * 100}</td></tr>`
+    ).join('\n');
+    const html = wrapInSection(`<table>${rows}</table>`);
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(100);
+  });
+
+  it('malformed table HTML does not throw', () => {
+    const html = wrapInSection('<table><tr><td>Cell 1<td>Cell 2<tr><td>Cell 3</table>');
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+  });
+
+  it('table with invalid colspan/rowspan does not throw', () => {
+    const html = wrapInSection(
+      '<table><tr><td colspan="0">A</td></tr><tr><td colspan="abc">B</td></tr></table>'
+    );
+    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
+    if (table) {
+      for (const row of table.rows) {
+        for (const cell of row.cells) {
+          expect(cell.colspan).toBeGreaterThanOrEqual(1);
+          expect(cell.rowspan).toBeGreaterThanOrEqual(1);
+        }
+      }
+    }
+  });
+});
