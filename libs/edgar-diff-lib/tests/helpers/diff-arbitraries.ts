@@ -22,7 +22,7 @@ function arbSourceLocation(maxEnd = 100_000): fc.Arbitrary<SourceLocation> {
   });
 }
 
-const SEC_ITEMS = [
+export const SEC_ITEMS = [
   'Item 1. Business',
   'Item 1A. Risk Factors',
   'Item 1B. Unresolved Staff Comments',
@@ -48,6 +48,16 @@ const SEC_ITEMS = [
 
 export function arbHeading(): fc.Arbitrary<string> {
   return fc.constantFrom(...SEC_ITEMS);
+}
+
+/**
+ * Generate N unique SEC-like headings using shuffledSubarray (no filter needed).
+ * This avoids the fast-check anti-pattern of .filter() on uniqueArray which
+ * can silently reduce iteration counts.
+ */
+export function arbUniqueHeadings(n: number): fc.Arbitrary<string[]> {
+  if (n === 0) return fc.constant([]);
+  return fc.shuffledSubarray(SEC_ITEMS, { minLength: n, maxLength: n });
 }
 
 export function arbUniqueHeading(): fc.Arbitrary<string> {
