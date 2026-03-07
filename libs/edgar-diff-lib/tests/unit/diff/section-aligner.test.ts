@@ -235,3 +235,93 @@ describe('alignSections', () => {
     }
   });
 });
+
+describe('isReordered', () => {
+  it('returns false when section position is preserved', () => {
+    const matches: SectionMatch[] = [
+      { oldIndex: 0, newIndex: 0, oldSection: makeFilingSection('a', 'A'), newSection: makeFilingSection('a', 'A'), similarity: 1 },
+      { oldIndex: 1, newIndex: 1, oldSection: makeFilingSection('b', 'B'), newSection: makeFilingSection('b', 'B'), similarity: 1 },
+    ];
+    expect(isReordered(matches, matches[0])).toBe(false);
+    expect(isReordered(matches, matches[1])).toBe(false);
+  });
+
+  it('returns true when section position is swapped', () => {
+    const matches: SectionMatch[] = [
+      { oldIndex: 0, newIndex: 1, oldSection: makeFilingSection('a', 'A'), newSection: makeFilingSection('a', 'A'), similarity: 1 },
+      { oldIndex: 1, newIndex: 0, oldSection: makeFilingSection('b', 'B'), newSection: makeFilingSection('b', 'B'), similarity: 1 },
+    ];
+    expect(isReordered(matches, matches[0])).toBe(true);
+    expect(isReordered(matches, matches[1])).toBe(true);
+  });
+
+  it('returns false for single match (no other to compare against)', () => {
+    const matches: SectionMatch[] = [
+      { oldIndex: 0, newIndex: 2, oldSection: makeFilingSection('a', 'A'), newSection: makeFilingSection('a', 'A'), similarity: 1 },
+    ];
+    expect(isReordered(matches, matches[0])).toBe(false);
+  });
+});
+
+describe('classifySectionDiff', () => {
+  it('U-CS-1: same heading, same content, same position => unchanged', () => {
+    const blocks = [makeParagraph('Same content')];
+    const match: SectionMatch = {
+      oldIndex: 0, newIndex: 0,
+      oldSection: makeFilingSection('item-1', 'Item 1', { blocks }),
+      newSection: makeFilingSection('item-1', 'Item 1', { blocks }),
+      similarity: 1,
+    };
+    expect(classifySectionDiff(match, [match])).toBe('unchanged');
+  });
+
+  it('U-CS-2: same heading, different content, same position => modified', () => {
+    const match: SectionMatch = {
+      oldIndex: 0, newIndex: 0,
+      oldSection: makeFilingSection('item-1', 'Item 1', { blocks: [makeParagraph('Old text')] }),
+      newSection: makeFilingSection('item-1', 'Item 1', { blocks: [makeParagraph('New text')] }),
+      similarity: 1,
+    };
+    expect(classifySectionDiff(match, [match])).toBe('modified');
+  });
+
+  it('U-CS-3: moved to different relative position, same content => reordered', () => {
+    const blocksA = [makeParagraph('Content A')];
+    const blocksB = [makeParagraph('Content B')];
+    const matches: SectionMatch[] = [
+      {
+        oldIndex: 0, newIndex: 1,
+        oldSection: makeFilingSection('a', 'A', { blocks: blocksA }),
+        newSection: makeFilingSection('a', 'A', { blocks: blocksA }),
+        similarity: 1,
+      },
+      {
+        oldIndex: 1, newIndex: 0,
+        oldSection: makeFilingSection('b', 'B', { blocks: blocksB }),
+        newSection: makeFilingSection('b', 'B', { blocks: blocksB }),
+        similarity: 1,
+      },
+    ];
+    expect(classifySectionDiff(matches[0], matches)).toBe('reordered');
+    expect(classifySectionDiff(matches[1], matches)).toBe('reordered');
+  });
+
+  it('U-CS-4: moved + different content => modified (content takes precedence)', () => {
+    const matches: SectionMatch[] = [
+      {
+        oldIndex: 0, newIndex: 1,
+        oldSection: makeFilingSection('a', 'A', { blocks: [makeParagraph('Old A')] }),
+        newSection: makeFilingSection('a', 'A', { blocks: [makeParagraph('New A')] }),
+        similarity: 1,
+      },
+      {
+        oldIndex: 1, newIndex: 0,
+        oldSection: makeFilingSection('b', 'B', { blocks: [makeParagraph('Same B')] }),
+        newSection: makeFilingSection('b', 'B', { blocks: [makeParagraph('Same B')] }),
+        similarity: 1,
+      },
+    ];
+    expect(classifySectionDiff(matches[0], matches)).toBe('modified');
+    expect(classifySectionDiff(matches[1], matches)).toBe('reordered');
+  });
+});
