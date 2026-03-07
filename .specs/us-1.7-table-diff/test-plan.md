@@ -69,130 +69,157 @@ interface TableCell extends SourceMapped {
 
 ---
 
-## 1. BDD Acceptance Criteria
+## 1. BDD Acceptance Criteria (Property-Based)
+
+All acceptance criteria are implemented as **property-based tests** in `tests/acceptance/table-differ.acceptance.test.ts`, following the same pattern as `table-extractor.acceptance.test.ts`.
+
+### Generator: `generateTablePair()`
+
+A new generator function `generateTablePair(mutation)` in `tests/acceptance/table-diff-generator.ts` produces pairs of `Table` objects with controlled mutations. It:
+
+1. Calls the existing `generateTable()` to create a base table
+2. Parses the base table via `parseFiling()` to get a real `Table` object
+3. Applies a specified mutation to produce the "new" table
+4. Returns `{ oldTable, newTable, expectedMutation }` with metadata about what changed
+
+**Mutation types** (one per AC scenario):
+- `'none'` — identical copy (AC-7)
+- `'cell-values'` — randomly change N cell values in place (AC-2)
+- `'add-rows'` — append 1-3 rows at random positions (AC-3)
+- `'remove-rows'` — remove 1-3 rows at random positions (AC-3)
+- `'add-columns'` — append 1-2 columns to each row (AC-4)
+- `'remove-columns'` — remove 1-2 columns from each row (AC-4)
+- `'mixed'` — combine cell changes + row adds/removes (general)
+
+**Table list generator** `generateTableListPair(scenario)`:
+- `'matched'` — same count, headers preserved (AC-1)
+- `'shifted'` — insert a new table at start of new list (AC-1 position shift)
+- `'added'` — new list has extra table (AC-5)
+- `'removed'` — old list has extra table (AC-6)
+- `'unchanged'` — identical lists (AC-7)
+
+Each scenario generates N=200 test cases (configurable via `TABLE_DIFF_TEST_COUNT` env var).
 
 ### AC-1: Tables matched by position and header similarity
 
-```gherkin
-Scenario: Tables matched by position when headers are identical
-  Given an old filing with tables [Income Statement, Balance Sheet]
-  And a new filing with tables [Income Statement, Balance Sheet]
-  When I call matchTables(oldTables, newTables)
-  Then Income Statement is matched to Income Statement
-  And Balance Sheet is matched to Balance Sheet
-  And matched[0].similarity is 1.0
-
-Scenario: Tables matched by header similarity when position shifts
-  Given an old filing with tables [Income Statement, Balance Sheet]
-  And a new filing with tables [Cash Flow, Income Statement, Balance Sheet]
-  When I call matchTables(oldTables, newTables)
-  Then Income Statement matches to Income Statement (by header similarity >= 0.70)
-  And Balance Sheet matches to Balance Sheet
-  And Cash Flow is in the added[] array
-
-Scenario: Tables with similar but not identical headers match
-  Given an old table with header row ["Revenue", "2023", "2022"]
-  And a new table with header row ["Revenue", "2024", "2023"]
-  When I call matchTables(oldTables, newTables)
-  Then the tables are matched (header similarity above 0.70 threshold)
+```
+property: table matching invariants (N=200)
+  Generator: generateTableListPair('matched' | 'shifted' | 'added' | 'removed')
+  For each generated pair:
+    P1: Every matched pair has similarity >= threshold (0.70)
+    P2: matched.length + added.length = newTables.length
+    P3: matched.length + removed.length = oldTables.length
+    P4: No table appears in both matched and added/removed
+    P5: When headers are identical, similarity === 1.0
+    P6: When a table is inserted at position 0, the original tables still match correctly
 ```
 
 ### AC-2: Cell-by-cell diffs for matched tables
 
-```gherkin
-Scenario: Same structure, some cell values changed
-  Given an old table:
-    | Metric  | 2023 |
-    | Revenue | $100 |
-    | Income  | $20  |
-  And a new table:
-    | Metric  | 2024 |
-    | Revenue | $120 |
-    | Income  | $20  |
-  When I call diffTable(oldTable, newTable)
-  Then the table changeType is 'modified'
-  And rowDiffs contains a modified row with cellDiff at col=1 from "2023" to "2024"
-  And rowDiffs contains a modified row with cellDiff at col=1 from "$100" to "$120"
-  And the "$20" row has changeType 'unchanged'
-  And summary.rowsModified is 2
-  And summary.rowsUnchanged is 1
+```
+property: cell diff correctness on value mutations (N=200)
+  Generator: generateTablePair('cell-values')
+  For each generated pair:
+    P1: changeType is 'modified' (since cells were mutated)
+    P2: summary.cellsChanged >= 1
+    P3: Every cellDiff has changeType 'modified' with both oldValue and newValue set
+    P4: cellDiff row/col indices are within grid bounds
+    P5: Cells NOT in the mutation set have changeType 'unchanged' in their rowDiff
+    P6: summary.rowsModified counts match rows containing changed cells
 
-Scenario: All cells identical
-  Given two identical tables
-  When I call diffTable(oldTable, newTable)
-  Then changeType is 'unchanged'
-  And rowDiffs all have changeType 'unchanged'
-  And summary.cellsChanged is 0
+property: identical tables produce unchanged diff (N=200)
+  Generator: generateTablePair('none')
+  For each generated pair:
+    P1: changeType is 'unchanged'
+    P2: summary.cellsChanged is 0
+    P3: All rowDiffs have changeType 'unchanged'
+    P4: cellDiffs flat list is empty
 ```
 
 ### AC-3: Added and removed rows
 
-```gherkin
-Scenario: New table has an added row
-  Given an old table with rows [Header, Revenue, Income]
-  And a new table with rows [Header, Revenue, Income, Expenses]
-  When I call diffTable(oldTable, newTable)
-  Then changeType is 'modified'
-  And rowDiffs contains one RowDiff with changeType 'added' (newRowIndex set, oldRowIndex undefined)
-  And summary.rowsAdded is 1
+```
+property: row addition detection (N=200)
+  Generator: generateTablePair('add-rows')
+  For each generated pair:
+    P1: changeType is 'modified'
+    P2: summary.rowsAdded >= 1
+    P3: Each added RowDiff has newRowIndex set, oldRowIndex undefined
+    P4: summary.rowsAdded + summary.rowsRemoved + summary.rowsModified + summary.rowsUnchanged
+        = max(oldGrid.rowCount, newGrid.rowCount)
 
-Scenario: New table has a removed row
-  Given an old table with rows [Header, Revenue, Income, Expenses]
-  And a new table with rows [Header, Revenue, Income]
-  When I call diffTable(oldTable, newTable)
-  Then rowDiffs contains one RowDiff with changeType 'removed' (oldRowIndex set, newRowIndex undefined)
-  And summary.rowsRemoved is 1
+property: row removal detection (N=200)
+  Generator: generateTablePair('remove-rows')
+  For each generated pair:
+    P1: changeType is 'modified'
+    P2: summary.rowsRemoved >= 1
+    P3: Each removed RowDiff has oldRowIndex set, newRowIndex undefined
 ```
 
 ### AC-4: Added and removed columns
 
-```gherkin
-Scenario: New table has an added column
-  Given an old table with columns [Metric, 2023]
-  And a new table with columns [Metric, 2024, 2023]
-  When I call diffTable(oldTable, newTable)
-  Then cellDiffs at col=1 in matched rows have changeType 'added' (newValue set, oldValue undefined)
+```
+property: column addition detection (N=200)
+  Generator: generateTablePair('add-columns')
+  For each generated pair:
+    P1: changeType is 'modified'
+    P2: cellDiffs contain entries at column indices >= old grid colCount
+    P3: Those cellDiffs have changeType 'added' with newValue set, oldValue undefined
 
-Scenario: New table has a removed column
-  Given an old table with columns [Metric, 2023, 2022]
-  And a new table with columns [Metric, 2023]
-  When I call diffTable(oldTable, newTable)
-  Then cellDiffs at col=2 in matched rows have changeType 'removed' (oldValue set, newValue undefined)
+property: column removal detection (N=200)
+  Generator: generateTablePair('remove-columns')
+  For each generated pair:
+    P1: changeType is 'modified'
+    P2: cellDiffs contain entries at column indices >= new grid colCount
+    P3: Those cellDiffs have changeType 'removed' with oldValue set, newValue undefined
 ```
 
 ### AC-5: Added table (only in new filing)
 
-```gherkin
-Scenario: Table present only in new filing
-  Given an old filing with tables [Income Statement]
-  And a new filing with tables [Income Statement, Cash Flow]
-  When I call diffTables(oldTables, newTables)
-  Then one TableDiff has changeType 'added'
-  And it has newTable set, oldTable undefined
-  And rowDiffs is empty, cellDiffs is empty
+```
+property: added table detection (N=200)
+  Generator: generateTableListPair('added')
+  For each generated pair:
+    P1: Result contains at least one TableDiff with changeType 'added'
+    P2: Added TableDiffs have newTable set, oldTable undefined
+    P3: Added TableDiffs have empty rowDiffs and cellDiffs
 ```
 
 ### AC-6: Removed table (only in old filing)
 
-```gherkin
-Scenario: Table present only in old filing
-  Given an old filing with tables [Income Statement, Supplemental]
-  And a new filing with tables [Income Statement]
-  When I call diffTables(oldTables, newTables)
-  Then one TableDiff has changeType 'removed'
-  And it has oldTable set, newTable undefined
-  And rowDiffs is empty, cellDiffs is empty
+```
+property: removed table detection (N=200)
+  Generator: generateTableListPair('removed')
+  For each generated pair:
+    P1: Result contains at least one TableDiff with changeType 'removed'
+    P2: Removed TableDiffs have oldTable set, newTable undefined
+    P3: Removed TableDiffs have empty rowDiffs and cellDiffs
 ```
 
 ### AC-7: Unchanged tables
 
-```gherkin
-Scenario: Identical tables produce unchanged diff
-  Given an old and new filing with identical table content
-  When I call diffTables(oldTables, newTables)
-  Then changeType is 'unchanged'
-  And sourceMapping.old and sourceMapping.new are both populated
-  And summary.cellsChanged is 0
+```
+property: unchanged table detection (N=200)
+  Generator: generateTableListPair('unchanged')
+  For each generated pair:
+    P1: All TableDiffs have changeType 'unchanged'
+    P2: sourceMapping.old and sourceMapping.new are both populated
+    P3: All summary.cellsChanged are 0
+```
+
+### Structural invariants (all mutations)
+
+```
+property: structural invariants hold for any table pair (N=200)
+  Generator: generateTablePair(random mutation type)
+  For each generated pair:
+    P1: diffTable never throws
+    P2: rowDiff row/col indices are within grid bounds
+    P3: summary counts are internally consistent:
+        rowsAdded + rowsRemoved + rowsModified + rowsUnchanged = total rows
+    P4: cellDiffs flat list === flatMap of rowDiffs[].cellDiffs (no duplicates, no missing)
+    P5: changeType is 'unchanged' iff summary.cellsChanged === 0
+    P6: All sourceMapping offsets valid where present (start < end, within range)
 ```
 
 ---
@@ -483,18 +510,39 @@ const newTableHtml = `<table>
 
 Reuse existing fixtures in `tests/integration/fixtures/`. Reuse `makeRawFiling(html)` from `tests/helpers/ground-truth.ts`.
 
-### 8.4 Property-Based / Fuzz Tests (Acceptance)
+### 8.4 Property-Based Acceptance Tests
 
-Follow the pattern from `table-extractor.acceptance.test.ts`:
+File: `tests/acceptance/table-differ.acceptance.test.ts`
+Generator: `tests/acceptance/table-diff-generator.ts`
 
-- `generateTablePair()` — generates two structurally related tables with controlled mutations (cell value changes, added/removed rows/columns, span changes)
-- Invariants to verify on every generated pair:
-  - `diffTable` never throws
-  - `rowDiffs` row/col indices are within grid bounds
-  - `summary` counts are internally consistent
-  - `cellDiffs` flat list matches `rowDiffs` contents
-  - `changeType` is consistent (unchanged iff summary.cellsChanged=0)
-  - All sourceMapping offsets valid where present
+Follows the same pattern as `table-extractor.acceptance.test.ts` + `table-html-generator.ts`:
+
+**Generator design** (`generateTablePair(mutation)`):
+1. Uses the existing `generateTable()` to create a base table HTML
+2. Parses via `parseFiling(makeRawFiling(wrapInSection(html)))` to get a real `Table` object
+3. Clones and applies the specified mutation to create the "new" `Table`
+4. Returns `{ oldTable, newTable, expectedMutation }` with metadata about what was changed
+
+**Mutation types:**
+- `'none'` — deep clone, no changes → expect unchanged
+- `'cell-values'` — randomly pick N cells and change their text/numericValue → expect modified cells
+- `'add-rows'` — insert 1-3 new rows at random positions → expect added rows
+- `'remove-rows'` — remove 1-3 rows at random positions → expect removed rows
+- `'add-columns'` — append 1-2 columns to every row → expect added columns
+- `'remove-columns'` — remove last 1-2 columns from every row → expect removed columns
+- `'mixed'` — combine multiple mutations → expect modified table
+
+**Table list generator** (`generateTableListPair(scenario)`):
+- Generates pairs of `Table[]` for testing `matchTables()` / `diffTables()`:
+  - `'matched'` — same count, same headers
+  - `'shifted'` — insert new table at start of new list
+  - `'added'` — new list has extra table
+  - `'removed'` — old list has extra table
+  - `'unchanged'` — identical lists
+
+**Test count:** N=200 per scenario (configurable via `TABLE_DIFF_TEST_COUNT` env var).
+
+Each AC scenario (section 1) maps to a `describe` block that pre-generates N test cases and uses `it.each()` to run property assertions, exactly as the existing table-extractor acceptance tests do.
 
 ---
 
