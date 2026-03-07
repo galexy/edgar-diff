@@ -72,3 +72,135 @@ describe('tryParseNumeric', () => {
     expect(tryParseNumeric('   ')).toBeUndefined();
   });
 });
+
+describe('extractTable — basic extraction', () => {
+  it('T1: simple 2x2 table produces correct rows and cells', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Revenue</td><td>$100</td></tr>
+  <tr><td>Expenses</td><td>$80</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(2);
+    expect(table.rows[0].cells).toHaveLength(2);
+    expect(table.rows[0].cells[0].text).toBe('Revenue');
+    expect(table.rows[0].cells[1].text).toBe('$100');
+    expect(table.rows[1].cells[0].text).toBe('Expenses');
+    expect(table.rows[1].cells[1].text).toBe('$80');
+  });
+
+  it('T1b: numeric values populated on cells', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Revenue</td><td>$100</td></tr>
+  <tr><td>Expenses</td><td>$80</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].numericValue).toBeUndefined();
+    expect(table.rows[0].cells[1].numericValue).toBe(100);
+    expect(table.rows[1].cells[1].numericValue).toBe(80);
+  });
+
+  it('T8: cells without colspan/rowspan default to 1', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Plain cell</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].colspan).toBe(1);
+    expect(table.rows[0].cells[0].rowspan).toBe(1);
+  });
+
+  it('T15: each cell has valid SourceLocation', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Revenue</td><td>$100</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    for (const row of table.rows) {
+      expect(row.source.start).toBeGreaterThanOrEqual(0);
+      expect(row.source.end).toBeLessThanOrEqual(html.length);
+      expect(row.source.start).toBeLessThan(row.source.end);
+      for (const cell of row.cells) {
+        expect(cell.source.start).toBeGreaterThanOrEqual(0);
+        expect(cell.source.end).toBeLessThanOrEqual(html.length);
+        expect(cell.source.start).toBeLessThan(cell.source.end);
+        const slice = html.slice(cell.source.start, cell.source.end);
+        expect(slice).toContain(cell.text);
+      }
+    }
+  });
+
+  it('T16: each row source contains all its cells', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>A</td><td>B</td></tr>
+  <tr><td>C</td><td>D</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    for (const row of table.rows) {
+      for (const cell of row.cells) {
+        expect(cell.source.start).toBeGreaterThanOrEqual(row.source.start);
+        expect(cell.source.end).toBeLessThanOrEqual(row.source.end);
+      }
+    }
+  });
+
+  it('T17: empty table produces empty rows array', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table></table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table).toBeDefined();
+    expect(table.rows).toHaveLength(0);
+  });
+
+  it('T23: multiple tables in one section', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table><tr><td>Table 1</td></tr></table>
+<p>Some text between tables.</p>
+<table><tr><td>Table 2</td></tr></table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const tables = doc.sections[0].blocks.filter(b => b.type === 'table');
+    expect(tables).toHaveLength(2);
+  });
+
+  it('T24: rows are in document order', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>First</td></tr>
+  <tr><td>Second</td></tr>
+  <tr><td>Third</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].text).toBe('First');
+    expect(table.rows[1].cells[0].text).toBe('Second');
+    expect(table.rows[2].cells[0].text).toBe('Third');
+    for (let i = 1; i < table.rows.length; i++) {
+      expect(table.rows[i].source.start).toBeGreaterThan(table.rows[i - 1].source.start);
+    }
+  });
+});
