@@ -87,10 +87,10 @@ describe('Integration: Section Alignment with Real Filings', () => {
   });
 
   describe('Structural differences (I-5, I-6)', () => {
+    const msft2023 = parseFixture(loadIntegrationFixture('10k-msft-2023.html'));
+    const msft2024 = parseFixture(loadIntegrationFixture('10k-msft-2024.html'));
+
     it('I-5: filings with different section counts have correct added/removed', () => {
-      // MSFT FY2023 vs FY2024 — may have different section counts
-      const msft2023 = parseFixture(loadIntegrationFixture('10k-msft-2023.html'));
-      const msft2024 = parseFixture(loadIntegrationFixture('10k-msft-2024.html'));
       const result = alignSections(msft2023.sections, msft2024.sections);
 
       // Every section should be accounted for
@@ -101,8 +101,6 @@ describe('Integration: Section Alignment with Real Filings', () => {
     });
 
     it('I-6: summary counts are consistent with sectionDiffs array', () => {
-      const msft2023 = parseFixture(loadIntegrationFixture('10k-msft-2023.html'));
-      const msft2024 = parseFixture(loadIntegrationFixture('10k-msft-2024.html'));
       const result = diffFilings(msft2023, msft2024);
 
       const counts = { added: 0, removed: 0, modified: 0, unchanged: 0, reordered: 0 };

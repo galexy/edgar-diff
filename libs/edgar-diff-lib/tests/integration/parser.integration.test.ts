@@ -10,6 +10,20 @@ import {
   KNOWN_ITEMS,
 } from '../helpers/ground-truth.js';
 
+// Cache parsed filings to avoid redundant parsing across describe blocks
+const parseCache = new Map<string, { doc: ReturnType<typeof parseFiling>; html: string }>();
+function getCachedParsed(ticker: string, year: number) {
+  const key = `${ticker}-${year}`;
+  let cached = parseCache.get(key);
+  if (!cached) {
+    const html = loadFixture(ticker, year);
+    const doc = parseFiling(makeRawFiling(html));
+    cached = { doc, html };
+    parseCache.set(key, cached);
+  }
+  return cached;
+}
+
 // ============================================================
 // 3.1 Per-filing section detection accuracy
 // ============================================================
@@ -23,9 +37,8 @@ const ACCURACY_FIXTURES = ALL_FIXTURES.filter(f => {
 describe('parser accuracy per filing', () => {
   for (const { ticker, year } of ACCURACY_FIXTURES) {
     it(`detects >= 80% of items in ${ticker.toUpperCase()} ${year}`, () => {
-      const html = loadFixture(ticker, year);
+      const { doc } = getCachedParsed(ticker, year);
       const meta = loadGroundTruth(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
 
       const expectedIds = getExpectedIds(meta);
       const detectedIds = doc.sections.map(s => s.id);
@@ -48,9 +61,8 @@ describe('aggregate accuracy', () => {
     let totalDetected = 0;
 
     for (const { ticker, year } of ACCURACY_FIXTURES) {
-      const html = loadFixture(ticker, year);
+      const { doc } = getCachedParsed(ticker, year);
       const meta = loadGroundTruth(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
 
       const expectedIds = getExpectedIds(meta);
       const detectedIds = doc.sections.map(s => s.id);
@@ -64,9 +76,8 @@ describe('aggregate accuracy', () => {
 
   it('no single filing drops below 60% accuracy', () => {
     for (const { ticker, year } of ACCURACY_FIXTURES) {
-      const html = loadFixture(ticker, year);
+      const { doc } = getCachedParsed(ticker, year);
       const meta = loadGroundTruth(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
 
       const expectedIds = getExpectedIds(meta);
       const detectedIds = doc.sections.map(s => s.id);
@@ -86,8 +97,7 @@ describe('aggregate accuracy', () => {
 describe('section ID correctness', () => {
   for (const { ticker, year } of ALL_FIXTURES) {
     it(`${ticker.toUpperCase()} ${year}: all section IDs are valid item-N format`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
 
       for (const section of doc.sections) {
         expect(section.id).toMatch(/^item-\d+[a-z]?$/);
@@ -97,8 +107,7 @@ describe('section ID correctness', () => {
     });
 
     it(`${ticker.toUpperCase()} ${year}: heading text contains Item label`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
 
       for (const section of doc.sections) {
         expect(section.heading.toLowerCase()).toMatch(/item\s+\d/);
@@ -114,8 +123,7 @@ describe('section ID correctness', () => {
 describe('source offset round-trip and invariants', () => {
   for (const { ticker, year } of ALL_FIXTURES) {
     it(`round-trips offsets for ${ticker.toUpperCase()} ${year}`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc, html } = getCachedParsed(ticker, year);
 
       for (const section of doc.sections) {
         // Bounds
@@ -157,8 +165,8 @@ describe('source offset round-trip and invariants', () => {
 
 describe('cross-filing consistency', () => {
   it('MSFT FY2023 and FY2024 detect same core items', () => {
-    const doc2023 = parseFiling(makeRawFiling(loadFixture('msft', 2023)));
-    const doc2024 = parseFiling(makeRawFiling(loadFixture('msft', 2024)));
+    const { doc: doc2023 } = getCachedParsed('msft', 2023);
+    const { doc: doc2024 } = getCachedParsed('msft', 2024);
 
     const ids2023 = new Set(doc2023.sections.map(s => s.id));
     const ids2024 = new Set(doc2024.sections.map(s => s.id));
@@ -170,8 +178,8 @@ describe('cross-filing consistency', () => {
   });
 
   it('JPM FY2023 and FY2024 detect same core items', () => {
-    const doc2023 = parseFiling(makeRawFiling(loadFixture('jpm', 2023)));
-    const doc2024 = parseFiling(makeRawFiling(loadFixture('jpm', 2024)));
+    const { doc: doc2023 } = getCachedParsed('jpm', 2023);
+    const { doc: doc2024 } = getCachedParsed('jpm', 2024);
 
     const ids2023 = new Set(doc2023.sections.map(s => s.id));
     const ids2024 = new Set(doc2024.sections.map(s => s.id));
@@ -190,16 +198,14 @@ describe('cross-filing consistency', () => {
 describe('section ID quality', () => {
   for (const { ticker, year } of ALL_FIXTURES) {
     it(`${ticker.toUpperCase()} ${year}: no duplicate section IDs`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
 
       const ids = doc.sections.map(s => s.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
 
     it(`${ticker.toUpperCase()} ${year}: detected sections within reasonable bounds`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
 
       // A 10-K has at most ~23 standard items; parser should not produce wildly more
       expect(doc.sections.length).toBeLessThanOrEqual(25);
@@ -215,8 +221,7 @@ describe('section ID quality', () => {
 
 describe('table stubs', () => {
   it('Item 8 (Financial Statements) contains at least one Table block', () => {
-    const html = loadFixture('aapl', 2024);
-    const doc = parseFiling(makeRawFiling(html));
+    const { doc } = getCachedParsed('aapl', 2024);
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
     expect(item8).toBeDefined();
@@ -236,8 +241,7 @@ describe('table stubs', () => {
 describe('section ordering', () => {
   it('sections are ordered by source offset (document order)', () => {
     for (const { ticker, year } of ALL_FIXTURES) {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
 
       for (let i = 1; i < doc.sections.length; i++) {
         expect(doc.sections[i].source.start).toBeGreaterThan(
@@ -263,8 +267,7 @@ describe('pattern family coverage', () => {
 
   for (const [family, { ticker, year }] of Object.entries(familyRepresentatives)) {
     it(`Family ${family} (${ticker.toUpperCase()} ${year}) produces sections`, () => {
-      const html = loadFixture(ticker, year);
-      const doc = parseFiling(makeRawFiling(html));
+      const { doc } = getCachedParsed(ticker, year);
       expect(doc.sections.length).toBeGreaterThan(0);
     });
   }

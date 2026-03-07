@@ -21,6 +21,17 @@ function diffFixtures(
   return { result, htmlA, htmlB };
 }
 
+// Lazy caches — each unique diffFixtures() call runs at most once
+let msftDiffCache: ReturnType<typeof diffFixtures> | undefined;
+function getMsftDiff() {
+  return (msftDiffCache ??= diffFixtures('msft', 2023, 'msft', 2024));
+}
+
+let jpmDiffCache: ReturnType<typeof diffFixtures> | undefined;
+function getJpmDiff() {
+  return (jpmDiffCache ??= diffFixtures('jpm', 2023, 'jpm', 2024));
+}
+
 // ============================================================
 // PD-I1: Cross-year diff produces reasonable change count
 // Using MSFT FY2023 vs FY2024 (we have both fixtures)
@@ -28,7 +39,7 @@ function diffFixtures(
 
 describe('PD-I1: cross-year diff produces reasonable change count', () => {
   it('MSFT FY2023 vs FY2024 Item 1 diff has changes', () => {
-    const { result } = diffFixtures('msft', 2023, 'msft', 2024);
+    const { result } = getMsftDiff();
 
     // Should have matched sections
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
@@ -56,7 +67,7 @@ describe('PD-I1: cross-year diff produces reasonable change count', () => {
 
 describe('PD-I2: cross-year diff detects modifications', () => {
   it('MSFT FY2023 vs FY2024 has modified paragraphs', () => {
-    const { result } = diffFixtures('msft', 2023, 'msft', 2024);
+    const { result } = getMsftDiff();
 
     const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
     const modified = allParagraphDiffs.filter(pd => pd.changeType === 'modified');
@@ -103,7 +114,7 @@ describe('PD-I3: identity diff', () => {
 
 describe('PD-I4: source mapping round-trip', () => {
   it('diff source locations slice to valid HTML substrings', () => {
-    const { result, htmlA, htmlB } = diffFixtures('msft', 2023, 'msft', 2024);
+    const { result, htmlA, htmlB } = getMsftDiff();
 
     for (const sd of result.sectionDiffs) {
       for (const pd of sd.paragraphDiffs) {
@@ -131,14 +142,7 @@ describe('PD-I4: source mapping round-trip', () => {
 
 describe('PD-I5: parser-to-diff pipeline', () => {
   it('parseFiling output feeds directly into diffFilings without errors', { timeout: 60_000 }, () => {
-    const htmlA = loadFixture('jpm', 2023);
-    const htmlB = loadFixture('jpm', 2024);
-
-    const docA = parseFiling(makeRawFiling(htmlA));
-    const docB = parseFiling(makeRawFiling(htmlB));
-
-    // Should not throw
-    const result = diffFilings(docA, docB);
+    const { result } = getJpmDiff();
 
     // Should produce a valid result structure
     expect(result.sectionDiffs).toBeInstanceOf(Array);
@@ -171,7 +175,7 @@ describe('PD-I6: table-only sections', () => {
 
 describe('PD-I7: mixed tables and paragraphs', () => {
   it('paragraphs are diffed in paragraphDiffs', () => {
-    const { result } = diffFixtures('msft', 2023, 'msft', 2024);
+    const { result } = getMsftDiff();
 
     // Across all sections, we should see paragraph diffs
     const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
@@ -190,7 +194,7 @@ describe('PD-I7: mixed tables and paragraphs', () => {
 
 describe('PD-I8: source location validity', () => {
   it('all entries reference valid source locations within HTML bounds', { timeout: 60_000 }, () => {
-    const { result, htmlA, htmlB } = diffFixtures('jpm', 2023, 'jpm', 2024);
+    const { result, htmlA, htmlB } = getJpmDiff();
 
     for (const sd of result.sectionDiffs) {
       for (const pd of sd.paragraphDiffs) {
