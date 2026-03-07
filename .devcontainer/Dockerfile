@@ -98,19 +98,17 @@ RUN mkdir -p /usr/share/doc/fzf/examples \
     && curl -fsSL https://raw.githubusercontent.com/junegunn/fzf/0.38.0/shell/completion.zsh \
         -o /usr/share/doc/fzf/examples/completion.zsh
 
-# Install Node.js LTS (v22.x) and npm from NodeSource
+# Install Node.js LTS (v22.x) from NodeSource, enable corepack for pnpm
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && corepack enable
 
 # Install dolt
 RUN curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh | bash
 
 # Install beads (bd) issue tracker
 RUN npm install -g @beads/bd
-
-# Install Nx CLI and TypeScript globally
-RUN npm install -g nx typescript
 
 # Allow firewall script to run without password
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh

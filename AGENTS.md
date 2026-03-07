@@ -1,4 +1,16 @@
 
+## Development Commands
+
+All tasks run through **Nx**. Do NOT call `vitest`, `tsc`, or `eslint` directly at the workspace root.
+
+```bash
+pnpm nx run-many --target=typecheck   # Type-check all projects
+pnpm nx run-many --target=test        # Run all tests
+pnpm nx run-many --target=lint        # Lint all projects
+pnpm nx affected --target=test        # Only affected projects (faster)
+```
+
+**pnpm is managed via corepack** (not installed globally). If you hit `pnpm: command not found`, run `corepack enable`. See [docs/setup.md](docs/setup.md) for full setup instructions and common error fixes.
 
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
