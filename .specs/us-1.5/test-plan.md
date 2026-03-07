@@ -35,11 +35,11 @@ This test plan covers the section-level diff engine that aligns sections across 
 **Then** reordered sections have `changeType: "reordered"`
 **And** the alignment correctly matches Item 1 to Item 1, Item 1A to Item 1A, Item 2 to Item 2
 
-### AC-3b: Reordered sections with content changes are still "reordered"
+### AC-3b: Reordered sections with content changes are "modified"
 **Given** an old filing with sections [Item 1, Item 2] and a new filing with sections [Item 2, Item 1] where Item 1 also has different content
 **When** diffed
-**Then** both sections have `changeType: "reordered"` (reorder takes precedence over content change)
-**And** content differences will surface in `paragraphDiffs`/`tableDiffs` in later stories
+**Then** Item 1 has `changeType: "modified"` (content change takes precedence over reorder)
+**And** Item 2 has `changeType: "reordered"` (position changed, content unchanged)
 
 ### AC-4: New section appears as "added"
 **Given** an old filing without Item 1C and a new filing with Item 1C (Cybersecurity)
@@ -103,7 +103,7 @@ This test plan covers the section-level diff engine that aligns sections across 
 - U-CS-1: Same heading, same content blocks, same position => "unchanged"
 - U-CS-2: Same heading, different content blocks, same position => "modified"
 - U-CS-3: Section moved to different relative position, same content => "reordered"
-- U-CS-4: Section moved to different relative position, different content => "reordered" (reorder takes precedence; content diffs surface via paragraphDiffs/tableDiffs in later stories)
+- U-CS-4: Section moved to different relative position, different content => "modified" (content change takes precedence over reorder)
 - U-CS-5: Added section (no old) => "added"
 - U-CS-6: Removed section (no new) => "removed"
 
