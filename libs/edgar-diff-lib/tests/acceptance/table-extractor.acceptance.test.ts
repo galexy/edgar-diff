@@ -302,3 +302,82 @@ describe('property: edge-case tables handled gracefully', () => {
     expect(table.rows).toHaveLength(0);
   });
 });
+
+// ============================================================
+// Layout table transparency tests
+// ============================================================
+
+describe('property: layout wrapper tables are transparent', () => {
+  it('single layout wrapper yields inner tables and paragraphs, not one giant table', () => {
+    const html = wrapInSection(`
+      <table><tr><td>
+        <table><tr><td>Revenue</td><td>$100</td></tr></table>
+        <p>Some text between tables</p>
+        <table><tr><td>Expenses</td><td>$80</td></tr></table>
+      </td></tr></table>
+    `);
+    const doc = parseFiling(makeRawFiling(html));
+    const blocks = doc.sections[0]?.blocks ?? [];
+
+    const tables = blocks.filter(b => b.type === 'table') as Table[];
+    const paragraphs = blocks.filter(b => b.type === 'paragraph');
+
+    // The outer layout table should be unwrapped, exposing 2 inner data tables
+    expect(tables).toHaveLength(2);
+    // The paragraph between the tables should be extracted
+    expect(paragraphs.length).toBeGreaterThanOrEqual(1);
+    expect(paragraphs.some(p => p.text.includes('Some text between tables'))).toBe(true);
+
+    // Verify inner table content is intact
+    expect(tables[0].rows).toHaveLength(1);
+    expect(tables[0].rows[0].cells[0].text).toBe('Revenue');
+    expect(tables[0].rows[0].cells[1].text).toBe('$100');
+
+    expect(tables[1].rows).toHaveLength(1);
+    expect(tables[1].rows[0].cells[0].text).toBe('Expenses');
+    expect(tables[1].rows[0].cells[1].text).toBe('$80');
+  });
+
+  it('nested layout wrappers are all unwrapped to reach inner data table', () => {
+    const html = wrapInSection(`
+      <table><tr><td>
+        <table><tr><td>
+          <table><tr><td>Data</td><td>42</td></tr></table>
+        </td></tr></table>
+      </td></tr></table>
+    `);
+    const doc = parseFiling(makeRawFiling(html));
+    const blocks = doc.sections[0]?.blocks ?? [];
+
+    const tables = blocks.filter(b => b.type === 'table') as Table[];
+
+    // Both outer layout tables should be unwrapped; only the innermost data table remains
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toHaveLength(1);
+    expect(tables[0].rows[0].cells[0].text).toBe('Data');
+    expect(tables[0].rows[0].cells[1].text).toBe('42');
+    expect(tables[0].rows[0].cells[1].numericValue).toBe(42);
+  });
+
+  it('regular data table with no nesting stays intact', () => {
+    const html = wrapInSection(`
+      <table>
+        <tr><th>Item</th><th>Amount</th></tr>
+        <tr><td>Revenue</td><td>$1,000</td></tr>
+        <tr><td>Expenses</td><td>$800</td></tr>
+      </table>
+    `);
+    const doc = parseFiling(makeRawFiling(html));
+    const blocks = doc.sections[0]?.blocks ?? [];
+
+    const tables = blocks.filter(b => b.type === 'table') as Table[];
+
+    // A plain data table is NOT a layout table; it should be extracted as one block
+    expect(tables).toHaveLength(1);
+    expect(tables[0].rows).toHaveLength(3);
+    expect(tables[0].rows[0].isHeader).toBe(true);
+    expect(tables[0].rows[0].cells[0].text).toBe('Item');
+    expect(tables[0].rows[1].cells[0].text).toBe('Revenue');
+    expect(tables[0].rows[2].cells[0].text).toBe('Expenses');
+  });
+});

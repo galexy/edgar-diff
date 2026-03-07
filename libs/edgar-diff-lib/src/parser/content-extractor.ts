@@ -3,6 +3,7 @@ import { isTag } from 'domhandler';
 import type { ContentBlock, Paragraph, SourceLocation } from '../types.js';
 import type { ExtractionContext, SectionBoundary } from './types.js';
 import { extractTable } from './table-extractor.js';
+import { isLayoutTable } from './layout-detector.js';
 import { getTextContent } from './dom-utils.js';
 
 /** Find all block-level elements within a range from the pre-parsed DOM. */
@@ -25,11 +26,19 @@ function findBlocksInRange(
 
   // Handle table elements — must start within range
   if (name === 'table' && nodeStart >= start && nodeStart < end) {
+    // Layout wrapper tables (containing nested tables) are transparent —
+    // recurse into them to find the real data tables and paragraphs inside.
+    if (isLayoutTable(node)) {
+      for (const child of node.children) {
+        findBlocksInRange(child, start, end, blocks, context);
+      }
+      return;
+    }
     const clippedEnd = Math.min(nodeEnd, end);
     const source: SourceLocation = { start: nodeStart, end: clippedEnd };
     const table = extractTable(node, source, context);
     blocks.push(table);
-    return; // Don't recurse into tables
+    return; // Don't recurse into data tables
   }
 
   // Handle paragraph-level elements — must start within range

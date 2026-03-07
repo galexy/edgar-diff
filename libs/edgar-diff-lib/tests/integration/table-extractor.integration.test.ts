@@ -32,13 +32,16 @@ describe('table extraction in real filings', () => {
 // ============================================================
 
 describe('table count in known filings', () => {
-  // Only filings with multiple <table> elements in the HTML have separate table blocks.
-  // Many iXBRL filings wrap the entire document in a single <table>, so Item 8 may have
-  // 0 or 1 table blocks. Use filings known to have many distinct <table> elements.
+  // Layout wrapper tables (iXBRL filings that wrap the entire document in a single
+  // <table>) are now detected and recursed into, so inner data tables are extracted
+  // individually. Both traditional and iXBRL filings should produce multiple table blocks.
   const expectations: Array<{ ticker: string; year: number; minTables: number }> = [
     { ticker: 'msft', year: 2024, minTables: 5 },
     { ticker: 'brk-b', year: 2024, minTables: 5 },
-    // XOM 2012 has many <table> tags but few within Item 8 specifically
+    // iXBRL filings — layout wrapper tables are unwrapped to extract inner data tables
+    { ticker: 'aapl', year: 2024, minTables: 10 },
+    { ticker: 'amzn', year: 2024, minTables: 10 },
+    { ticker: 'unh', year: 2024, minTables: 10 },
   ];
 
   for (const { ticker, year, minTables } of expectations) {
@@ -198,5 +201,36 @@ describe('cross-filing table consistency', () => {
     // Same company, similar table count across years
     expect(Math.abs(tables2023.length - tables2024.length))
       .toBeLessThan(tables2023.length * 0.5);
+  });
+});
+
+// ============================================================
+// §3.8 Layout table unwrapping — no single table dominates
+// ============================================================
+
+describe('layout table unwrapping', () => {
+  it('AAPL 2024 (iXBRL): no single table block spans > 50% of Item 8 table content', () => {
+    const html = loadFixture('aapl', 2024);
+    const doc = parseFiling(makeRawFiling(html));
+
+    const item8 = doc.sections.find(s => s.id === 'item-8');
+    expect(item8).toBeDefined();
+
+    const tables = item8!.blocks.filter(b => b.type === 'table') as Table[];
+    expect(tables.length).toBeGreaterThan(1);
+
+    // Compute total source span across all tables
+    const totalSourceLen = tables.reduce(
+      (sum, t) => sum + (t.source.end - t.source.start),
+      0,
+    );
+    expect(totalSourceLen).toBeGreaterThan(0);
+
+    // No single table should dominate (would indicate an un-unwrapped layout wrapper)
+    for (const table of tables) {
+      const tableLen = table.source.end - table.source.start;
+      const pct = tableLen / totalSourceLen;
+      expect(pct).toBeLessThanOrEqual(0.5);
+    }
   });
 });

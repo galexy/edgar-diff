@@ -477,6 +477,72 @@ describe('boundary conditions', () => {
   });
 });
 
+describe('layout table transparency', () => {
+  it('U40: layout wrapper table containing two inner data tables produces 2 table blocks', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>
+    <table><tr><td>Revenue</td><td>$100B</td></tr></table>
+    <table><tr><td>Expenses</td><td>$80B</td></tr></table>
+  </td></tr>
+</table>
+<div><span style="font-weight:700">Item 9. Changes</span></div>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const item8 = doc.sections.find(s => s.id === 'item-8');
+    expect(item8).toBeDefined();
+    const tables = item8!.blocks.filter(b => b.type === 'table');
+    expect(tables).toHaveLength(2);
+  });
+
+  it('U41: layout wrapper table containing paragraphs and data tables produces both block types', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>
+    <p>The following table summarizes revenue.</p>
+    <table><tr><td>Revenue</td><td>$100B</td></tr></table>
+  </td></tr>
+</table>
+<div><span style="font-weight:700">Item 9. Changes</span></div>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const item8 = doc.sections.find(s => s.id === 'item-8');
+    expect(item8).toBeDefined();
+    const paragraphs = item8!.blocks.filter(b => b.type === 'paragraph');
+    const tables = item8!.blocks.filter(b => b.type === 'table');
+    expect(paragraphs.length).toBeGreaterThanOrEqual(1);
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+    expect(paragraphs[0].text).toContain('summarizes revenue');
+  });
+
+  it('U42: nested layout tables (layout within layout) still extract inner data tables', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>
+    <table>
+      <tr><td>
+        <table><tr><td>Revenue</td><td>$100B</td></tr></table>
+        <table><tr><td>Expenses</td><td>$80B</td></tr></table>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>
+<div><span style="font-weight:700">Item 9. Changes</span></div>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const item8 = doc.sections.find(s => s.id === 'item-8');
+    expect(item8).toBeDefined();
+    const tables = item8!.blocks.filter(b => b.type === 'table');
+    expect(tables).toHaveLength(2);
+    const tableTexts = tables.map(t => (t as Table).rows[0].cells[0].text);
+    expect(tableTexts).toContain('Revenue');
+    expect(tableTexts).toContain('Expenses');
+  });
+});
+
 describe('error conditions', () => {
   it('E1: empty string input', () => {
     const doc = parseFiling(makeRawFiling(''));
