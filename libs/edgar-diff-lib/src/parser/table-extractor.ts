@@ -1,21 +1,8 @@
-import type { Element, Node } from 'domhandler';
-import { isTag, isText } from 'domhandler';
+import type { Element } from 'domhandler';
+import { isTag } from 'domhandler';
 import type { Table, TableRow, TableCell, SourceLocation } from '../types.js';
 import type { ExtractionContext } from './types.js';
-
-/** Accumulate text from all descendant text nodes, inserting space for <br>. */
-function getTextContent(node: Node): string {
-  if (isText(node)) {
-    return node.data;
-  }
-  if (isTag(node)) {
-    if (node.name.toLowerCase() === 'br') {
-      return ' ';
-    }
-    return node.children.map(getTextContent).join('');
-  }
-  return '';
-}
+import { getTextContent } from './dom-utils.js';
 
 /** Find all <tr> elements inside a <table>, tracking thead context. */
 function findRows(tableNode: Element): { tr: Element; inThead: boolean }[] {

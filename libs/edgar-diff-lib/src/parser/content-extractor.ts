@@ -1,22 +1,9 @@
 import type { Node, Element } from 'domhandler';
-import { isTag, isText } from 'domhandler';
+import { isTag } from 'domhandler';
 import type { ContentBlock, Paragraph, SourceLocation } from '../types.js';
 import type { ExtractionContext, SectionBoundary } from './types.js';
 import { extractTable } from './table-extractor.js';
-
-/** Accumulate text from all descendant text nodes. <br> tags produce a space. */
-function getTextContent(node: Node): string {
-  if (isText(node)) {
-    return node.data;
-  }
-  if (isTag(node)) {
-    if (node.name.toLowerCase() === 'br') {
-      return ' ';
-    }
-    return node.children.map(getTextContent).join('');
-  }
-  return '';
-}
+import { getTextContent } from './dom-utils.js';
 
 /** Find all block-level elements within a range from the pre-parsed DOM. */
 function findBlocksInRange(
