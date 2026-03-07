@@ -3,7 +3,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { extractItemNumber, normalizeHeading } from '../../src/parser/section-extractor.js';
 import { parseFiling } from '../../src/parser/parser.js';
 import type { RawFiling } from '../../src/client/types.js';
-import type { Logger } from '../../src/types.js';
+import type { Logger, Table } from '../../src/types.js';
 
 function makeRawFiling(html: string, overrides?: Partial<RawFiling>): RawFiling {
   return {
@@ -271,7 +271,7 @@ describe('empty sections / table stubs', () => {
     expect(item4!.blocks).toHaveLength(0);
   });
 
-  it('U25: section with only a table -- table emitted as stub', () => {
+  it('U25: section with only a table -- table emitted with populated rows', () => {
     const htmlTable = `<html><body>
 <div><span style="font-weight:700">Item 8. Financial Statements</span></div>
 <table><tr><td>Revenue</td><td>$100B</td></tr></table>
@@ -281,9 +281,12 @@ describe('empty sections / table stubs', () => {
     const item8 = doc2.sections.find(s => s.id === 'item-8');
     expect(item8).toBeDefined();
     expect(item8!.blocks).toHaveLength(1);
-    expect(item8!.blocks[0]).toMatchObject({ type: 'table', rows: [] });
-    expect(item8!.blocks[0].source.start).toBeLessThan(item8!.blocks[0].source.end);
-    const tableSlice = htmlTable.slice(item8!.blocks[0].source.start, item8!.blocks[0].source.end);
+    const table = item8!.blocks[0] as Table;
+    expect(table.type).toBe('table');
+    expect(table.rows).toHaveLength(1);
+    expect(table.rows[0].cells[0].text).toBe('Revenue');
+    expect(table.source.start).toBeLessThan(table.source.end);
+    const tableSlice = htmlTable.slice(table.source.start, table.source.end);
     expect(tableSlice).toContain('<table');
   });
 });

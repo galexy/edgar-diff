@@ -8,7 +8,7 @@
 | `integration/` | Yes | No | Every change |
 | `e2e/` | Yes | No | Every change (uses fixtures, not network) |
 | `e2e-live/` | **No** | **Yes** | Before claiming done, before PR, after final fixes |
-| `fuzz/` | Yes | No | Every change / CI |
+| `acceptance/` | Yes | No | Every change / CI |
 
 ## Running live tests
 

@@ -1,18 +1,9 @@
 import type { Node, Element } from 'domhandler';
-import { isTag, isText } from 'domhandler';
-import type { ContentBlock, Paragraph, Table, SourceLocation } from '../types.js';
+import { isTag } from 'domhandler';
+import type { ContentBlock, Paragraph, SourceLocation } from '../types.js';
 import type { ExtractionContext, SectionBoundary } from './types.js';
-
-/** Accumulate text from all descendant text nodes. */
-function getTextContent(node: Node): string {
-  if (isText(node)) {
-    return node.data;
-  }
-  if (isTag(node)) {
-    return node.children.map(getTextContent).join('');
-  }
-  return '';
-}
+import { extractTable } from './table-extractor.js';
+import { getTextContent } from './dom-utils.js';
 
 /** Find all block-level elements within a range from the pre-parsed DOM. */
 function findBlocksInRange(
@@ -34,17 +25,9 @@ function findBlocksInRange(
 
   // Handle table elements — must start within range
   if (name === 'table' && nodeStart >= start && nodeStart < end) {
-    // Clip end to section boundary
     const clippedEnd = Math.min(nodeEnd, end);
     const source: SourceLocation = { start: nodeStart, end: clippedEnd };
-    const table: Table = {
-      type: 'table',
-      rows: [],
-      source,
-    };
-    if (context.includeSourceHtml) {
-      table.sourceHtml = context.html.slice(source.start, source.end);
-    }
+    const table = extractTable(node, source, context);
     blocks.push(table);
     return; // Don't recurse into tables
   }

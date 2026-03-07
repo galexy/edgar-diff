@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseFiling } from '../../src/parser/index.js';
+import type { Table } from '../../src/types.js';
 import {
   ALL_FIXTURES,
   loadFixture,
@@ -221,11 +222,10 @@ describe('table stubs', () => {
 
     const item8 = doc.sections.find(s => s.id === 'item-8');
     expect(item8).toBeDefined();
-    const tableBlocks = item8!.blocks.filter(b => b.type === 'table');
+    const tableBlocks = item8!.blocks.filter((b): b is Table => b.type === 'table');
     expect(tableBlocks.length).toBeGreaterThan(0);
     for (const table of tableBlocks) {
-      expect(table.type).toBe('table');
-      expect((table as any).rows).toEqual([]);
+      expect(table.rows).toBeDefined();
       expect(table.source.start).toBeLessThan(table.source.end);
     }
   });
