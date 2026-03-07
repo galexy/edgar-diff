@@ -1,4 +1,4 @@
-// Table-level diff (from main)
+// Table-level diff
 export type {
   ChangeType,
   DiffRange,
@@ -26,7 +26,10 @@ export {
 } from './section-aligner.js';
 export type { SectionMatch, AlignmentResult } from './section-aligner.js';
 
+// Paragraph-level diff (US-1.6)
+export { diffParagraphs } from './paragraph-differ.js';
+
 export type {
   SectionDiff, StructuredDiff,
-  ParagraphDiff, AlignmentOptions, DiffOptions,
+  ParagraphDiff, WordChange, AlignmentOptions, DiffOptions,
 } from './types.js';

@@ -10,7 +10,7 @@ import type {
 import type { RawFiling } from '../client/types.js';
 
 /** Classification of a diff element. */
-export type ChangeType = 'added' | 'removed' | 'modified' | 'unchanged' | 'reordered';
+export type ChangeType = 'added' | 'removed' | 'modified' | 'unchanged' | 'reordered' | 'moved';
 
 /** Source locations in the old and/or new filing. */
 export interface DiffRange {
@@ -18,7 +18,7 @@ export interface DiffRange {
   new?: SourceLocation;
 }
 
-// --- Table-level diff types (from main) ---
+// --- Table-level diff types ---
 
 export interface CellDiff {
   /** Row index in the normalized grid (0-based). */
@@ -86,13 +86,21 @@ export interface TableMatchResult {
   removed: Table[];
 }
 
-// --- Paragraph-level diff types (placeholder for US-1.6) ---
+// --- Paragraph-level diff types (US-1.6) ---
 
+/** A word-level change within a modified or moved paragraph. */
+export interface WordChange {
+  type: 'added' | 'removed' | 'unchanged';
+  value: string;
+}
+
+/** Diff result for a single paragraph. */
 export interface ParagraphDiff {
   changeType: ChangeType;
   oldParagraph?: Paragraph;
   newParagraph?: Paragraph;
-  sentenceDiffs?: Array<{ type: 'equal' | 'insert' | 'delete'; value: string }>;
+  /** Word-level diff breakdown. Present for 'modified' and 'moved' (when text also changed). */
+  wordChanges?: WordChange[];
   sourceMapping: DiffRange;
 }
 
