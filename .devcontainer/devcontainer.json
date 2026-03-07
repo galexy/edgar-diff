@@ -23,8 +23,9 @@
     "EDITOR": "hx",
     "VISUAL": "hx",
     "COLORTERM": "truecolor",
-    "SSH_AUTH_SOCK": "/ssh-agent"
-  },
+    "SSH_AUTH_SOCK": "/ssh-agent",  
+    "BEADS_DIR": "/workspace/.beads"
+   },
 
   "postCreateCommand": "sudo chmod 777 /ssh-agent",
   "postStartCommand": "sudo /usr/local/bin/init-firewall.sh && tmux new-session -d -s main",
