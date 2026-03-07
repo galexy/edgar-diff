@@ -21,7 +21,7 @@ export function isLayoutTable(tableNode: Element): boolean {
 function hasNestedTable(node: Element): boolean {
   for (const child of node.children) {
     if (!isTag(child)) continue;
-    if (child.name.toLowerCase() === 'table') return true;
+    if (child.name === 'table') return true;
     if (hasNestedTable(child)) return true;
   }
   return false;

@@ -1,7 +1,8 @@
 import type { Document, Element, Node } from 'domhandler';
-import { isTag, isText } from 'domhandler';
+import { isTag } from 'domhandler';
 import type { SourceLocation } from '../types.js';
 import type { HeadingCandidate, SectionBoundary, ExtractionContext } from './types.js';
+import { getTextContent } from './dom-utils.js';
 
 const ITEM_HEADING_RE =
   /^\s*(?:PART\s+[IV]+\s*[\u2014\u2013\u2014\u2013\u2014\u2013—–-]?\s*)?item\s+(\d+[a-z]?)[\s.:,\u2014\u2013—–-]/i;
@@ -43,72 +44,18 @@ export function normalizeHeading(heading: string): string {
     .trim();
 }
 
-/** Accumulate all text content from a node and its descendants. */
-function getTextContent(node: Node): string {
-  if (isText(node)) {
-    return node.data;
-  }
-  if (isTag(node)) {
-    return node.children.map(getTextContent).join('');
-  }
-  return '';
-}
-
-/** Check if an element or any ancestor is a bold element or has bold styling. */
-function hasBoldSignal(el: Element): boolean {
-  let current: Element | null = el;
-  while (current) {
-    const name = current.name.toLowerCase();
-    if (name === 'b' || name === 'strong') return true;
-    const style = current.attribs?.['style'] ?? '';
-    if (/font-weight\s*:\s*(bold|[7-9]00)/i.test(style)) return true;
-    current = current.parent && isTag(current.parent) ? current.parent : null;
-  }
-  return false;
-}
+// Pre-compiled regexes for style checks (avoid recompilation per element)
+const BOLD_STYLE_RE = /font-weight\s*:\s*(bold|[7-9]00)/i;
+const CENTER_STYLE_RE = /text-align\s*:\s*center/i;
+const UNDERLINE_STYLE_RE = /text-decoration\s*:\s*underline/i;
+const FONT_SIZE_RE = /font-size\s*:\s*(\d+(?:\.\d+)?)\s*pt/i;
+const SEMANTIC_ID_RE = /item[_-]?\d/i;
+const NON_LETTER_RE = /[^a-zA-Z]/g;
 
 /** Check if text is ALL UPPERCASE (ignoring non-letter chars). */
 function isAllUppercase(text: string): boolean {
-  const letters = text.replace(/[^a-zA-Z]/g, '');
+  const letters = text.replace(NON_LETTER_RE, '');
   return letters.length > 0 && letters === letters.toUpperCase();
-}
-
-/** Check if element has a semantic id matching item pattern. */
-function hasSemanticId(el: Element): boolean {
-  const id = el.attribs?.['id'] ?? '';
-  return /item[_-]?\d/i.test(id);
-}
-
-/** Check if element or ancestor has text-align:center. */
-function isCenterAligned(el: Element): boolean {
-  let current: Element | null = el;
-  while (current) {
-    const style = current.attribs?.['style'] ?? '';
-    if (/text-align\s*:\s*center/i.test(style)) return true;
-    current = current.parent && isTag(current.parent) ? current.parent : null;
-  }
-  return false;
-}
-
-/** Check if element or ancestor has text-decoration:underline. */
-function hasUnderline(el: Element): boolean {
-  let current: Element | null = el;
-  while (current) {
-    const style = current.attribs?.['style'] ?? '';
-    if (/text-decoration\s*:\s*underline/i.test(style)) return true;
-    current = current.parent && isTag(current.parent) ? current.parent : null;
-  }
-  return false;
-}
-
-/** Check if element is inside an <a> tag. */
-function isInsideAnchor(el: Element): boolean {
-  let current = el.parent;
-  while (current) {
-    if (isTag(current) && current.name.toLowerCase() === 'a') return true;
-    current = current.parent;
-  }
-  return false;
 }
 
 /** Check if heading text has a cross-reference prefix. */
@@ -117,33 +64,57 @@ function hasCrossRefPrefix(text: string): boolean {
   return t.startsWith('see ') || t.startsWith('refer to ');
 }
 
-/** Check if element has a font-size larger than default body (10pt). */
-function hasLargerFontSize(el: Element): boolean {
-  let current: Element | null = el;
-  while (current) {
-    const style = current.attribs?.['style'] ?? '';
-    const match = style.match(/font-size\s*:\s*(\d+(?:\.\d+)?)\s*pt/i);
-    if (match) {
-      return parseFloat(match[1]) > 10;
-    }
-    current = current.parent && isTag(current.parent) ? current.parent : null;
-  }
-  return false;
-}
-
-/** Score a heading candidate based on heuristics. */
+/**
+ * Score a heading candidate based on heuristics.
+ * Walks the ancestor chain once to check all style signals.
+ */
 function scoreCandidate(el: Element, text: string): number {
   let score = 0;
 
-  if (hasBoldSignal(el))          score += 3;
-  if (hasLargerFontSize(el))      score += 2;
+  // Text-based checks (no DOM traversal)
   if (isAllUppercase(text))       score += 2;
-  if (hasSemanticId(el))          score += 3;
-  if (isCenterAligned(el))        score += 1;
-  if (hasUnderline(el))           score += 1;
-
-  if (isInsideAnchor(el))         score -= 5;
   if (hasCrossRefPrefix(text))    score -= 3;
+
+  // Semantic ID check on the element itself
+  const id = el.attribs?.['id'] ?? '';
+  if (SEMANTIC_ID_RE.test(id))    score += 3;
+
+  // Single ancestor walk for all style/tag signals
+  let foundBold = false;
+  let foundLargeFont = false;
+  let foundCenter = false;
+  let foundUnderline = false;
+  let foundAnchor = false;
+  let current: Element | null = el;
+  while (current) {
+    const name = current.name;
+
+    if (!foundBold && (name === 'b' || name === 'strong')) foundBold = true;
+    if (!foundAnchor && name === 'a') foundAnchor = true;
+
+    // Read style attribute once per ancestor
+    const needsStyleCheck = !foundBold || !foundLargeFont || !foundCenter || !foundUnderline;
+    if (needsStyleCheck) {
+      const style = current.attribs?.['style'];
+      if (style) {
+        if (!foundBold && BOLD_STYLE_RE.test(style)) foundBold = true;
+        if (!foundLargeFont) {
+          const m = style.match(FONT_SIZE_RE);
+          if (m && parseFloat(m[1]) > 10) foundLargeFont = true;
+        }
+        if (!foundCenter && CENTER_STYLE_RE.test(style)) foundCenter = true;
+        if (!foundUnderline && UNDERLINE_STYLE_RE.test(style)) foundUnderline = true;
+      }
+    }
+
+    current = current.parent && isTag(current.parent) ? current.parent : null;
+  }
+
+  if (foundBold)      score += 3;
+  if (foundLargeFont) score += 2;
+  if (foundCenter)    score += 1;
+  if (foundUnderline) score += 1;
+  if (foundAnchor)    score -= 5;
 
   return score;
 }
@@ -157,7 +128,7 @@ function findHeadingCandidates(doc: Document, context: ExtractionContext): Headi
   function walk(node: Node): void {
     if (!isTag(node)) return;
 
-    const name = node.name.toLowerCase();
+    const name = node.name;
 
     if (BLOCK_ELEMENTS.has(name)) {
       const text = getTextContent(node).replace(/\u00a0/g, ' ').trim();
@@ -249,11 +220,13 @@ export function extractSections(
 
   const deduped = deduplicateCandidates(candidates);
 
-  // Check for preamble content
+  // Check for preamble content (only strip tags from first 10KB for perf)
   if (deduped.length > 0 && deduped[0].source.start > 0) {
-    const preambleText = html.slice(0, deduped[0].source.start).replace(/<[^>]*>/g, '').trim();
-    if (preambleText.length > 0) {
-      const msg = `Content before first Item heading was skipped (${preambleText.length} characters)`;
+    const preambleEnd = deduped[0].source.start;
+    const sample = html.slice(0, Math.min(preambleEnd, 10240));
+    const sampleText = sample.replace(/<[^>]*>/g, '').trim();
+    if (sampleText.length > 0) {
+      const msg = `Content before first Item heading was skipped (${preambleEnd} characters of HTML)`;
       context.warnings.push(msg);
       context.logger?.warn(msg);
     }

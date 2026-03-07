@@ -7,10 +7,15 @@ export function getTextContent(node: Node): string {
     return node.data;
   }
   if (isTag(node)) {
-    if (node.name.toLowerCase() === 'br') {
+    if (node.name === 'br') {
       return ' ';
     }
-    return node.children.map(getTextContent).join('');
+    const children = node.children;
+    let result = '';
+    for (let i = 0; i < children.length; i++) {
+      result += getTextContent(children[i]);
+    }
+    return result;
   }
   return '';
 }

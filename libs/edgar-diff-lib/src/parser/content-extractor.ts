@@ -6,6 +6,10 @@ import { extractTable } from './table-extractor.js';
 import { isLayoutTable } from './layout-detector.js';
 import { getTextContent } from './dom-utils.js';
 
+const PARAGRAPH_ELEMENTS = new Set([
+  'p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li',
+]);
+
 /** Find all block-level elements within a range from the pre-parsed DOM. */
 function findBlocksInRange(
   node: Node,
@@ -22,7 +26,7 @@ function findBlocksInRange(
   // Skip nodes completely outside range
   if (nodeEnd <= start || nodeStart >= end) return;
 
-  const name = node.name.toLowerCase();
+  const name = node.name;
 
   // Handle table elements — must start within range
   if (name === 'table' && nodeStart >= start && nodeStart < end) {
@@ -42,7 +46,7 @@ function findBlocksInRange(
   }
 
   // Handle paragraph-level elements — must start within range
-  if (['p', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'].includes(name) && nodeStart >= start && nodeStart < end) {
+  if (PARAGRAPH_ELEMENTS.has(name) && nodeStart >= start && nodeStart < end) {
     // Skip if this element contains a table (table will be handled separately)
     const hasTable = hasDescendantTag(node, 'table');
     if (!hasTable) {
@@ -78,7 +82,7 @@ function findBlocksInRange(
 function hasDescendantTag(node: Element, tagName: string): boolean {
   for (const child of node.children) {
     if (isTag(child)) {
-      if (child.name.toLowerCase() === tagName) return true;
+      if (child.name === tagName) return true;
       if (hasDescendantTag(child, tagName)) return true;
     }
   }

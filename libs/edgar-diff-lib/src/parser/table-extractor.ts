@@ -9,12 +9,12 @@ function findRows(tableNode: Element): { tr: Element; inThead: boolean }[] {
   const rows: { tr: Element; inThead: boolean }[] = [];
   for (const child of tableNode.children) {
     if (!isTag(child)) continue;
-    const name = child.name.toLowerCase();
+    const name = child.name;
     if (name === 'tr') {
       rows.push({ tr: child, inThead: false });
     } else if (name === 'thead' || name === 'tbody' || name === 'tfoot') {
       for (const grandchild of child.children) {
-        if (isTag(grandchild) && grandchild.name.toLowerCase() === 'tr') {
+        if (isTag(grandchild) && grandchild.name === 'tr') {
           rows.push({ tr: grandchild, inThead: name === 'thead' });
         }
       }
@@ -26,10 +26,10 @@ function findRows(tableNode: Element): { tr: Element; inThead: boolean }[] {
 /** Check if all cell elements in a row are <th>. */
 function isAllThRow(trNode: Element): boolean {
   const cellNodes = trNode.children.filter(
-    c => isTag(c) && (c.name.toLowerCase() === 'td' || c.name.toLowerCase() === 'th'),
+    c => isTag(c) && (c.name === 'td' || c.name === 'th'),
   );
   return cellNodes.length > 0 && cellNodes.every(
-    c => isTag(c) && c.name.toLowerCase() === 'th',
+    c => isTag(c) && c.name === 'th',
   );
 }
 
@@ -38,7 +38,7 @@ function extractCells(trNode: Element, context: ExtractionContext): TableCell[] 
   const cells: TableCell[] = [];
   for (const child of trNode.children) {
     if (!isTag(child)) continue;
-    const name = child.name.toLowerCase();
+    const name = child.name;
     if (name !== 'td' && name !== 'th') continue;
 
     const rawText = getTextContent(child);
