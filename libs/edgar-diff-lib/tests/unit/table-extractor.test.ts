@@ -204,3 +204,74 @@ describe('extractTable — basic extraction', () => {
     }
   });
 });
+
+describe('extractTable — header detection', () => {
+  it('T2: <th> cells mark the row as a header row', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><th>Category</th><th>Amount</th></tr>
+  <tr><td>Revenue</td><td>$100</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].isHeader).toBe(true);
+    expect(table.rows[0].cells[0].text).toBe('Category');
+    expect(table.rows[1].isHeader).toBe(false);
+  });
+
+  it('T3: rows inside <thead> are marked as header rows', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <thead><tr><td>Year</td><td>Revenue</td></tr></thead>
+  <tbody><tr><td>2024</td><td>$100B</td></tr></tbody>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].isHeader).toBe(true);
+    expect(table.rows[1].isHeader).toBe(false);
+  });
+
+  it('T4: all-<th> row without <thead> is still a header', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><th>Metric</th><th>2024</th><th>2023</th></tr>
+  <tr><td>Revenue</td><td>$100B</td><td>$90B</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].isHeader).toBe(true);
+    expect(table.rows[1].isHeader).toBe(false);
+  });
+
+  it('T4b: no first-row heuristic — all-<td> row is NOT header', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Year</td><td>Revenue</td><td>Income</td></tr>
+  <tr><td>2024</td><td>$100B</td><td>$20B</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].isHeader).toBe(false);
+    expect(table.rows[1].isHeader).toBe(false);
+  });
+
+  it('T28: mixed <th> and <td> in same row — not header', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><th>Label</th><td>Value</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].isHeader).toBe(false);
+  });
+});
