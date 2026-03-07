@@ -178,20 +178,22 @@ describe('alignSections', () => {
     expect(result.removed).toHaveLength(1);
   });
 
-  it('U-AS-9: greedy matching picks highest similarity per section', () => {
+  it('U-AS-9: greedy matching picks highest similarity per section (JW fallback)', () => {
+    // Use non-item headings to test JW fallback greedy behavior
     const oldSections = [
-      makeFilingSection('item-1', 'Item 1. Business Overview'),
+      makeFilingSection('custom-a', 'Supplementary Data Tables'),
+      makeFilingSection('custom-b', 'Additional Supplementary Notes'),
     ];
     const newSections = [
-      makeFilingSection('item-1a', 'Item 1. Business'),
-      makeFilingSection('item-1b', 'Item 1. Business Overview and Strategy'),
+      makeFilingSection('custom-a', 'Supplementary Data Tables and Figures'),
+      makeFilingSection('custom-b', 'Additional Supplementary Notes Revised'),
     ];
     const result = alignSections(oldSections, newSections);
-    expect(result.matched).toHaveLength(1);
-    // Should match the more similar heading
-    expect(result.matched[0].newSection.heading).toBe(
-      'Item 1. Business Overview and Strategy',
-    );
+    expect(result.matched).toHaveLength(2);
+    // Each should match its closest counterpart, not cross-match
+    const matchMap = new Map(result.matched.map((m) => [m.oldSection.id, m.newSection.id]));
+    expect(matchMap.get('custom-a')).toBe('custom-a');
+    expect(matchMap.get('custom-b')).toBe('custom-b');
   });
 
   it('U-AS-10: sections with duplicate headings — each matched at most once', () => {
@@ -206,6 +208,71 @@ describe('alignSections', () => {
     expect(result.matched).toHaveLength(1);
     expect(result.removed).toHaveLength(1);
     expect(result.added).toHaveLength(0);
+  });
+
+  it('U-AS-12: sections with different item numbers never match despite high Jaro-Winkler', () => {
+    // "Item 1C. Cybersecurity" and "Item 2. Properties" have JW > 0.75
+    // but different item numbers (1c vs 2), so must NOT match
+    const oldSections = [
+      makeFilingSection('item-1c', 'Item 1C. Cybersecurity'),
+    ];
+    const newSections = [
+      makeFilingSection('item-2', 'Item 2. Properties'),
+    ];
+    const result = alignSections(oldSections, newSections);
+    expect(result.matched).toHaveLength(0);
+    expect(result.added).toHaveLength(1);
+    expect(result.removed).toHaveLength(1);
+  });
+
+  it('U-AS-13: sections with same item number but renamed headings are matched', () => {
+    const oldSections = [
+      makeFilingSection('item-1a', 'Item 1A. Risk Factors'),
+    ];
+    const newSections = [
+      makeFilingSection('item-1a', 'Item 1A. Risk Factors and Uncertainties'),
+    ];
+    const result = alignSections(oldSections, newSections);
+    expect(result.matched).toHaveLength(1);
+    expect(result.added).toHaveLength(0);
+    expect(result.removed).toHaveLength(0);
+  });
+
+  it('U-AS-14: sections without item numbers fall back to Jaro-Winkler', () => {
+    const oldSections = [
+      makeFilingSection('custom', 'Management Discussion and Analysis'),
+    ];
+    const newSections = [
+      makeFilingSection('custom', 'Management Discussion & Analysis'),
+    ];
+    const result = alignSections(oldSections, newSections);
+    expect(result.matched).toHaveLength(1);
+  });
+
+  it('U-AS-15: mixed item-number and non-item sections are handled correctly', () => {
+    const oldSections = [
+      makeFilingSection('item-1', 'Item 1. Business'),
+      makeFilingSection('item-1c', 'Item 1C. Cybersecurity'),
+      makeFilingSection('custom', 'Supplementary Data'),
+    ];
+    const newSections = [
+      makeFilingSection('item-1', 'Item 1. Business Overview'),
+      makeFilingSection('item-2', 'Item 2. Properties'),
+      makeFilingSection('custom', 'Supplementary Data'),
+    ];
+    const result = alignSections(oldSections, newSections);
+    // Item 1 matches Item 1 (same item number)
+    // Item 1C has no match (no item 1c in new)
+    // Supplementary Data matches via Jaro-Winkler
+    // Item 2 is added (no item 2 in old)
+    expect(result.matched).toHaveLength(2);
+    const matchedHeadings = result.matched.map((m) => [m.oldSection.heading, m.newSection.heading]);
+    expect(matchedHeadings).toContainEqual(['Item 1. Business', 'Item 1. Business Overview']);
+    expect(matchedHeadings).toContainEqual(['Supplementary Data', 'Supplementary Data']);
+    expect(result.added).toHaveLength(1);
+    expect(result.added[0].heading).toBe('Item 2. Properties');
+    expect(result.removed).toHaveLength(1);
+    expect(result.removed[0].heading).toBe('Item 1C. Cybersecurity');
   });
 
   it('U-AS-11: threshold boundary — similarity at 0.75 matches; below does not', () => {
