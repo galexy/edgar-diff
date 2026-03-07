@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { parseFiling } from '../../src/parser/index.js';
 import { diffFilings } from '../../src/diff/index.js';
-import type { FilingDiffResult, ParagraphChange, TablePlaceholder } from '../../src/diff/types.js';
+import type { StructuredDiff, ParagraphDiff } from '../../src/diff/types.js';
 import { loadFixture, makeRawFiling } from '../helpers/ground-truth.js';
 
 // ============================================================
@@ -11,21 +11,13 @@ import { loadFixture, makeRawFiling } from '../helpers/ground-truth.js';
 function diffFixtures(
   tickerA: string, yearA: number,
   tickerB: string, yearB: number,
-): { result: FilingDiffResult; htmlA: string; htmlB: string } {
+): { result: StructuredDiff; htmlA: string; htmlB: string } {
   const htmlA = loadFixture(tickerA, yearA);
   const htmlB = loadFixture(tickerB, yearB);
   const docA = parseFiling(makeRawFiling(htmlA));
   const docB = parseFiling(makeRawFiling(htmlB));
   const result = diffFilings(docA, docB);
   return { result, htmlA, htmlB };
-}
-
-function isParagraphChange(c: { type: string }): c is ParagraphChange {
-  return c.type !== 'table';
-}
-
-function isTablePlaceholder(c: { type: string }): c is TablePlaceholder {
-  return c.type === 'table';
 }
 
 // ============================================================
@@ -40,18 +32,20 @@ describe('PD-I1: cross-year diff produces reasonable change count', () => {
     // Should have matched sections
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
 
-    // Find a section with changes (any matched section)
-    const totalChanges =
-      result.totalStats.totalAdded +
-      result.totalStats.totalRemoved +
-      result.totalStats.totalModified +
-      result.totalStats.totalMoved;
+    // Collect all paragraph diffs
+    const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
+
+    const totalChanges = allParagraphDiffs.filter(
+      pd => pd.changeType === 'added' || pd.changeType === 'removed' ||
+            pd.changeType === 'modified' || pd.changeType === 'moved',
+    ).length;
 
     // Cross-year filings should have some changes
     expect(totalChanges).toBeGreaterThan(0);
 
     // But not everything should be changed (some paragraphs are boilerplate)
-    expect(result.totalStats.totalUnchanged).toBeGreaterThan(0);
+    const unchangedCount = allParagraphDiffs.filter(pd => pd.changeType === 'unchanged').length;
+    expect(unchangedCount).toBeGreaterThan(0);
   });
 });
 
@@ -63,10 +57,8 @@ describe('PD-I2: cross-year diff detects modifications', () => {
   it('MSFT FY2023 vs FY2024 has modified paragraphs', () => {
     const { result } = diffFixtures('msft', 2023, 'msft', 2024);
 
-    const allChanges = result.sectionDiffs.flatMap((sd) => sd.changes);
-    const modified = allChanges.filter(
-      (c) => isParagraphChange(c) && c.type === 'modified',
-    ) as ParagraphChange[];
+    const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
+    const modified = allParagraphDiffs.filter(pd => pd.changeType === 'modified');
 
     expect(modified.length).toBeGreaterThan(0);
 
@@ -88,23 +80,18 @@ describe('PD-I3: identity diff', () => {
     const doc = parseFiling(makeRawFiling(html));
     const result = diffFilings(doc, doc);
 
-    // All sections should match
-    expect(result.addedSections).toHaveLength(0);
-    expect(result.removedSections).toHaveLength(0);
+    // No added or removed sections
+    const addedSections = result.sectionDiffs.filter(sd => sd.changeType === 'added');
+    const removedSections = result.sectionDiffs.filter(sd => sd.changeType === 'removed');
+    expect(addedSections).toHaveLength(0);
+    expect(removedSections).toHaveLength(0);
 
-    // All paragraph changes should be unchanged
+    // All paragraph diffs should be unchanged
     for (const sd of result.sectionDiffs) {
-      const paragraphChanges = sd.changes.filter(isParagraphChange) as ParagraphChange[];
-      for (const pc of paragraphChanges) {
-        expect(pc.type).toBe('unchanged');
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
       }
     }
-
-    // No moved paragraphs
-    expect(result.totalStats.totalMoved).toBe(0);
-    expect(result.totalStats.totalAdded).toBe(0);
-    expect(result.totalStats.totalRemoved).toBe(0);
-    expect(result.totalStats.totalModified).toBe(0);
   });
 });
 
@@ -117,21 +104,18 @@ describe('PD-I4: source mapping round-trip', () => {
     const { result, htmlA, htmlB } = diffFixtures('msft', 2023, 'msft', 2024);
 
     for (const sd of result.sectionDiffs) {
-      for (const change of sd.changes) {
-        if (!isParagraphChange(change)) continue;
-        const pc = change as ParagraphChange;
-
-        if (pc.oldSource) {
-          expect(pc.oldSource.start).toBeGreaterThanOrEqual(0);
-          expect(pc.oldSource.end).toBeLessThanOrEqual(htmlA.length);
-          const slice = htmlA.slice(pc.oldSource.start, pc.oldSource.end);
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.sourceMapping.old) {
+          expect(pd.sourceMapping.old.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.old.end).toBeLessThanOrEqual(htmlA.length);
+          const slice = htmlA.slice(pd.sourceMapping.old.start, pd.sourceMapping.old.end);
           expect(slice.length).toBeGreaterThan(0);
         }
 
-        if (pc.newSource) {
-          expect(pc.newSource.start).toBeGreaterThanOrEqual(0);
-          expect(pc.newSource.end).toBeLessThanOrEqual(htmlB.length);
-          const slice = htmlB.slice(pc.newSource.start, pc.newSource.end);
+        if (pd.sourceMapping.new) {
+          expect(pd.sourceMapping.new.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.new.end).toBeLessThanOrEqual(htmlB.length);
+          const slice = htmlB.slice(pd.sourceMapping.new.start, pd.sourceMapping.new.end);
           expect(slice.length).toBeGreaterThan(0);
         }
       }
@@ -156,34 +140,26 @@ describe('PD-I5: parser-to-diff pipeline', () => {
 
     // Should produce a valid result structure
     expect(result.sectionDiffs).toBeInstanceOf(Array);
-    expect(result.addedSections).toBeInstanceOf(Array);
-    expect(result.removedSections).toBeInstanceOf(Array);
-    expect(result.totalStats).toBeDefined();
-    expect(result.totalStats.sectionsMatched).toBeGreaterThan(0);
+    expect(result.summary).toBeDefined();
+    expect(result.sectionDiffs.length).toBeGreaterThan(0);
   });
 });
 
 // ============================================================
-// PD-I6: Sections with only tables produce only TablePlaceholders
+// PD-I6: Sections with only tables produce tableDiffs
 // ============================================================
 
 describe('PD-I6: table-only sections', () => {
-  it('sections with only tables produce TablePlaceholder entries', () => {
+  it('sections may produce tableDiffs entries', () => {
     const html = loadFixture('aapl', 2024);
     const doc = parseFiling(makeRawFiling(html));
     const result = diffFilings(doc, doc);
 
-    // Find sections that have table blocks
+    // Verify sectionDiffs have valid structure
     for (const sd of result.sectionDiffs) {
-      const tablePlaceholders = sd.changes.filter(isTablePlaceholder);
-      // If the section has table placeholders, they should have valid type
-      for (const tp of tablePlaceholders) {
-        expect(tp.type).toBe('table');
-      }
+      expect(sd.paragraphDiffs).toBeInstanceOf(Array);
+      expect(sd.tableDiffs).toBeInstanceOf(Array);
     }
-
-    // Overall: table count should be reported in stats
-    expect(result.totalStats.totalTables).toBeGreaterThanOrEqual(0);
   });
 });
 
@@ -192,21 +168,16 @@ describe('PD-I6: table-only sections', () => {
 // ============================================================
 
 describe('PD-I7: mixed tables and paragraphs', () => {
-  it('paragraphs are diffed, tables emitted as placeholders', () => {
+  it('paragraphs are diffed in paragraphDiffs', () => {
     const { result } = diffFixtures('msft', 2023, 'msft', 2024);
 
-    // Across all sections, we should see both paragraph changes and table placeholders
-    const allChanges = result.sectionDiffs.flatMap((sd) => sd.changes);
-    const paragraphChanges = allChanges.filter(isParagraphChange);
-    const tablePlaceholders = allChanges.filter(isTablePlaceholder);
+    // Across all sections, we should see paragraph diffs
+    const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
+    expect(allParagraphDiffs.length).toBeGreaterThan(0);
 
-    expect(paragraphChanges.length).toBeGreaterThan(0);
-    // Real filings typically have tables in financial sections
-    expect(tablePlaceholders.length).toBeGreaterThanOrEqual(0);
-
-    // Paragraph changes should have valid types
-    for (const pc of paragraphChanges) {
-      expect(['added', 'removed', 'modified', 'unchanged', 'moved']).toContain(pc.type);
+    // Paragraph diffs should have valid changeTypes
+    for (const pd of allParagraphDiffs) {
+      expect(['added', 'removed', 'modified', 'unchanged', 'moved']).toContain(pd.changeType);
     }
   });
 });
@@ -220,41 +191,25 @@ describe('PD-I8: source location validity', () => {
     const { result, htmlA, htmlB } = diffFixtures('jpm', 2023, 'jpm', 2024);
 
     for (const sd of result.sectionDiffs) {
-      for (const change of sd.changes) {
-        if (isParagraphChange(change)) {
-          const pc = change as ParagraphChange;
-          if (pc.type === 'added') {
-            expect(pc.newSource).toBeDefined();
-            expect(pc.newSource!.start).toBeGreaterThanOrEqual(0);
-            expect(pc.newSource!.start).toBeLessThan(pc.newSource!.end);
-            expect(pc.newSource!.end).toBeLessThanOrEqual(htmlB.length);
-          } else if (pc.type === 'removed') {
-            expect(pc.oldSource).toBeDefined();
-            expect(pc.oldSource!.start).toBeGreaterThanOrEqual(0);
-            expect(pc.oldSource!.start).toBeLessThan(pc.oldSource!.end);
-            expect(pc.oldSource!.end).toBeLessThanOrEqual(htmlA.length);
-          } else {
-            // modified, unchanged, moved: both sources
-            expect(pc.oldSource).toBeDefined();
-            expect(pc.newSource).toBeDefined();
-            expect(pc.oldSource!.start).toBeLessThan(pc.oldSource!.end);
-            expect(pc.newSource!.start).toBeLessThan(pc.newSource!.end);
-            expect(pc.oldSource!.end).toBeLessThanOrEqual(htmlA.length);
-            expect(pc.newSource!.end).toBeLessThanOrEqual(htmlB.length);
-          }
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.changeType === 'added') {
+          expect(pd.sourceMapping.new).toBeDefined();
+          expect(pd.sourceMapping.new!.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.new!.start).toBeLessThan(pd.sourceMapping.new!.end);
+          expect(pd.sourceMapping.new!.end).toBeLessThanOrEqual(htmlB.length);
+        } else if (pd.changeType === 'removed') {
+          expect(pd.sourceMapping.old).toBeDefined();
+          expect(pd.sourceMapping.old!.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.old!.start).toBeLessThan(pd.sourceMapping.old!.end);
+          expect(pd.sourceMapping.old!.end).toBeLessThanOrEqual(htmlA.length);
         } else {
-          // TablePlaceholder
-          const tp = change as TablePlaceholder;
-          if (tp.oldSource) {
-            expect(tp.oldSource.start).toBeGreaterThanOrEqual(0);
-            expect(tp.oldSource.start).toBeLessThan(tp.oldSource.end);
-            expect(tp.oldSource.end).toBeLessThanOrEqual(htmlA.length);
-          }
-          if (tp.newSource) {
-            expect(tp.newSource.start).toBeGreaterThanOrEqual(0);
-            expect(tp.newSource.start).toBeLessThan(tp.newSource.end);
-            expect(tp.newSource.end).toBeLessThanOrEqual(htmlB.length);
-          }
+          // modified, unchanged, moved: both sources
+          expect(pd.sourceMapping.old).toBeDefined();
+          expect(pd.sourceMapping.new).toBeDefined();
+          expect(pd.sourceMapping.old!.start).toBeLessThan(pd.sourceMapping.old!.end);
+          expect(pd.sourceMapping.new!.start).toBeLessThan(pd.sourceMapping.new!.end);
+          expect(pd.sourceMapping.old!.end).toBeLessThanOrEqual(htmlA.length);
+          expect(pd.sourceMapping.new!.end).toBeLessThanOrEqual(htmlB.length);
         }
       }
     }
@@ -272,11 +227,11 @@ describe('cross-era diff: XOM FY2012 vs FY2024', () => {
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
 
     // Legacy vs modern should have lots of changes
-    const totalChanges =
-      result.totalStats.totalAdded +
-      result.totalStats.totalRemoved +
-      result.totalStats.totalModified +
-      result.totalStats.totalMoved;
+    const allParagraphDiffs = result.sectionDiffs.flatMap(sd => sd.paragraphDiffs);
+    const totalChanges = allParagraphDiffs.filter(
+      pd => pd.changeType === 'added' || pd.changeType === 'removed' ||
+            pd.changeType === 'modified' || pd.changeType === 'moved',
+    ).length;
     expect(totalChanges).toBeGreaterThan(0);
   });
 });

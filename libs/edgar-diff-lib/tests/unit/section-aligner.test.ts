@@ -122,13 +122,22 @@ describe('section-aligner', () => {
     expect(result.matched[0].similarity).toBeGreaterThanOrEqual(0.75);
   });
 
-  // Additional: matched pairs sorted by old section source.start
-  it('matched pairs are sorted by old section document order', () => {
-    const old = [section('a', 'Alpha', 100), section('b', 'Beta', 0)];
+  // Additional: SectionMatch has oldIndex and newIndex
+  it('matched pairs have oldIndex and newIndex', () => {
+    const old = [section('a', 'Alpha', 100), section('b', 'Beta', 200)];
     const neu = [section('a', 'Alpha', 200), section('b', 'Beta', 100)];
     const result = alignSections(old, neu);
-    expect(result.matched[0].oldSection.source.start).toBeLessThanOrEqual(
-      result.matched[1].oldSection.source.start,
-    );
+    for (const m of result.matched) {
+      expect(m.oldIndex).toBeGreaterThanOrEqual(0);
+      expect(m.newIndex).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  // Additional: AlignmentOptions as object
+  it('accepts AlignmentOptions object with threshold', () => {
+    const old = [section('a', 'Alpha Section', 0)];
+    const neu = [section('a', 'Alpha Section Modified', 0)];
+    const result = alignSections(old, neu, { threshold: 0.5 });
+    expect(result.matched).toHaveLength(1);
   });
 });

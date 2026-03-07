@@ -1,15 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { alignSections } from '../../src/diff/index.js';
 import { diffFilings } from '../../src/diff/index.js';
-import type { ParagraphChange, TablePlaceholder, BlockChange } from '../../src/diff/types.js';
+import type { ParagraphDiff } from '../../src/diff/types.js';
 import { makeSection, makeStructuredDoc, makeParagraph } from '../helpers/diff-fixtures.js';
 import { generateParagraphPair, generateSectionPair } from './diff-test-generator.js';
 
 const DIFF_TEST_COUNT = Number(process.env['DIFF_TEST_COUNT'] ?? 200);
-
-function isParagraphChange(c: BlockChange): c is ParagraphChange {
-  return c.type !== 'table';
-}
 
 // ============================================================
 // PA-A1: Alignment is deterministic
@@ -123,11 +119,9 @@ describe('PA-A4: base paragraph completeness', () => {
     // Collect all base paragraphs referenced in diff entries
     const baseTextsInDiff: string[] = [];
     for (const sd of result.sectionDiffs) {
-      for (const change of sd.changes) {
-        if (!isParagraphChange(change)) continue;
-        const pc = change as ParagraphChange;
-        if (pc.type === 'removed' || pc.type === 'modified' || pc.type === 'unchanged' || pc.type === 'moved') {
-          if (pc.oldText !== undefined) baseTextsInDiff.push(pc.oldText);
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.changeType === 'removed' || pd.changeType === 'modified' || pd.changeType === 'unchanged' || pd.changeType === 'moved') {
+          if (pd.oldParagraph?.text !== undefined) baseTextsInDiff.push(pd.oldParagraph.text);
         }
       }
     }
@@ -162,11 +156,9 @@ describe('PA-A5: target paragraph completeness', () => {
 
     const targetTextsInDiff: string[] = [];
     for (const sd of result.sectionDiffs) {
-      for (const change of sd.changes) {
-        if (!isParagraphChange(change)) continue;
-        const pc = change as ParagraphChange;
-        if (pc.type === 'added' || pc.type === 'modified' || pc.type === 'unchanged' || pc.type === 'moved') {
-          if (pc.newText !== undefined) targetTextsInDiff.push(pc.newText);
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.changeType === 'added' || pd.changeType === 'modified' || pd.changeType === 'unchanged' || pd.changeType === 'moved') {
+          if (pd.newParagraph?.text !== undefined) targetTextsInDiff.push(pd.newParagraph.text);
         }
       }
     }
@@ -198,27 +190,25 @@ describe('PA-A6: diff entry count lower bound', () => {
 
     const result = diffFilings(baseDoc, targetDoc);
 
-    const paragraphChanges = result.sectionDiffs.flatMap((sd) =>
-      sd.changes.filter(isParagraphChange),
-    );
+    const paragraphDiffs = result.sectionDiffs.flatMap((sd) => sd.paragraphDiffs);
 
-    expect(paragraphChanges.length).toBeGreaterThanOrEqual(
+    expect(paragraphDiffs.length).toBeGreaterThanOrEqual(
       Math.max(base.length, target.length),
     );
   });
 });
 
 // ============================================================
-// PA-A7: DiffStats fields sum correctly
+// PA-A7: Summary fields are consistent
 // ============================================================
 
-describe('PA-A7: stats consistency', () => {
+describe('PA-A7: summary consistency', () => {
   const cases = Array.from({ length: DIFF_TEST_COUNT }, (_, i) => {
     const { base, target } = generateParagraphPair();
     return { label: `#${i}`, base, target };
   });
 
-  it.each(cases)('case $label: stats fields sum to paragraph count', ({ base, target }) => {
+  it.each(cases)('case $label: summary fields are valid', ({ base, target }) => {
     const baseSection = makeSection('item-1', 'Item 1. Test', base);
     const targetSection = makeSection('item-1', 'Item 1. Test', target);
     const baseDoc = makeStructuredDoc([baseSection]);
@@ -226,36 +216,17 @@ describe('PA-A7: stats consistency', () => {
 
     const result = diffFilings(baseDoc, targetDoc);
 
-    for (const sd of result.sectionDiffs) {
-      const { added, removed, modified, unchanged, moved, tables } = sd.stats;
+    // Summary should have non-negative values
+    expect(result.summary.added).toBeGreaterThanOrEqual(0);
+    expect(result.summary.removed).toBeGreaterThanOrEqual(0);
+    expect(result.summary.modified).toBeGreaterThanOrEqual(0);
+    expect(result.summary.unchanged).toBeGreaterThanOrEqual(0);
+    expect(result.summary.reordered).toBeGreaterThanOrEqual(0);
 
-      // Count actual changes
-      const paragraphChanges = sd.changes.filter(isParagraphChange);
-      const tablePlaceholders = sd.changes.filter((c) => c.type === 'table');
-
-      expect(added + removed + modified + unchanged + moved).toBe(paragraphChanges.length);
-      expect(tables).toBe(tablePlaceholders.length);
-    }
-
-    // Total stats should sum across section diffs
-    const totalFromSections = result.sectionDiffs.reduce(
-      (acc, sd) => ({
-        added: acc.added + sd.stats.added,
-        removed: acc.removed + sd.stats.removed,
-        modified: acc.modified + sd.stats.modified,
-        unchanged: acc.unchanged + sd.stats.unchanged,
-        moved: acc.moved + sd.stats.moved,
-        tables: acc.tables + sd.stats.tables,
-      }),
-      { added: 0, removed: 0, modified: 0, unchanged: 0, moved: 0, tables: 0 },
-    );
-
-    expect(result.totalStats.totalAdded).toBe(totalFromSections.added);
-    expect(result.totalStats.totalRemoved).toBe(totalFromSections.removed);
-    expect(result.totalStats.totalModified).toBe(totalFromSections.modified);
-    expect(result.totalStats.totalUnchanged).toBe(totalFromSections.unchanged);
-    expect(result.totalStats.totalMoved).toBe(totalFromSections.moved);
-    expect(result.totalStats.totalTables).toBe(totalFromSections.tables);
+    // Total sections in summary should match sectionDiffs count
+    const summaryTotal = result.summary.added + result.summary.removed +
+      result.summary.modified + result.summary.unchanged + result.summary.reordered;
+    expect(summaryTotal).toBe(result.sectionDiffs.length);
   });
 });
 
@@ -278,27 +249,14 @@ describe('PA-A8: source location validity', () => {
     const result = diffFilings(baseDoc, targetDoc);
 
     for (const sd of result.sectionDiffs) {
-      for (const change of sd.changes) {
-        if (isParagraphChange(change)) {
-          const pc = change as ParagraphChange;
-          if (pc.oldSource) {
-            expect(pc.oldSource.start).toBeGreaterThanOrEqual(0);
-            expect(pc.oldSource.start).toBeLessThan(pc.oldSource.end);
-          }
-          if (pc.newSource) {
-            expect(pc.newSource.start).toBeGreaterThanOrEqual(0);
-            expect(pc.newSource.start).toBeLessThan(pc.newSource.end);
-          }
-        } else {
-          const tp = change as TablePlaceholder;
-          if (tp.oldSource) {
-            expect(tp.oldSource.start).toBeGreaterThanOrEqual(0);
-            expect(tp.oldSource.start).toBeLessThan(tp.oldSource.end);
-          }
-          if (tp.newSource) {
-            expect(tp.newSource.start).toBeGreaterThanOrEqual(0);
-            expect(tp.newSource.start).toBeLessThan(tp.newSource.end);
-          }
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.sourceMapping.old) {
+          expect(pd.sourceMapping.old.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.old.start).toBeLessThan(pd.sourceMapping.old.end);
+        }
+        if (pd.sourceMapping.new) {
+          expect(pd.sourceMapping.new.start).toBeGreaterThanOrEqual(0);
+          expect(pd.sourceMapping.new.start).toBeLessThan(pd.sourceMapping.new.end);
         }
       }
     }

@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { diffSections } from '../../src/diff/paragraph-differ.js';
+import { diffParagraphs } from '../../src/diff/paragraph-differ.js';
 import { makeParagraph, makeSection } from '../helpers/diff-fixtures.js';
 import type { SectionMatch } from '../../src/diff/section-aligner.js';
-import type { ParagraphChange } from '../../src/diff/types.js';
+import type { ParagraphDiff } from '../../src/diff/types.js';
 import type { FilingSection } from '../../src/types.js';
 
-function match(oldSec: FilingSection, newSec: FilingSection): SectionMatch {
-  return { oldSection: oldSec, newSection: newSec, similarity: 1 };
+function match(oldSec: FilingSection, newSec: FilingSection, oldIndex = 0, newIndex = 0): SectionMatch {
+  return { oldIndex, newIndex, oldSection: oldSec, newSection: newSec, similarity: 1 };
 }
 
 // Build a diff result with all change types for contract testing
-function buildMixedDiff(): ParagraphChange[] {
+function buildMixedDiff(): ParagraphDiff[] {
   const old = makeSection('s1', 'S', [
     makeParagraph('Unchanged paragraph stays the same.', 100),
     makeParagraph('This paragraph will be removed entirely.', 200),
@@ -23,76 +23,75 @@ function buildMixedDiff(): ParagraphChange[] {
     makeParagraph('Brand new paragraph added here.', 300),
     makeParagraph('The company reported strong revenue growth in the fiscal year ending December 2024 with excellent results.', 400),
   ]);
-  const diffs = diffSections([match(old, neu)]);
-  return diffs[0].changes.filter((c): c is ParagraphChange => c.type !== 'table');
+  return diffParagraphs(match(old, neu));
 }
 
 describe('diff type contracts', () => {
   const changes = buildMixedDiff();
 
-  // DT-U1: added entries have newSource, no oldSource
-  it('DT-U1: added entries have newSource, no oldSource', () => {
-    const added = changes.filter(c => c.type === 'added');
+  // DT-U1: added entries have sourceMapping.new, no sourceMapping.old
+  it('DT-U1: added entries have sourceMapping.new, no sourceMapping.old', () => {
+    const added = changes.filter(c => c.changeType === 'added');
     for (const c of added) {
-      expect(c.newSource).toBeDefined();
-      expect(c.oldSource).toBeUndefined();
+      expect(c.sourceMapping.new).toBeDefined();
+      expect(c.sourceMapping.old).toBeUndefined();
     }
   });
 
-  // DT-U2: removed entries have oldSource, no newSource
-  it('DT-U2: removed entries have oldSource, no newSource', () => {
-    const removed = changes.filter(c => c.type === 'removed');
+  // DT-U2: removed entries have sourceMapping.old, no sourceMapping.new
+  it('DT-U2: removed entries have sourceMapping.old, no sourceMapping.new', () => {
+    const removed = changes.filter(c => c.changeType === 'removed');
     for (const c of removed) {
-      expect(c.oldSource).toBeDefined();
-      expect(c.newSource).toBeUndefined();
+      expect(c.sourceMapping.old).toBeDefined();
+      expect(c.sourceMapping.new).toBeUndefined();
     }
   });
 
   // DT-U3: modified entries have both sources
-  it('DT-U3: modified entries have both oldSource and newSource', () => {
-    const modified = changes.filter(c => c.type === 'modified');
+  it('DT-U3: modified entries have both sourceMapping.old and sourceMapping.new', () => {
+    const modified = changes.filter(c => c.changeType === 'modified');
     for (const c of modified) {
-      expect(c.oldSource).toBeDefined();
-      expect(c.newSource).toBeDefined();
+      expect(c.sourceMapping.old).toBeDefined();
+      expect(c.sourceMapping.new).toBeDefined();
     }
   });
 
   // DT-U4: unchanged entries have both sources
-  it('DT-U4: unchanged entries have both oldSource and newSource', () => {
-    const unchanged = changes.filter(c => c.type === 'unchanged');
+  it('DT-U4: unchanged entries have both sourceMapping.old and sourceMapping.new', () => {
+    const unchanged = changes.filter(c => c.changeType === 'unchanged');
     expect(unchanged.length).toBeGreaterThan(0);
     for (const c of unchanged) {
-      expect(c.oldSource).toBeDefined();
-      expect(c.newSource).toBeDefined();
+      expect(c.sourceMapping.old).toBeDefined();
+      expect(c.sourceMapping.new).toBeDefined();
     }
   });
 
   // DT-U5: moved entries have both sources
-  it('DT-U5: moved entries have both oldSource and newSource', () => {
-    const moved = changes.filter(c => c.type === 'moved');
+  it('DT-U5: moved entries have both sourceMapping.old and sourceMapping.new', () => {
+    const moved = changes.filter(c => c.changeType === 'moved');
     for (const c of moved) {
-      expect(c.oldSource).toBeDefined();
-      expect(c.newSource).toBeDefined();
+      expect(c.sourceMapping.old).toBeDefined();
+      expect(c.sourceMapping.new).toBeDefined();
     }
   });
 
   // DT-U6: Source locations satisfy start >= 0, start < end
   it('DT-U6: source locations have valid ranges', () => {
     for (const c of changes) {
-      if (c.oldSource) {
-        expect(c.oldSource.start).toBeGreaterThanOrEqual(0);
-        expect(c.oldSource.start).toBeLessThan(c.oldSource.end);
+      if (c.sourceMapping.old) {
+        expect(c.sourceMapping.old.start).toBeGreaterThanOrEqual(0);
+        expect(c.sourceMapping.old.start).toBeLessThan(c.sourceMapping.old.end);
       }
-      if (c.newSource) {
-        expect(c.newSource.start).toBeGreaterThanOrEqual(0);
-        expect(c.newSource.start).toBeLessThan(c.newSource.end);
+      if (c.sourceMapping.new) {
+        expect(c.sourceMapping.new.start).toBeGreaterThanOrEqual(0);
+        expect(c.sourceMapping.new.start).toBeLessThan(c.sourceMapping.new.end);
       }
     }
   });
 
   // DT-U7: modified entries always have wordChanges
   it('DT-U7: modified entries always have wordChanges populated', () => {
-    const modified = changes.filter(c => c.type === 'modified');
+    const modified = changes.filter(c => c.changeType === 'modified');
     for (const c of modified) {
       expect(c.wordChanges).toBeDefined();
       expect(c.wordChanges!.length).toBeGreaterThan(0);
@@ -110,10 +109,10 @@ describe('diff type contracts', () => {
       makeParagraph('Beta paragraph.', 100),
       makeParagraph('Alpha paragraph.', 200),
     ]);
-    const diffs = diffSections([match(old, neu)]);
-    const moved = diffs[0].changes.filter((c): c is ParagraphChange => c.type === 'moved');
+    const diffs = diffParagraphs(match(old, neu));
+    const moved = diffs.filter(c => c.changeType === 'moved');
     for (const m of moved) {
-      if (m.oldText === m.newText) {
+      if (m.oldParagraph?.text === m.newParagraph?.text) {
         expect(m.wordChanges).toBeUndefined();
       }
     }
@@ -129,9 +128,9 @@ describe('diff type contracts', () => {
       makeParagraph('Beta paragraph text here.', 100),
       makeParagraph('The company reported strong revenue growth in the fiscal year ending December 2024 with excellent overall results.', 200),
     ]);
-    const diffs = diffSections([match(old, neu)]);
-    const moved = diffs[0].changes.filter((c): c is ParagraphChange => c.type === 'moved');
-    const withTextChange = moved.filter(m => m.oldText !== m.newText);
+    const diffs = diffParagraphs(match(old, neu));
+    const moved = diffs.filter(c => c.changeType === 'moved');
+    const withTextChange = moved.filter(m => m.oldParagraph?.text !== m.newParagraph?.text);
     for (const m of withTextChange) {
       expect(m.wordChanges).toBeDefined();
       expect(m.wordChanges!.length).toBeGreaterThan(0);
