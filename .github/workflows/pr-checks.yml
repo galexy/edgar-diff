@@ -1,0 +1,60 @@
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typecheck & Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - uses: nrwl/nx-set-shas@v4
+
+      - name: Typecheck
+        run: pnpm nx affected --target=typecheck
+
+      - name: Lint
+        run: pnpm nx affected --target=lint
+
+      - name: Test
+        run: pnpm nx affected --target=test
+
+  live-e2e:
+    name: Live E2E (EDGAR)
+    runs-on: ubuntu-latest
+    needs: check
+    # Only runs when manually approved or labeled
+    if: contains(github.event.pull_request.labels.*.name, 'run-live-e2e')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Live E2E Tests
+        working-directory: libs/edgar-diff-lib
+        run: pnpm vitest run --config vitest.live.config.ts
