@@ -3,6 +3,7 @@ import type { StructuredDocument, FilingSection } from '../types.js';
 import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange } from './types.js';
 import { alignSections, classifySectionDiff, serializeSectionContent } from './section-aligner.js';
 import type { SectionMatch } from './section-aligner.js';
+import { diffParagraphs } from './paragraph-differ.js';
 
 /** Compute summary counts from sectionDiffs. */
 export function buildSummary(
@@ -10,7 +11,13 @@ export function buildSummary(
 ): StructuredDiff['summary'] {
   const summary = { added: 0, removed: 0, modified: 0, unchanged: 0, reordered: 0 };
   for (const diff of sectionDiffs) {
-    summary[diff.changeType]++;
+    const ct = diff.changeType;
+    if (ct === 'moved') {
+      // 'moved' sections count as 'reordered' in the summary
+      summary.reordered++;
+    } else if (ct in summary) {
+      summary[ct as keyof typeof summary]++;
+    }
   }
   return summary;
 }
@@ -20,6 +27,7 @@ function makeSectionDiff(
   options: {
     oldSection?: FilingSection;
     newSection?: FilingSection;
+    match?: SectionMatch;
   },
 ): SectionDiff {
   const section = options.newSection ?? options.oldSection!;
@@ -27,13 +35,16 @@ function makeSectionDiff(
   if (options.oldSection) sourceMapping.old = options.oldSection.source;
   if (options.newSection) sourceMapping.new = options.newSection.source;
 
+  // Compute paragraph-level diffs for matched sections
+  const paragraphDiffs = options.match ? diffParagraphs(options.match) : [];
+
   return {
     id: section.id,
     heading: section.heading,
     changeType,
     oldSection: options.oldSection,
     newSection: options.newSection,
-    paragraphDiffs: [],
+    paragraphDiffs,
     tableDiffs: [],
     subsectionDiffs: [],
     sourceMapping,
@@ -73,6 +84,7 @@ export function diffFilings(
         makeSectionDiff(matchEntry.changeType, {
           oldSection: matchEntry.match.oldSection,
           newSection: matchEntry.match.newSection,
+          match: matchEntry.match,
         }),
       );
     } else if (addedSet.has(i)) {
