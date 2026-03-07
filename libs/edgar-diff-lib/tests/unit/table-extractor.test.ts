@@ -322,3 +322,141 @@ describe('extractTable — colspan/rowspan', () => {
     expect(table.rows[0].cells[0].rowspan).toBe(2);
   });
 });
+
+describe('extractTable — edge cases', () => {
+  it('T18: nested spans, bold, iXBRL wrappers flatten to plain text', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr>
+    <td><span style="font-weight:bold">Revenue</span></td>
+    <td><b><i>$100</i></b></td>
+    <td><ix:nonFraction>42</ix:nonFraction></td>
+  </tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].text).toBe('Revenue');
+    expect(table.rows[0].cells[1].text).toBe('$100');
+    expect(table.rows[0].cells[2].text).toBe('42');
+    expect(table.rows[0].cells[2].numericValue).toBe(42);
+  });
+
+  it('T19: whitespace/nbsp cells normalize to empty string, not filtered', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr>
+    <td>&nbsp;</td>
+    <td>   </td>
+    <td> Revenue </td>
+  </tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells).toHaveLength(3);
+    expect(table.rows[0].cells[0].text).toBe('');
+    expect(table.rows[0].cells[1].text).toBe('');
+    expect(table.rows[0].cells[2].text).toBe('Revenue');
+    expect(table.rows[0].cells[0].numericValue).toBeUndefined();
+  });
+
+  it('T20: thead/tbody/tfoot structure handled correctly', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <thead><tr><th>Metric</th><th>2024</th></tr></thead>
+  <tbody>
+    <tr><td>Revenue</td><td>$100B</td></tr>
+    <tr><td>Income</td><td>$20B</td></tr>
+  </tbody>
+  <tfoot><tr><td>Total</td><td>$120B</td></tr></tfoot>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows).toHaveLength(4);
+    expect(table.rows[0].isHeader).toBe(true);
+    expect(table.rows[1].isHeader).toBe(false);
+    expect(table.rows[3].isHeader).toBe(false); // tfoot rows are not headers
+  });
+
+  it('T27: <br> tags insert a space between adjacent text', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Line1<br>Line2</td></tr>
+  <tr><td>Multi<br/>Line<br>Text</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].text).toContain('Line1');
+    expect(table.rows[0].cells[0].text).toContain('Line2');
+    expect(table.rows[0].cells[0].text).not.toBe('Line1Line2');
+  });
+
+  it('T9-integration: currency values through parseFiling', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>$1,234.56</td></tr>
+  <tr><td>$100</td></tr>
+  <tr><td>$ 42.00</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].numericValue).toBe(1234.56);
+    expect(table.rows[1].cells[0].numericValue).toBe(100);
+    expect(table.rows[2].cells[0].numericValue).toBe(42);
+  });
+
+  it('T25-integration: dash patterns through parseFiling', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>\u2014</td></tr>
+  <tr><td>\u2013</td></tr>
+  <tr><td>--</td></tr>
+  <tr><td>---</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].cells[0].numericValue).toBe(0);
+    expect(table.rows[1].cells[0].numericValue).toBe(0);
+    expect(table.rows[2].cells[0].numericValue).toBe(0);
+    expect(table.rows[3].cells[0].numericValue).toBe(0);
+  });
+
+  it('T21: sourceHtml populated when opted in', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table>
+  <tr><td>Revenue</td><td>$100</td></tr>
+</table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html), { includeSourceHtml: true });
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.sourceHtml).toBeDefined();
+    expect(table.sourceHtml).toContain('<table');
+    expect(table.rows[0].sourceHtml).toBeDefined();
+    expect(table.rows[0].sourceHtml).toContain('Revenue');
+    expect(table.rows[0].cells[0].sourceHtml).toBeDefined();
+    expect(table.rows[0].cells[0].sourceHtml).toContain('Revenue');
+  });
+
+  it('T22: sourceHtml undefined by default', () => {
+    const html = `<html><body>
+<div><span style="font-weight:700">Item 8. Financial Statements</span></div>
+<table><tr><td>Revenue</td></tr></table>
+</body></html>`;
+    const doc = parseFiling(makeRawFiling(html));
+    const table = doc.sections[0].blocks.find(b => b.type === 'table') as Table;
+    expect(table.rows[0].sourceHtml).toBeUndefined();
+    expect(table.rows[0].cells[0].sourceHtml).toBeUndefined();
+  });
+});

@@ -4,12 +4,15 @@ import type { ContentBlock, Paragraph, SourceLocation } from '../types.js';
 import type { ExtractionContext, SectionBoundary } from './types.js';
 import { extractTable } from './table-extractor.js';
 
-/** Accumulate text from all descendant text nodes. */
+/** Accumulate text from all descendant text nodes. <br> tags produce a space. */
 function getTextContent(node: Node): string {
   if (isText(node)) {
     return node.data;
   }
   if (isTag(node)) {
+    if (node.name.toLowerCase() === 'br') {
+      return ' ';
+    }
     return node.children.map(getTextContent).join('');
   }
   return '';

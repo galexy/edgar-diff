@@ -225,7 +225,7 @@ describe('table stubs', () => {
     expect(tableBlocks.length).toBeGreaterThan(0);
     for (const table of tableBlocks) {
       expect(table.type).toBe('table');
-      expect((table as any).rows).toEqual([]);
+      expect((table as any).rows).toBeDefined();
       expect(table.source.start).toBeLessThan(table.source.end);
     }
   });
