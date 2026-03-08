@@ -35,6 +35,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Needed for zsh-in-docker and general use
     locales \
     openssh-client \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Generate locale
@@ -111,6 +112,9 @@ RUN curl -L https://github.com/dolthub/dolt/releases/latest/download/install.sh 
 RUN npm install -g @beads/bd
 
 # Allow firewall script to run without password
+COPY xdg-open /usr/local/bin/xdg-open
+RUN chmod +x /usr/local/bin/xdg-open
+
 COPY init-firewall.sh /usr/local/bin/init-firewall.sh
 RUN chmod +x /usr/local/bin/init-firewall.sh \
     && echo "vscode ALL=(ALL) NOPASSWD: /usr/local/bin/init-firewall.sh" >> /etc/sudoers.d/vscode
