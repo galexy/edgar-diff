@@ -354,4 +354,99 @@ describe('diffFilings — table behavior', () => {
     expect(removedSection).toBeDefined();
     expect(removedSection!.tableDiffs).toHaveLength(0);
   });
+
+  it('U-MSD-6: mixed content (paragraphs + tables) produces both paragraphDiffs and tableDiffs', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Old financial summary.', 0),
+        makeTable([['Revenue', '$100']], 100),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('New financial summary.', 0),
+        makeTable([['Revenue', '$120']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    expect(sd.paragraphDiffs.length).toBeGreaterThan(0);
+    expect(sd.tableDiffs.length).toBeGreaterThan(0);
+  });
+
+  it('U-MSD-7: matched section with table added (0 old, 1 new) has TableDiff changeType added', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data.', 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data.', 0),
+        makeTable([['Revenue', '$100']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    expect(sd.tableDiffs).toHaveLength(1);
+    expect(sd.tableDiffs[0].changeType).toBe('added');
+  });
+
+  it('U-MSD-8: matched section with table removed (1 old, 0 new) has TableDiff changeType removed', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data.', 0),
+        makeTable([['Revenue', '$100']], 100),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data.', 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    expect(sd.tableDiffs).toHaveLength(1);
+    expect(sd.tableDiffs[0].changeType).toBe('removed');
+  });
+
+  it('U-MSD-9: multiple tables in matched section are all diffed', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$100'], ['Costs', '$80']], 0),
+        makeTable([['Assets', '$500'], ['Liabilities', '$300']], 200),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$120'], ['Costs', '$80']], 0),
+        makeTable([['Assets', '$500'], ['Liabilities', '$300']], 200),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    expect(sd.tableDiffs).toHaveLength(2);
+  });
+
+  it('U-MSD-10: mismatched table counts (3 old, 2 new) produces correct mix', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['T1-Header', 'V1']], 0),
+        makeTable([['T2-Header', 'V2']], 100),
+        makeTable([['T3-Header', 'V3']], 200),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['T1-Header', 'V1']], 0),
+        makeTable([['T2-Header', 'V2-changed']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    // Should have entries for all tables: matched + removed
+    expect(sd.tableDiffs.length).toBeGreaterThanOrEqual(2);
+    const removed = sd.tableDiffs.filter(td => td.changeType === 'removed');
+    expect(removed.length).toBeGreaterThanOrEqual(1);
+  });
 });
