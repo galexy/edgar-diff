@@ -553,6 +553,120 @@ For deserialization (if needed in future), consumers would use `Temporal.Instant
 
 ---
 
+## 8. Example Scripts (Real-World Validation)
+
+Beyond automated test infrastructure, standalone example scripts prove the library works end-to-end on real SEC filings with human-inspectable output. These live in `examples/` at the monorepo root and use the library's public API only (`createEdgarClient`, `parseFiling`, `diffFilings`).
+
+### 8.1 `examples/diff-filings.ts` — Primary demo script
+
+A CLI script that fetches two real 10-K filings from EDGAR and produces a human-readable diff report.
+
+```
+Usage: npx tsx examples/diff-filings.ts <old-accession> <new-accession> [--json] [--section <id>]
+
+Examples:
+  # Apple FY2023 vs FY2024
+  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123
+
+  # Only Item 8 (Financial Statements)
+  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123 --section item-8
+
+  # Raw JSON output
+  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123 --json
+```
+
+**Default (human-readable) output format:**
+
+```
+=== Structured Diff: Apple Inc (CIK 0000320193) ===
+Old filing: 0000320193-23-000106 (2023-11-03, 10-K)
+New filing: 0000320193-24-000123 (2024-11-01, 10-K)
+Generated at: 2026-03-10T15:30:00Z
+
+--- Summary ---
+  Sections: 3 modified, 12 unchanged, 1 added, 0 removed, 0 reordered
+
+--- Section: Item 1. Business (modified) ---
+  Paragraphs: 2 modified, 15 unchanged, 1 added, 0 removed, 1 moved
+  Tables: 1 modified, 0 unchanged, 0 added, 0 removed
+
+  [Table 1] Revenue by Segment (modified)
+    Rows: 0 added, 0 removed, 3 modified, 5 unchanged
+    Cells changed: 6
+    Sample changes:
+      Row 2, Col 2: "$383,285" → "$391,035" (numeric: 383285 → 391035)
+      Row 3, Col 2: "$52,023" → "$54,321"
+
+  [Paragraph 5] (modified)
+    - The Company's total net {-revenue was $383.3 billion-}{+revenue was $391.0 billion+} ...
+
+--- Section: Item 8. Financial Statements (modified) ---
+  Paragraphs: 0 modified, 3 unchanged
+  Tables: 5 modified, 2 unchanged, 1 added
+
+  [Table 1] Consolidated Statements of Operations (modified)
+    Rows: 0 added, 0 removed, 8 modified, 12 unchanged
+    Cells changed: 16
+    ...
+```
+
+**`--json` output**: Raw `JSON.stringify(structuredDiff, null, 2)` — the full `StructuredDiff` object for programmatic inspection.
+
+**`--section <id>` filter**: Only show diffs for the specified section (e.g., `item-8`, `item-1a`). Useful for focusing on financial tables or risk factors.
+
+**Script behavior:**
+1. Create EDGAR client via `createEdgarClient({ userAgent: '...' })`
+2. Fetch both filings via `client.fetchFiling(accession)`
+3. Parse both via `parseFiling(rawFiling)`
+4. Diff via `diffFilings(oldDoc, newDoc)`
+5. Format and print the result
+6. Dispose client
+
+### 8.2 Recommended Test Cases for Manual Validation
+
+Run each of these with the diff-filings script and visually inspect the output:
+
+| Case | Old Accession | New Accession | Company | What to Look For |
+|------|--------------|---------------|---------|-----------------|
+| **Simple year-over-year** | `0000320193-23-000106` | `0000320193-24-000123` | Apple | Table value changes in Item 8, paragraph wording changes in Item 1 |
+| **Section reordering** | `0000789019-23-000095` | `0000789019-24-000069` | Microsoft | Check for reordered sections if any items moved |
+| **Large financial tables** | `0000019617-24-000024` | (next year's filing) | JPMorgan | Complex multi-table Item 8 with many numeric changes |
+| **Self-diff** | `0000320193-24-000123` | `0000320193-24-000123` | Apple | Everything should be 'unchanged' — zero diffs |
+| **Different companies** | `0000320193-24-000123` | `0000789019-24-000069` | Apple vs MSFT | Mostly added/removed sections — validates extreme case |
+
+### 8.3 `examples/diff-summary.ts` — Quick summary script
+
+A lighter script that outputs only the summary statistics (no detailed diffs). Useful for quickly checking if the pipeline runs without errors on a given filing pair.
+
+```
+Usage: npx tsx examples/diff-summary.ts <old-accession> <new-accession>
+
+Output:
+  Apple Inc: 10-K (2023-11-03) vs 10-K (2024-11-01)
+  Sections: 16 total (3 modified, 12 unchanged, 1 added)
+  Tables diffed: 14 (8 modified, 4 unchanged, 2 added)
+  Total cells changed: 247
+  Time: 1.2s fetch + 0.3s diff = 1.5s total
+```
+
+### 8.4 Script Structure
+
+```
+examples/
+├── diff-filings.ts    # Full diff with human-readable output
+├── diff-summary.ts    # Quick summary statistics
+└── README.md          # Accession numbers for recommended test cases
+```
+
+Scripts should:
+- Use only the library's public API from `@edgar-diff/lib` (no internal imports)
+- Handle errors gracefully (network failures, invalid accession numbers)
+- Include timing information (fetch time vs diff time)
+- Work with `npx tsx` (no build step required)
+- Respect EDGAR rate limits via `createEdgarClient`
+
+---
+
 ## Module Interface Summary
 
 | Module | File | Entry Point | Changes for US-1.8 |
@@ -570,3 +684,4 @@ For deserialization (if needed in future), consumers would use `Temporal.Instant
 | Unit (diff-engine) | `tests/unit/diff/diff-engine.test.ts` |
 | Integration | `tests/integration/diff-pipeline.integration.test.ts` (new) |
 | E2E | `tests/e2e/diff/diff-pipeline.e2e.test.ts` (extend existing) |
+| Example scripts | `examples/diff-filings.ts`, `examples/diff-summary.ts` (new) |
