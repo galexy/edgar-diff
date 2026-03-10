@@ -8,6 +8,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.3",
+    "@js-temporal/polyfill": "^0.5.1",
     "@nx/eslint": "22.5.3",
     "@nx/eslint-plugin": "22.5.3",
     "@nx/js": "22.5.3",
@@ -15,6 +16,7 @@
     "eslint": "^9.0.0",
     "eslint-plugin-import-x": "^4.16.1",
     "nx": "22.5.3",
+    "tsx": "^4.21.0",
     "typescript": "~5.7.0",
     "typescript-eslint": "^8.56.1"
   }
