@@ -450,3 +450,93 @@ describe('diffFilings — table behavior', () => {
     expect(removed.length).toBeGreaterThanOrEqual(1);
   });
 });
+
+describe('JSON serialization', () => {
+  it('U-JSON-1: Temporal.Instant serializes to ISO 8601 string via native toJSON()', () => {
+    const { oldDoc, newDoc } = makeDocumentPair(
+      [{ id: 'item-1', heading: 'Item 1. Business', content: 'text' }],
+      [{ id: 'item-1', heading: 'Item 1. Business', content: 'text' }],
+    );
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.parse(JSON.stringify(result));
+    expect(typeof json.generatedAt).toBe('string');
+    // ISO 8601 pattern: starts with a year, has T separator
+    expect(json.generatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('U-JSON-2: Temporal.PlainDate serializes to YYYY-MM-DD string via native toJSON()', () => {
+    const { oldDoc, newDoc } = makeDocumentPair(
+      [{ id: 'item-1', heading: 'Item 1', content: 'a' }],
+      [{ id: 'item-1', heading: 'Item 1', content: 'a' }],
+    );
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.parse(JSON.stringify(result));
+    expect(json.oldFiling.filingDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(json.newFiling.filingDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('U-JSON-3: full StructuredDiff round-trips through JSON without data loss', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data.', 0),
+        makeTable([['Revenue', '$100'], ['Income', '$20']], 100),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Updated financial data.', 0),
+        makeTable([['Revenue', '$120'], ['Income', '$20']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.parse(JSON.stringify(result));
+    expect(json.sectionDiffs).toHaveLength(result.sectionDiffs.length);
+    expect(json.summary).toEqual(result.summary);
+    expect(json.sectionDiffs[0].tableDiffs.length).toBe(result.sectionDiffs[0].tableDiffs.length);
+  });
+
+  it('U-JSON-4: tableDiffs within sectionDiffs survive JSON round-trip', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$100']], 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$120']], 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.parse(JSON.stringify(result));
+    const td = json.sectionDiffs[0].tableDiffs[0];
+    expect(td.changeType).toBe('modified');
+    expect(td.summary).toBeDefined();
+    expect(td.summary.cellsChanged).toBeGreaterThan(0);
+    // cellDiffs retain oldValue/newValue
+    expect(td.cellDiffs.length).toBeGreaterThan(0);
+    expect(td.cellDiffs[0].oldValue).toBeDefined();
+    expect(td.cellDiffs[0].newValue).toBeDefined();
+  });
+
+  it('U-JSON-5: paragraphDiffs with wordChanges survive JSON round-trip', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('The company is growing.', 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('The company is shrinking.', 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.parse(JSON.stringify(result));
+    const pd = json.sectionDiffs[0].paragraphDiffs[0];
+    expect(pd.wordChanges).toBeDefined();
+    expect(pd.wordChanges.length).toBeGreaterThan(0);
+    const hasTypeAndValue = pd.wordChanges.every(
+      (wc: { type: string; value: string }) => typeof wc.type === 'string' && typeof wc.value === 'string',
+    );
+    expect(hasTypeAndValue).toBe(true);
+  });
+});
