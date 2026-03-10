@@ -1,41 +1,33 @@
 /**
- * diff-to-json.ts — JSON pipeline for downstream consumers (MSFT 2023 vs 2024)
+ * diff-to-json.ts — JSON pipeline for downstream consumers
  *
  * Demonstrates JSON serialization: JSON.stringify(structuredDiff) works natively
  * (Temporal polyfill provides toJSON()), verifies round-trip deserialization.
  *
- * Usage: npx tsx examples/diff-to-json.ts > output.json
+ * Usage:
+ *   npx tsx examples/diff-to-json.ts > output.json                   # defaults: MSFT 2023 vs 2024
+ *   npx tsx examples/diff-to-json.ts old.html new.html > output.json # any two filings
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { parseFiling } from '../libs/edgar-diff-lib/src/index.js';
 import { diffFilings } from '../libs/edgar-diff-lib/src/diff/index.js';
-import type { RawFiling } from '../libs/edgar-diff-lib/src/client/types.js';
+import { loadFilingFromPath, fixturePath, parseFilingArgs } from './shared.js';
 import { Temporal } from '@js-temporal/polyfill';
 
-const FIXTURES = join(import.meta.dirname, '..', 'libs', 'edgar-diff-lib', 'tests', 'integration', 'fixtures');
-
-function loadFiling(ticker: string, year: number): RawFiling {
-  const html = readFileSync(join(FIXTURES, `10k-${ticker}-${year}.html`), 'utf-8');
-  return {
-    accessionNumber: `0000000000-${String(year).slice(2)}-000000`,
-    cik: '0000789019',
-    formType: '10-K',
-    filingDate: Temporal.PlainDate.from(`${year}-07-30`),
-    primaryDocumentFilename: `10k-${ticker}-${year}.html`,
-    html,
-    fetchedAt: Temporal.Now.instant(),
-  };
-}
+const [oldPath, newPath] = parseFilingArgs(
+  fixturePath('10k-msft-2023.html'),
+  fixturePath('10k-msft-2024.html'),
+);
 
 // Use stderr for status so stdout is clean JSON
 const log = (msg: string) => process.stderr.write(msg + '\n');
 
-log('=== diff-to-json: MSFT 2023 vs 2024 ===');
+log('=== diff-to-json ===');
+log(`Old: ${oldPath}`);
+log(`New: ${newPath}`);
 
 const t0 = performance.now();
-const oldDoc = parseFiling(loadFiling('msft', 2023));
-const newDoc = parseFiling(loadFiling('msft', 2024));
+const oldDoc = parseFiling(loadFilingFromPath(oldPath));
+const newDoc = parseFiling(loadFilingFromPath(newPath));
 const parseTime = performance.now() - t0;
 
 const t1 = performance.now();

@@ -1,38 +1,29 @@
 /**
- * diff-with-tables.ts — Table-level diff inspection (JPM 2023 vs 2024)
+ * diff-with-tables.ts — Table-level diff inspection
  *
  * Demonstrates table-level diff detail: iterates sectionDiffs, filters for sections
  * with tableDiffs, prints per-table row/cell change counts and numeric value changes.
  *
- * Usage: npx tsx examples/diff-with-tables.ts
+ * Usage:
+ *   npx tsx examples/diff-with-tables.ts                     # defaults: JPM 2023 vs 2024
+ *   npx tsx examples/diff-with-tables.ts old.html new.html   # any two filings
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { parseFiling } from '../libs/edgar-diff-lib/src/index.js';
 import { diffFilings } from '../libs/edgar-diff-lib/src/diff/index.js';
-import type { RawFiling } from '../libs/edgar-diff-lib/src/client/types.js';
-import { Temporal } from '@js-temporal/polyfill';
+import { loadFilingFromPath, fixturePath, parseFilingArgs } from './shared.js';
 
-const FIXTURES = join(import.meta.dirname, '..', 'libs', 'edgar-diff-lib', 'tests', 'integration', 'fixtures');
+const [oldPath, newPath] = parseFilingArgs(
+  fixturePath('10k-jpm-2023.html'),
+  fixturePath('10k-jpm-2024.html'),
+);
 
-function loadFiling(ticker: string, year: number): RawFiling {
-  const html = readFileSync(join(FIXTURES, `10k-${ticker}-${year}.html`), 'utf-8');
-  return {
-    accessionNumber: `0000000000-${String(year).slice(2)}-000000`,
-    cik: '0000019617',
-    formType: '10-K',
-    filingDate: Temporal.PlainDate.from(`${year}-02-20`),
-    primaryDocumentFilename: `10k-${ticker}-${year}.html`,
-    html,
-    fetchedAt: Temporal.Now.instant(),
-  };
-}
-
-console.log('=== diff-with-tables: JPM 2023 vs 2024 ===\n');
+console.log(`=== diff-with-tables ===`);
+console.log(`Old: ${oldPath}`);
+console.log(`New: ${newPath}\n`);
 
 const t0 = performance.now();
-const oldDoc = parseFiling(loadFiling('jpm', 2023));
-const newDoc = parseFiling(loadFiling('jpm', 2024));
+const oldDoc = parseFiling(loadFilingFromPath(oldPath));
+const newDoc = parseFiling(loadFilingFromPath(newPath));
 const parseTime = performance.now() - t0;
 
 const t1 = performance.now();

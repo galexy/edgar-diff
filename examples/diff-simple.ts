@@ -1,37 +1,30 @@
 /**
- * diff-simple.ts — Minimal year-over-year diff (AAPL 2023 vs 2024)
+ * diff-simple.ts — Minimal section-level diff
  *
  * Demonstrates the core pipeline: load HTML → parseFiling() → diffFilings() → summary.
  *
- * Usage: npx tsx examples/diff-simple.ts
+ * Usage:
+ *   npx tsx examples/diff-simple.ts                          # defaults: AAPL 2023 vs 2024
+ *   npx tsx examples/diff-simple.ts old.html new.html        # any two filings
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseFiling } from '../libs/edgar-diff-lib/src/index.js';
 import { diffFilings } from '../libs/edgar-diff-lib/src/diff/index.js';
-import type { RawFiling } from '../libs/edgar-diff-lib/src/client/types.js';
-import { Temporal } from '@js-temporal/polyfill';
+import { loadFilingFromPath, fixturePath, parseFilingArgs } from './shared.js';
 
-const FIXTURES = join(import.meta.dirname, '..', 'libs', 'edgar-diff-lib', 'tests', 'integration', 'fixtures');
+const [oldPath, newPath] = parseFilingArgs(
+  fixturePath('10k-aapl-2023.html'),
+  fixturePath('10k-aapl-2024.html'),
+);
 
-function loadFiling(ticker: string, year: number): RawFiling {
-  const html = readFileSync(join(FIXTURES, `10k-${ticker}-${year}.html`), 'utf-8');
-  return {
-    accessionNumber: `0000000000-${String(year).slice(2)}-000000`,
-    cik: '0000320193',
-    formType: '10-K',
-    filingDate: Temporal.PlainDate.from(`${year}-10-27`),
-    primaryDocumentFilename: `10k-${ticker}-${year}.html`,
-    html,
-    fetchedAt: Temporal.Now.instant(),
-  };
-}
-
-console.log('=== diff-simple: AAPL 2023 vs 2024 ===\n');
+console.log(`=== diff-simple ===`);
+console.log(`Old: ${oldPath}`);
+console.log(`New: ${newPath}\n`);
 
 const t0 = performance.now();
-const oldDoc = parseFiling(loadFiling('aapl', 2023));
-const newDoc = parseFiling(loadFiling('aapl', 2024));
+const oldDoc = parseFiling(loadFilingFromPath(oldPath));
+const newDoc = parseFiling(loadFilingFromPath(newPath));
 const parseTime = performance.now() - t0;
 
 const t1 = performance.now();
@@ -58,6 +51,6 @@ for (const sd of result.sectionDiffs) {
 }
 
 // Write JSON output
-const outputPath = join(import.meta.dirname, 'aapl-diff-output.json');
+const outputPath = join(import.meta.dirname, 'diff-output.json');
 writeFileSync(outputPath, JSON.stringify(result, null, 2));
 console.log(`\nJSON output written to ${outputPath}`);

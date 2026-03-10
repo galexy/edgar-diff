@@ -1,38 +1,29 @@
 /**
- * diff-structural.ts — Major structural changes (XOM 2012 vs 2024)
+ * diff-structural.ts — Major structural changes
  *
- * Demonstrates handling of extreme structural changes across a 12-year gap:
+ * Demonstrates handling of extreme structural changes:
  * added/removed sections, table stubs, alignment algorithm under stress.
  *
- * Usage: npx tsx examples/diff-structural.ts
+ * Usage:
+ *   npx tsx examples/diff-structural.ts                      # defaults: XOM 2012 vs 2024
+ *   npx tsx examples/diff-structural.ts old.html new.html    # any two filings
  */
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { parseFiling } from '../libs/edgar-diff-lib/src/index.js';
 import { diffFilings } from '../libs/edgar-diff-lib/src/diff/index.js';
-import type { RawFiling } from '../libs/edgar-diff-lib/src/client/types.js';
-import { Temporal } from '@js-temporal/polyfill';
+import { loadFilingFromPath, fixturePath, parseFilingArgs } from './shared.js';
 
-const FIXTURES = join(import.meta.dirname, '..', 'libs', 'edgar-diff-lib', 'tests', 'integration', 'fixtures');
+const [oldPath, newPath] = parseFilingArgs(
+  fixturePath('10k-xom-2012.html'),
+  fixturePath('10k-xom-2024.html'),
+);
 
-function loadFiling(ticker: string, year: number): RawFiling {
-  const html = readFileSync(join(FIXTURES, `10k-${ticker}-${year}.html`), 'utf-8');
-  return {
-    accessionNumber: `0000000000-${String(year).slice(2)}-000000`,
-    cik: '0000034088',
-    formType: '10-K',
-    filingDate: Temporal.PlainDate.from(`${year}-02-27`),
-    primaryDocumentFilename: `10k-${ticker}-${year}.html`,
-    html,
-    fetchedAt: Temporal.Now.instant(),
-  };
-}
-
-console.log('=== diff-structural: XOM 2012 vs 2024 ===\n');
+console.log(`=== diff-structural ===`);
+console.log(`Old: ${oldPath}`);
+console.log(`New: ${newPath}\n`);
 
 const t0 = performance.now();
-const oldDoc = parseFiling(loadFiling('xom', 2012));
-const newDoc = parseFiling(loadFiling('xom', 2024));
+const oldDoc = parseFiling(loadFilingFromPath(oldPath));
+const newDoc = parseFiling(loadFilingFromPath(newPath));
 const parseTime = performance.now() - t0;
 
 const t1 = performance.now();
@@ -43,8 +34,8 @@ console.log(`Parse time: ${parseTime.toFixed(0)}ms | Diff time: ${diffTime.toFix
 
 // Document structure comparison
 console.log('Document structure:');
-console.log(`  Old (2012): ${oldDoc.sections.length} sections`);
-console.log(`  New (2024): ${newDoc.sections.length} sections`);
+console.log(`  Old: ${oldDoc.sections.length} sections`);
+console.log(`  New: ${newDoc.sections.length} sections`);
 console.log();
 
 // Summary

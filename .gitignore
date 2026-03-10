@@ -40,4 +40,4 @@ Thumbs.db
 *.db
 
 # Example script outputs
-examples/*-output.json
+examples/*.json
