@@ -34,17 +34,21 @@ console.log(`Parse time: ${parseTime.toFixed(0)}ms | Diff time: ${diffTime.toFix
 console.log(`Total sections: ${result.sectionDiffs.length}`);
 console.log(`Summary: added=${result.summary.added} removed=${result.summary.removed} modified=${result.summary.modified} unchanged=${result.summary.unchanged}\n`);
 
-// Filter sections with table diffs
-const sectionsWithTables = result.sectionDiffs.filter(sd => sd.tableDiffs.length > 0);
-console.log(`Sections with table diffs: ${sectionsWithTables.length}\n`);
+// Filter sections with actual table changes (exclude unchanged)
+const sectionsWithTableChanges = result.sectionDiffs.filter(
+  sd => sd.tableDiffs.some(td => td.changeType !== 'unchanged'),
+);
+console.log(`Sections with table changes: ${sectionsWithTableChanges.length}\n`);
 
-for (const sd of sectionsWithTables) {
+for (const sd of sectionsWithTableChanges) {
+  const changedTables = sd.tableDiffs.filter(td => td.changeType !== 'unchanged');
+  const paraChanges = sd.paragraphDiffs.filter(pd => pd.changeType !== 'unchanged').length;
   console.log(`--- ${sd.heading} [${sd.changeType}] ---`);
-  console.log(`  Paragraph diffs: ${sd.paragraphDiffs.length}`);
-  console.log(`  Table diffs: ${sd.tableDiffs.length}`);
+  console.log(`  Paragraph changes: ${paraChanges}`);
+  console.log(`  Table changes: ${changedTables.length} (${sd.tableDiffs.length - changedTables.length} unchanged)`);
 
-  for (let i = 0; i < sd.tableDiffs.length; i++) {
-    const td = sd.tableDiffs[i];
+  for (let i = 0; i < changedTables.length; i++) {
+    const td = changedTables[i];
     console.log(`\n  Table ${i + 1}: ${td.changeType}`);
     console.log(`    Rows: +${td.summary.rowsAdded} -${td.summary.rowsRemoved} ~${td.summary.rowsModified} =${td.summary.rowsUnchanged}`);
     console.log(`    Cells changed: ${td.summary.cellsChanged}`);
@@ -66,6 +70,6 @@ for (const sd of sectionsWithTables) {
   console.log();
 }
 
-if (sectionsWithTables.length === 0) {
-  console.log('No sections with table diffs found.');
+if (sectionsWithTableChanges.length === 0) {
+  console.log('No sections with table changes found.');
 }

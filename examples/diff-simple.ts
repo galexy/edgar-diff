@@ -45,9 +45,9 @@ console.log(`  total:     ${result.sectionDiffs.length}\n`);
 // Per-section detail
 console.log('Sections:');
 for (const sd of result.sectionDiffs) {
-  const tableDiffCount = sd.tableDiffs.length;
-  const paraDiffCount = sd.paragraphDiffs.length;
-  console.log(`  [${sd.changeType.padEnd(10)}] ${sd.heading}  (${paraDiffCount} para diffs, ${tableDiffCount} table diffs)`);
+  const paraChanges = sd.paragraphDiffs.filter(pd => pd.changeType !== 'unchanged').length;
+  const tableChanges = sd.tableDiffs.filter(td => td.changeType !== 'unchanged').length;
+  console.log(`  [${sd.changeType.padEnd(10)}] ${sd.heading}  (${paraChanges} para changes, ${tableChanges} table changes)`);
 }
 
 // Write JSON output

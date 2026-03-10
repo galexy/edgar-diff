@@ -51,19 +51,21 @@ console.log();
 // Per-section detail
 console.log('Section-by-section breakdown:');
 for (const sd of result.sectionDiffs) {
-  const tableCount = sd.tableDiffs.length;
-  const paraCount = sd.paragraphDiffs.length;
-  const tableStubTypes = sd.tableDiffs.map(td => td.changeType);
+  const paraChanges = sd.paragraphDiffs.filter(pd => pd.changeType !== 'unchanged').length;
+  const changedTables = sd.tableDiffs.filter(td => td.changeType !== 'unchanged');
+  const unchangedTables = sd.tableDiffs.length - changedTables.length;
 
   let detail = `  [${sd.changeType.padEnd(10)}] ${sd.heading}`;
-  detail += ` — ${paraCount} para diffs, ${tableCount} table diffs`;
+  detail += ` — ${paraChanges} para changes, ${changedTables.length} table changes`;
 
-  if (tableCount > 0) {
-    const added = tableStubTypes.filter(t => t === 'added').length;
-    const removed = tableStubTypes.filter(t => t === 'removed').length;
-    const modified = tableStubTypes.filter(t => t === 'modified').length;
-    const unchanged = tableStubTypes.filter(t => t === 'unchanged').length;
-    detail += ` (tables: +${added} -${removed} ~${modified} =${unchanged})`;
+  if (changedTables.length > 0) {
+    const added = changedTables.filter(t => t.changeType === 'added').length;
+    const removed = changedTables.filter(t => t.changeType === 'removed').length;
+    const modified = changedTables.filter(t => t.changeType === 'modified').length;
+    detail += ` (+${added} -${removed} ~${modified})`;
+  }
+  if (unchangedTables > 0) {
+    detail += ` [${unchangedTables} unchanged]`;
   }
 
   console.log(detail);
