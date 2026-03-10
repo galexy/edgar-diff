@@ -258,6 +258,104 @@ This is the same pattern used by `extractParagraphs()` in `paragraph-differ.ts` 
 
 **Consideration**: Tables appear interleaved with paragraphs in `blocks`. The extraction preserves their relative order, which is what `matchTables()` uses for position-based scoring. This is correct behavior.
 
+## Example Scripts
+
+After US-1.8, the library is functionally complete: fetch → parse → diff. We should ship standalone example scripts that demonstrate this end-to-end pipeline against real SEC filings.
+
+### Directory: `examples/`
+
+New directory at the workspace root (not an Nx project — just standalone `tsx` scripts). Pattern follows existing `scripts/fetch-filings.ts` and `scripts/analyze-headings.ts`.
+
+### Scripts to create
+
+#### 1. `examples/diff-simple.ts` — Minimal year-over-year diff
+
+**Difficulty**: Simple
+**Fixture pair**: AAPL 2023 vs 2024 (same company, consecutive years, stable structure)
+
+Demonstrates:
+- Load two HTML filings from `libs/edgar-diff-lib/tests/integration/fixtures/`
+- `parseFiling()` each into `StructuredDocument`
+- `diffFilings(oldDoc, newDoc)` → `StructuredDiff`
+- Print section-level summary (added/removed/modified/unchanged/reordered counts)
+- Print each `SectionDiff` heading + changeType
+- JSON-serialize the full result to a file
+
+```
+Usage: npx tsx examples/diff-simple.ts
+Output: Section-level summary table + JSON file
+```
+
+#### 2. `examples/diff-with-tables.ts` — Table-level diff inspection
+
+**Difficulty**: Medium
+**Fixture pair**: JPM 2023 vs 2024 (financial institution, table-heavy sections)
+
+Demonstrates:
+- Full `diffFilings()` pipeline
+- Iterate `sectionDiffs` → filter for sections with `tableDiffs.length > 0`
+- For each `TableDiff`: print `changeType`, row counts (`summary.rowsAdded`, `rowsRemoved`, `rowsModified`), and cell-level changes
+- Show paragraph diffs alongside table diffs in the same section
+- Highlight numeric value changes (`oldNumericValue` → `newNumericValue`)
+
+```
+Usage: npx tsx examples/diff-with-tables.ts
+Output: Per-section breakdown with table and paragraph diffs
+```
+
+#### 3. `examples/diff-structural.ts` — Major structural changes
+
+**Difficulty**: Hard
+**Fixture pair**: XOM 2012 vs 2024 (12-year gap, significant restructuring)
+
+Demonstrates:
+- Handling of added/removed sections (not just modified)
+- Large diff output with many section-level changes
+- Added sections with table stubs
+- Removed sections with table stubs
+- Stress test of the alignment algorithm across very different documents
+- Print a summary comparing section counts (old vs new), then detail each change
+
+```
+Usage: npx tsx examples/diff-structural.ts
+Output: Structural change summary + detailed section-by-section diff
+```
+
+#### 4. `examples/diff-to-json.ts` — JSON pipeline for downstream consumers
+
+**Difficulty**: Simple
+**Fixture pair**: MSFT 2023 vs 2024
+
+Demonstrates:
+- `JSON.stringify(structuredDiff)` works out of the box (Temporal.Instant serializes natively)
+- Write complete `StructuredDiff` JSON to stdout or file
+- Show that the output is valid, parseable JSON
+- Demonstrate round-trip: deserialize, verify `generatedAt` can be restored via `Temporal.Instant.from()`
+
+```
+Usage: npx tsx examples/diff-to-json.ts > output.json
+Output: Complete StructuredDiff as JSON
+```
+
+### API surface considerations
+
+The existing public API already exports everything these scripts need:
+
+| Export | Module | Used for |
+|--------|--------|----------|
+| `parseFiling()` | `parser/index.ts` | Parse HTML → `StructuredDocument` |
+| `diffFilings()` | `diff/diff-engine.ts` | Diff two documents → `StructuredDiff` |
+| `StructuredDiff` (type) | `diff/types.ts` | Result type |
+| `SectionDiff` (type) | `diff/types.ts` | Per-section result |
+| `TableDiff` (type) | `diff/types.ts` | Per-table result |
+| `RawFiling` (type) | `client/types.ts` | Filing metadata |
+
+No new exports needed. The scripts import directly from `../libs/edgar-diff-lib/src/index.js` (or via the built package if published).
+
+### Implementation note
+
+These example scripts are **not part of US-1.8 core implementation** — they can be written after the `diffFilings()` integration is complete and tests pass. They serve as functional smoke tests and documentation-by-example. They should be committed in the same PR or a fast-follow.
+
 ## Summary of Changes
 
 | File | Change | Lines affected |
@@ -268,5 +366,11 @@ This is the same pattern used by `extractParagraphs()` in `paragraph-differ.ts` 
 | `diff-engine.ts` | Update `makeSectionDiff()` to compute table diffs | ~25 lines modified |
 | `diff/index.ts` | No changes needed | 0 |
 | `diff/types.ts` | No changes needed | 0 |
+| `examples/diff-simple.ts` | New: minimal year-over-year diff | ~60 lines |
+| `examples/diff-with-tables.ts` | New: table-level diff inspection | ~100 lines |
+| `examples/diff-structural.ts` | New: major structural changes | ~80 lines |
+| `examples/diff-to-json.ts` | New: JSON pipeline | ~40 lines |
 
-**Estimated diff**: ~30 lines added/modified in a single file. This is a low-risk integration change — all the algorithmic complexity lives in the existing `diffTables()`, `matchTables()`, and `diffTable()` functions.
+**Core diff**: ~30 lines added/modified in `diff-engine.ts`. This is a low-risk integration change — all the algorithmic complexity lives in the existing `diffTables()`, `matchTables()`, and `diffTable()` functions.
+
+**Example scripts**: ~280 lines across 4 new files in `examples/`. These use only the public API and existing fixtures — no library changes needed.
