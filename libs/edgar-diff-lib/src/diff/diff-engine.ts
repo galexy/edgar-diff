@@ -1,9 +1,15 @@
 import { Temporal } from '@js-temporal/polyfill';
-import type { StructuredDocument, FilingSection } from '../types.js';
-import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange } from './types.js';
+import type { StructuredDocument, FilingSection, ContentBlock, Table } from '../types.js';
+import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange, TableDiff } from './types.js';
 import { alignSections, classifySectionDiff } from './section-aligner.js';
 import type { SectionMatch } from './section-aligner.js';
 import { diffParagraphs } from './paragraph-differ.js';
+import { diffTables } from './table-differ.js';
+
+/** Extract table blocks from a section's content blocks. */
+function extractTables(blocks: ContentBlock[]): Table[] {
+  return blocks.filter((b): b is Table => b.type === 'table');
+}
 
 /** Compute summary counts from sectionDiffs. */
 export function buildSummary(
@@ -41,6 +47,37 @@ function makeSectionDiff(
   // Compute paragraph-level diffs for matched sections
   const paragraphDiffs = options.match ? diffParagraphs(options.match) : [];
 
+  // Compute table diffs
+  let tableDiffs: TableDiff[];
+  if (options.match) {
+    // Matched section — diff tables between old and new
+    const oldTables = extractTables(options.match.oldSection.blocks);
+    const newTables = extractTables(options.match.newSection.blocks);
+    tableDiffs = diffTables(oldTables, newTables);
+  } else if (options.newSection && !options.oldSection) {
+    // Added section — all tables are added
+    tableDiffs = extractTables(options.newSection.blocks).map(table => ({
+      changeType: 'added' as const,
+      newTable: table,
+      rowDiffs: [],
+      cellDiffs: [],
+      sourceMapping: { new: table.source },
+      summary: { rowsAdded: 0, rowsRemoved: 0, rowsModified: 0, rowsUnchanged: 0, cellsChanged: 0 },
+    }));
+  } else if (options.oldSection && !options.newSection) {
+    // Removed section — all tables are removed
+    tableDiffs = extractTables(options.oldSection.blocks).map(table => ({
+      changeType: 'removed' as const,
+      oldTable: table,
+      rowDiffs: [],
+      cellDiffs: [],
+      sourceMapping: { old: table.source },
+      summary: { rowsAdded: 0, rowsRemoved: 0, rowsModified: 0, rowsUnchanged: 0, cellsChanged: 0 },
+    }));
+  } else {
+    tableDiffs = [];
+  }
+
   return {
     id: section.id,
     heading: section.heading,
@@ -48,7 +85,7 @@ function makeSectionDiff(
     oldSection: options.oldSection,
     newSection: options.newSection,
     paragraphDiffs,
-    tableDiffs: [],
+    tableDiffs,
     subsectionDiffs: [],
     sourceMapping,
   };

@@ -5,6 +5,12 @@ import type { SectionDiff } from '../../../src/diff/types.js';
 import {
   makeDocumentPair,
 } from '../../helpers/diff-helpers.js';
+import {
+  makeParagraph,
+  makeTable,
+  makeSection,
+  makeStructuredDoc,
+} from '../../helpers/diff-fixtures.js';
 
 function makeSectionDiffStub(changeType: SectionDiff['changeType']): SectionDiff {
   return {
@@ -197,5 +203,59 @@ describe('diffFilings', () => {
     // Removed at end
     expect(result.sectionDiffs[3].heading).toBe('Zebra Appendix Alpha');
     expect(result.sectionDiffs[3].changeType).toBe('removed');
+  });
+});
+
+describe('diffFilings — table behavior', () => {
+  it('U-MSD-1: matched sections with tables produce non-empty tableDiffs', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data follows.', 0),
+        makeTable([['Revenue', '$100'], ['Income', '$20']], 100),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeParagraph('Financial data follows.', 0),
+        makeTable([['Revenue', '$120'], ['Income', '$20']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sectionDiff = result.sectionDiffs[0];
+    expect(sectionDiff.tableDiffs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('U-MSD-2: matched sections with only paragraphs produce empty tableDiffs', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Old paragraph text.', 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('New paragraph text.', 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sectionDiff = result.sectionDiffs[0];
+    expect(sectionDiff.tableDiffs).toHaveLength(0);
+  });
+
+  it('U-MSD-3: matched sections with identical tables produce unchanged tableDiffs', () => {
+    const table = [['Header', 'Value'], ['Row1', '100']];
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable(table, 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable(table, 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sectionDiff = result.sectionDiffs[0];
+    expect(sectionDiff.tableDiffs).toHaveLength(1);
+    expect(sectionDiff.tableDiffs[0].changeType).toBe('unchanged');
   });
 });
