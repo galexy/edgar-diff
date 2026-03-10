@@ -258,4 +258,100 @@ describe('diffFilings — table behavior', () => {
     expect(sectionDiff.tableDiffs).toHaveLength(1);
     expect(sectionDiff.tableDiffs[0].changeType).toBe('unchanged');
   });
+
+  it('U-MSD-4: added section WITH tables has tableDiffs with changeType added', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing section.', 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing section.', 0),
+      ]),
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$100']], 200),
+        makeTable([['Assets', '$500']], 300),
+      ], 200),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const addedSection = result.sectionDiffs.find(d => d.changeType === 'added');
+    expect(addedSection).toBeDefined();
+    expect(addedSection!.tableDiffs).toHaveLength(2);
+    for (const td of addedSection!.tableDiffs) {
+      expect(td.changeType).toBe('added');
+      expect(td.newTable).toBeDefined();
+      expect(td.oldTable).toBeUndefined();
+      expect(td.rowDiffs).toEqual([]);
+      expect(td.cellDiffs).toEqual([]);
+    }
+  });
+
+  it('U-MSD-5: removed section WITH tables has tableDiffs with changeType removed', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing section.', 0),
+      ]),
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Revenue', '$100']], 200),
+        makeTable([['Assets', '$500']], 300),
+      ], 200),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing section.', 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const removedSection = result.sectionDiffs.find(d => d.changeType === 'removed');
+    expect(removedSection).toBeDefined();
+    expect(removedSection!.tableDiffs).toHaveLength(2);
+    for (const td of removedSection!.tableDiffs) {
+      expect(td.changeType).toBe('removed');
+      expect(td.oldTable).toBeDefined();
+      expect(td.newTable).toBeUndefined();
+      expect(td.rowDiffs).toEqual([]);
+      expect(td.cellDiffs).toEqual([]);
+    }
+  });
+
+  it('U-MSD-5a: added section WITHOUT tables has tableDiffs = []', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing.', 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing.', 0),
+      ]),
+      makeSection('item-2', 'Item 2. Properties', [
+        makeParagraph('New section text.', 200),
+      ], 200),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const addedSection = result.sectionDiffs.find(d => d.changeType === 'added');
+    expect(addedSection).toBeDefined();
+    expect(addedSection!.tableDiffs).toHaveLength(0);
+  });
+
+  it('U-MSD-5b: removed section WITHOUT tables has tableDiffs = []', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing.', 0),
+      ]),
+      makeSection('item-2', 'Item 2. Properties', [
+        makeParagraph('Old section text.', 200),
+      ], 200),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Existing.', 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const removedSection = result.sectionDiffs.find(d => d.changeType === 'removed');
+    expect(removedSection).toBeDefined();
+    expect(removedSection!.tableDiffs).toHaveLength(0);
+  });
 });
