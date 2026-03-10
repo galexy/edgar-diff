@@ -1,0 +1,35 @@
+{
+  "repo_id": "repo_019cd628-72d1-7484-bc68-f53406632782",
+  "type": "git",
+  "init_at": "2026-03-10T05:11:41Z",
+  "init_by_email": "galex@reasoning.net",
+  "init_by_name": "Galex Yen",
+  "repo_salt": "8c3af26d0b403de8185a1cf527442ced3c9a5a2d",
+  "endpoint": "https://sageox.ai",
+  "fingerprint": {
+    "first_commit": "8c3af26d0b403de8185a1cf527442ced3c9a5a2d",
+    "monthly_checkpoints": {
+      "2026-02": "8c3af26d0b403de8185a1cf527442ced3c9a5a2d",
+      "2026-03": "552b53a3192ea366260a0b42c47ad6bc7fef2b8e"
+    },
+    "ancestry_samples": [
+      "8c3af26d0b403de8185a1cf527442ced3c9a5a2d",
+      "ab606880f9b53843bd03d513c0e11fef03d691e0",
+      "f6ec927ff2c57b57a4188c0463ad762573ff992a",
+      "d9029c1a41b52e5d956a5c46c4318f8bf248a07b",
+      "4ed50b16e9fe38c52df337fcafcf85f20add9588",
+      "17d9963f73a982197bff1f163ad41aa6c706ca8d",
+      "db75af0def40a296860d6ae25b475e7c4eea6f9e",
+      "5ba0efe4b39be44adecbfc22eb1f4aaf5b74d8d1"
+    ],
+    "remote_hashes": [
+      "sha256:5816219538e5ee5f3d680e9a2c422d1c3627f05ec6e1099fbdaf92e25983fec1"
+    ]
+  },
+  "team_urls": {
+    "Product": "https://git.sageox.ai/sageox-team_sb8s82xq0m/team-context.git"
+  },
+  "urls_cached_at": "2026-03-10T05:11:42Z",
+  "version": "0.4.0",
+  "updated_at": "2026-03-10T05:11:42Z"
+}

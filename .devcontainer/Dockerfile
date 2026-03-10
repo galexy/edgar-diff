@@ -151,6 +151,10 @@ RUN curl -fsSL https://claude.ai/install.sh | bash
 # Ensure ~/.local/bin is on PATH
 ENV PATH="/home/vscode/.local/bin:${PATH}"
 
+
+# Install SageOx CLI
+RUN curl -sSL https://raw.githubusercontent.com/sageox/ox/main/scripts/install.sh | bash
+
 # Create .ssh directory
 RUN mkdir /workspace/.ssh
 
