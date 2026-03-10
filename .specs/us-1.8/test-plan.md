@@ -555,115 +555,137 @@ For deserialization (if needed in future), consumers would use `Temporal.Instant
 
 ## 8. Example Scripts (Real-World Validation)
 
-Beyond automated test infrastructure, standalone example scripts prove the library works end-to-end on real SEC filings with human-inspectable output. These live in `examples/` at the monorepo root and use the library's public API only (`createEdgarClient`, `parseFiling`, `diffFilings`).
+Beyond automated test infrastructure, standalone example scripts prove the library works end-to-end on real SEC filings with human-inspectable output. These live in `examples/` at the monorepo root and use the library's public API only (`parseFiling`, `diffFilings`). They use existing committed HTML fixtures (no network calls), making them reproducible and fast.
 
-### 8.1 `examples/diff-filings.ts` — Primary demo script
+### 8.1 Scripts (aligned with implementation design)
 
-A CLI script that fetches two real 10-K filings from EDGAR and produces a human-readable diff report.
+#### 1. `examples/diff-simple.ts` — Minimal year-over-year diff
 
-```
-Usage: npx tsx examples/diff-filings.ts <old-accession> <new-accession> [--json] [--section <id>]
+**Difficulty**: Simple
+**Fixture pair**: AAPL 2023 vs 2024 (same company, consecutive years, stable structure)
 
-Examples:
-  # Apple FY2023 vs FY2024
-  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123
-
-  # Only Item 8 (Financial Statements)
-  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123 --section item-8
-
-  # Raw JSON output
-  npx tsx examples/diff-filings.ts 0000320193-23-000106 0000320193-24-000123 --json
-```
-
-**Default (human-readable) output format:**
+Demonstrates the core pipeline: load HTML → `parseFiling()` → `diffFilings()` → print section-level summary.
 
 ```
-=== Structured Diff: Apple Inc (CIK 0000320193) ===
-Old filing: 0000320193-23-000106 (2023-11-03, 10-K)
-New filing: 0000320193-24-000123 (2024-11-01, 10-K)
-Generated at: 2026-03-10T15:30:00Z
-
---- Summary ---
-  Sections: 3 modified, 12 unchanged, 1 added, 0 removed, 0 reordered
-
---- Section: Item 1. Business (modified) ---
-  Paragraphs: 2 modified, 15 unchanged, 1 added, 0 removed, 1 moved
-  Tables: 1 modified, 0 unchanged, 0 added, 0 removed
-
-  [Table 1] Revenue by Segment (modified)
-    Rows: 0 added, 0 removed, 3 modified, 5 unchanged
-    Cells changed: 6
-    Sample changes:
-      Row 2, Col 2: "$383,285" → "$391,035" (numeric: 383285 → 391035)
-      Row 3, Col 2: "$52,023" → "$54,321"
-
-  [Paragraph 5] (modified)
-    - The Company's total net {-revenue was $383.3 billion-}{+revenue was $391.0 billion+} ...
-
---- Section: Item 8. Financial Statements (modified) ---
-  Paragraphs: 0 modified, 3 unchanged
-  Tables: 5 modified, 2 unchanged, 1 added
-
-  [Table 1] Consolidated Statements of Operations (modified)
-    Rows: 0 added, 0 removed, 8 modified, 12 unchanged
-    Cells changed: 16
-    ...
+Usage: npx tsx examples/diff-simple.ts
+Output: Section-level summary table + JSON file
 ```
 
-**`--json` output**: Raw `JSON.stringify(structuredDiff, null, 2)` — the full `StructuredDiff` object for programmatic inspection.
+**What to inspect:**
+- All sections matched (no added/removed expected for consecutive Apple 10-Ks)
+- Modified sections have non-zero paragraph and/or table diffs
+- Summary counts add up to total section count
 
-**`--section <id>` filter**: Only show diffs for the specified section (e.g., `item-8`, `item-1a`). Useful for focusing on financial tables or risk factors.
+#### 2. `examples/diff-with-tables.ts` — Table-level diff inspection
 
-**Script behavior:**
-1. Create EDGAR client via `createEdgarClient({ userAgent: '...' })`
-2. Fetch both filings via `client.fetchFiling(accession)`
-3. Parse both via `parseFiling(rawFiling)`
-4. Diff via `diffFilings(oldDoc, newDoc)`
-5. Format and print the result
-6. Dispose client
+**Difficulty**: Medium
+**Fixture pair**: JPM 2023 vs 2024 (financial institution, table-heavy sections)
 
-### 8.2 Recommended Test Cases for Manual Validation
-
-Run each of these with the diff-filings script and visually inspect the output:
-
-| Case | Old Accession | New Accession | Company | What to Look For |
-|------|--------------|---------------|---------|-----------------|
-| **Simple year-over-year** | `0000320193-23-000106` | `0000320193-24-000123` | Apple | Table value changes in Item 8, paragraph wording changes in Item 1 |
-| **Section reordering** | `0000789019-23-000095` | `0000789019-24-000069` | Microsoft | Check for reordered sections if any items moved |
-| **Large financial tables** | `0000019617-24-000024` | (next year's filing) | JPMorgan | Complex multi-table Item 8 with many numeric changes |
-| **Self-diff** | `0000320193-24-000123` | `0000320193-24-000123` | Apple | Everything should be 'unchanged' — zero diffs |
-| **Different companies** | `0000320193-24-000123` | `0000789019-24-000069` | Apple vs MSFT | Mostly added/removed sections — validates extreme case |
-
-### 8.3 `examples/diff-summary.ts` — Quick summary script
-
-A lighter script that outputs only the summary statistics (no detailed diffs). Useful for quickly checking if the pipeline runs without errors on a given filing pair.
+Demonstrates table-level diff detail: iterates `sectionDiffs`, filters for sections with `tableDiffs.length > 0`, prints per-table row/cell change counts and highlights numeric value changes.
 
 ```
-Usage: npx tsx examples/diff-summary.ts <old-accession> <new-accession>
-
-Output:
-  Apple Inc: 10-K (2023-11-03) vs 10-K (2024-11-01)
-  Sections: 16 total (3 modified, 12 unchanged, 1 added)
-  Tables diffed: 14 (8 modified, 4 unchanged, 2 added)
-  Total cells changed: 247
-  Time: 1.2s fetch + 0.3s diff = 1.5s total
+Usage: npx tsx examples/diff-with-tables.ts
+Output: Per-section breakdown with table and paragraph diffs
 ```
 
-### 8.4 Script Structure
+**What to inspect:**
+- Sections with tables show `tableDiffs` with `changeType` and `summary` (rowsAdded, rowsRemoved, etc.)
+- Numeric cell changes show `oldNumericValue` → `newNumericValue`
+- Paragraph diffs appear alongside table diffs in the same section
+- `cellDiffs.length === summary.cellsChanged` for each table
+
+#### 3. `examples/diff-structural.ts` — Major structural changes
+
+**Difficulty**: Hard
+**Fixture pair**: XOM 2012 vs 2024 (12-year gap, significant restructuring)
+
+Demonstrates handling of extreme structural changes: added/removed sections, table stubs, alignment algorithm under stress.
+
+```
+Usage: npx tsx examples/diff-structural.ts
+Output: Structural change summary + detailed section-by-section diff
+```
+
+**What to inspect:**
+- Added sections have `tableDiffs` with `changeType: 'added'` stubs (one per table, `rowDiffs: []`)
+- Removed sections have `tableDiffs` with `changeType: 'removed'` stubs
+- Summary shows non-trivial counts for added + removed
+- No crashes despite very different document structures
+
+#### 4. `examples/diff-to-json.ts` — JSON pipeline for downstream consumers
+
+**Difficulty**: Simple
+**Fixture pair**: MSFT 2023 vs 2024
+
+Demonstrates JSON serialization: `JSON.stringify(structuredDiff)` works natively (Temporal polyfill provides `toJSON()`), writes to stdout/file, verifies round-trip with `Temporal.Instant.from()`.
+
+```
+Usage: npx tsx examples/diff-to-json.ts > output.json
+Output: Complete StructuredDiff as JSON
+```
+
+**What to inspect:**
+- Output is valid JSON (can be piped to `jq`)
+- `generatedAt` is an ISO 8601 string
+- `filingDate` values are `YYYY-MM-DD` strings
+- All `tableDiffs`, `paragraphDiffs`, `cellDiffs` are present in the JSON
+
+### 8.2 Script Guidelines
 
 ```
 examples/
-├── diff-filings.ts    # Full diff with human-readable output
-├── diff-summary.ts    # Quick summary statistics
-└── README.md          # Accession numbers for recommended test cases
+├── diff-simple.ts         # Minimal year-over-year diff (AAPL)
+├── diff-with-tables.ts    # Table-level inspection (JPM)
+├── diff-structural.ts     # Major structural changes (XOM)
+├── diff-to-json.ts        # JSON serialization pipeline (MSFT)
+└── README.md              # Description of each script and what to look for
 ```
 
-Scripts should:
-- Use only the library's public API from `@edgar-diff/lib` (no internal imports)
-- Handle errors gracefully (network failures, invalid accession numbers)
-- Include timing information (fetch time vs diff time)
+Scripts must:
+- Use only the library's public API (no internal imports)
+- Load fixtures from `libs/edgar-diff-lib/tests/integration/fixtures/` (no network calls)
+- Handle errors gracefully (print meaningful messages, non-zero exit code)
+- Include timing information (parse time + diff time)
 - Work with `npx tsx` (no build step required)
-- Respect EDGAR rate limits via `createEdgarClient`
+- Not be Nx projects — just standalone `tsx` scripts
+
+### 8.3 Test Coverage for Example Scripts
+
+The example scripts themselves should have lightweight smoke tests to prevent bitrot:
+
+```
+describe('example scripts smoke tests', () => {
+  it('EX-1: diff-simple.ts runs without errors and produces output')
+    - Execute via child_process or tsx programmatic API
+    - Assert exit code 0
+    - Assert stdout contains section summary (e.g., "modified", "unchanged")
+
+  it('EX-2: diff-with-tables.ts runs without errors')
+    - Assert exit code 0
+    - Assert stdout contains table diff output (e.g., "rowsModified", "cellsChanged")
+
+  it('EX-3: diff-structural.ts runs without errors')
+    - Assert exit code 0
+    - Assert stdout contains added/removed section output
+
+  it('EX-4: diff-to-json.ts produces valid JSON')
+    - Capture stdout
+    - Assert JSON.parse(stdout) succeeds
+    - Assert parsed result has sectionDiffs, summary, generatedAt fields
+```
+
+These go in `tests/e2e/examples.e2e.test.ts` and run as part of the E2E test suite.
+
+### 8.4 Manual Validation Checklist
+
+After running each example script, manually verify:
+
+| Script | Verify |
+|--------|--------|
+| `diff-simple` | All AAPL sections matched, no unexpected added/removed |
+| `diff-with-tables` | JPM financial tables show numeric changes that make sense (year-over-year values) |
+| `diff-structural` | XOM 2012→2024 shows many structural changes, table stubs for added/removed sections |
+| `diff-to-json` | Output is valid JSON, `generatedAt` is ISO string, `filingDate` is YYYY-MM-DD |
 
 ---
 
@@ -684,4 +706,5 @@ Scripts should:
 | Unit (diff-engine) | `tests/unit/diff/diff-engine.test.ts` |
 | Integration | `tests/integration/diff-pipeline.integration.test.ts` (new) |
 | E2E | `tests/e2e/diff/diff-pipeline.e2e.test.ts` (extend existing) |
-| Example scripts | `examples/diff-filings.ts`, `examples/diff-summary.ts` (new) |
+| Example scripts | `examples/diff-simple.ts`, `diff-with-tables.ts`, `diff-structural.ts`, `diff-to-json.ts` (new) |
+| Example smoke tests | `tests/e2e/examples.e2e.test.ts` (new) |
