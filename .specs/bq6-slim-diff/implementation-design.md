@@ -144,7 +144,7 @@ export interface TableDiff {
 - `DiffRange` / `SourceLocation` — unchanged (these are the key to source lookups)
 - `CellDiff` — unchanged (already contains only diff data + sourceMapping)
 - `RowDiff` — unchanged (already contains only diff data)
-- `WordChange` — unchanged
+- `WordChange` — type unchanged, but `'unchanged'` entries are filtered from `wordChanges[]` arrays at the `diffParagraphs()` boundary
 - `NormalizedGrid`, `NormalizedCell`, `TableMatch`, `TableMatchResult` — internal types, unchanged
 - `RawFiling` — unchanged (it's a client type; we just stop referencing it from diff output)
 
@@ -159,6 +159,7 @@ After filtering, `'unchanged'` is eliminated from most output levels but **retai
 | `TableDiff.changeType` | **No** | Filtered out in `makeSectionDiff()` |
 | `RowDiff.changeType` | **No** | Filtered out in `diffTable()` |
 | `CellDiff.changeType` | **No** | `compareCells()` returns `null` for unchanged cells — they're never constructed |
+| `WordChange.type` | **No** | Filtered out in `diffParagraphs()` — only `added`/`removed` entries retained |
 | `TableDiff.summary.rowsUnchanged` | **Yes** (as a count) | Summary counts reflect all rows, computed before row filtering |
 | `StructuredDiff.summary.unchanged` | **Yes** (as a count) | Top-level summary counts unchanged sections |
 
@@ -395,6 +396,7 @@ Filtering happens at specific architectural boundaries, separating diff algorith
 | Unchanged paragraphs | `makeSectionDiff()` in `diff-engine.ts` | Output assembly concern, not diff algorithm |
 | Unchanged tables | `makeSectionDiff()` in `diff-engine.ts` | Same — `diffTables()` returns the complete picture |
 | Unchanged rows | `diffTable()` in `table-differ.ts` | Part of `TableDiff` construction (rows are internal to a table) |
+| Unchanged word changes | `diffParagraphs()` in `paragraph-differ.ts` | Filtered at output boundary; only `added`/`removed` entries retained |
 | `html` field | `toDiffFilingMetadata()` in `diff-engine.ts` | Stripped when building `StructuredDiff` |
 
 **Key principle:** `diffParagraphs()` and `diffTables()` remain complete diff functions — they return **all** entries including unchanged. Filtering unchanged paragraphs and tables is applied at the `SectionDiff` assembly point in `makeSectionDiff()`. This keeps the diff algorithms pure and testable independently.

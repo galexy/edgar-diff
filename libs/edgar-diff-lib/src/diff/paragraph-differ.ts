@@ -18,10 +18,25 @@ function normalizeText(text: string): string {
 
 function computeWordChanges(oldText: string, newText: string): WordChange[] {
   const changes = diffWords(oldText, newText);
-  return changes.map(c => ({
-    type: c.added ? 'added' : c.removed ? 'removed' : 'unchanged',
-    value: c.value,
-  }));
+  const result: WordChange[] = [];
+  let oldPos = 0;
+  let newPos = 0;
+
+  for (const c of changes) {
+    const len = c.value.length;
+    if (c.added) {
+      result.push({ type: 'added', start: newPos, end: newPos + len });
+      newPos += len;
+    } else if (c.removed) {
+      result.push({ type: 'removed', start: oldPos, end: oldPos + len });
+      oldPos += len;
+    } else {
+      oldPos += len;
+      newPos += len;
+    }
+  }
+
+  return result;
 }
 
 function extractParagraphs(blocks: ContentBlock[]): Paragraph[] {
@@ -269,6 +284,6 @@ export function diffParagraphs(match: SectionMatch): ParagraphDiff[] {
   const oldParagraphs = extractParagraphs(match.oldSection.blocks);
   const newParagraphs = extractParagraphs(match.newSection.blocks);
   const internal = diffParagraphPair(oldParagraphs, newParagraphs);
-  // Strip internal fields but keep all entries (including unchanged)
+  // Strip internal fields (BQ6: computeWordChanges already omits unchanged spans)
   return internal.map(({ _oldParagraph, _newParagraph, ...diff }) => diff);
 }

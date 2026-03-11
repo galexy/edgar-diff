@@ -5,6 +5,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { parseFiling } from '../../../src/parser/parser.js';
 import { diffFilings } from '../../../src/diff/diff-engine.js';
 import { makeRawFiling } from '../../helpers/ground-truth.js';
+import type { Paragraph } from '../../../src/types.js';
 
 const SPIKE_FIXTURES = join(import.meta.dirname, '..', '..', '..', 'spikes', 'diff-algorithm', 'fixtures');
 
@@ -418,8 +419,24 @@ describe('E2E: single word change produces minimal focused diff', () => {
     expect(removedWords.length).toBeGreaterThan(0);
     expect(addedWords.length).toBeGreaterThan(0);
 
-    // The added word should contain our replacement
-    expect(addedWords.some((wc) => wc.value.includes('XREVENUEX'))).toBe(true);
+    // Find the actual paragraph text from the parsed document to verify offsets
+    const newMapping = modifiedParagraphs[0].sourceMapping.new!;
+    function findParagraph(sections: typeof modifiedDoc.sections): Paragraph | undefined {
+      for (const s of sections) {
+        const found = s.blocks.find(
+          (b): b is Paragraph =>
+            b.type === 'paragraph' && b.source.start === newMapping.start && b.source.end === newMapping.end,
+        );
+        if (found) return found;
+        const nested = findParagraph(s.subsections);
+        if (nested) return nested;
+      }
+      return undefined;
+    }
+    const newParagraph = findParagraph(modifiedDoc.sections);
+    expect(newParagraph).toBeDefined();
+    // The added word offset should map to text containing our replacement
+    expect(addedWords.some((wc) => newParagraph!.text.slice(wc.start, wc.end).includes('XREVENUEX'))).toBe(true);
 
     // No tableDiffs anywhere (we only changed paragraph text)
     for (const sd of result.sectionDiffs) {

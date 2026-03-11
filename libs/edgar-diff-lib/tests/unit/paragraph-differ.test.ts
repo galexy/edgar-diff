@@ -104,7 +104,13 @@ describe('paragraph-differ', () => {
     const changes = paragraphDiffs(match(old, neu));
     const moved = changes.filter(c => c.changeType === 'moved');
     expect(moved.length).toBeGreaterThanOrEqual(1);
-    const revenueMove = moved.find(c => c.wordChanges?.some(wc => wc.value.includes('2023') || wc.value.includes('2024')));
+    const oldRevenueText = 'The company reported strong revenue growth in the fiscal year ending December 2023.';
+    const newRevenueText = 'The company reported strong revenue growth in the fiscal year ending December 2024.';
+    const revenueMove = moved.find(c => c.wordChanges?.some(wc => {
+      if (wc.type === 'removed') return oldRevenueText.slice(wc.start, wc.end).includes('2023');
+      if (wc.type === 'added') return newRevenueText.slice(wc.start, wc.end).includes('2024');
+      return false;
+    }));
     assertDefined(revenueMove);
     expect(revenueMove.wordChanges).toBeDefined();
     expect(changes.filter(c => c.changeType === 'added')).toHaveLength(0);
@@ -158,39 +164,50 @@ describe('paragraph-differ', () => {
 
   // PD-U13: Word-level diff identifies specific words
   it('PD-U13: word-level diff identifies specific changed words', () => {
-    const old = makeSection('s1', 'S', [makeParagraph('The cat sat on the mat.', 100)]);
-    const neu = makeSection('s1', 'S', [makeParagraph('The dog sat on the rug.', 100)]);
+    const oldText = 'The cat sat on the mat.';
+    const newText = 'The dog sat on the rug.';
+    const old = makeSection('s1', 'S', [makeParagraph(oldText, 100)]);
+    const neu = makeSection('s1', 'S', [makeParagraph(newText, 100)]);
     const changes = paragraphDiffs(match(old, neu));
     expect(changes[0].changeType).toBe('modified');
     assertDefined(changes[0].wordChanges);
     const wc = changes[0].wordChanges;
-    const removed = wc.filter(w => w.type === 'removed').map(w => w.value);
-    const added = wc.filter(w => w.type === 'added').map(w => w.value);
-    expect(removed.join('')).toContain('cat');
-    expect(added.join('')).toContain('dog');
+    const removedText = wc.filter(w => w.type === 'removed').map(w => oldText.slice(w.start, w.end)).join('');
+    const addedText = wc.filter(w => w.type === 'added').map(w => newText.slice(w.start, w.end)).join('');
+    expect(removedText).toContain('cat');
+    expect(addedText).toContain('dog');
   });
 
   // PD-U14: Numeric changes
   it('PD-U14: word-level diff for numeric changes', () => {
-    const old = makeSection('s1', 'S', [makeParagraph('Revenue was $100M.', 100)]);
-    const neu = makeSection('s1', 'S', [makeParagraph('Revenue was $150M.', 100)]);
+    const oldText = 'Revenue was $100M.';
+    const newText = 'Revenue was $150M.';
+    const old = makeSection('s1', 'S', [makeParagraph(oldText, 100)]);
+    const neu = makeSection('s1', 'S', [makeParagraph(newText, 100)]);
     const changes = paragraphDiffs(match(old, neu));
     expect(changes[0].changeType).toBe('modified');
     assertDefined(changes[0].wordChanges);
     const wc = changes[0].wordChanges;
-    expect(wc.some(w => w.type === 'removed' && w.value.includes('100M'))).toBe(true);
-    expect(wc.some(w => w.type === 'added' && w.value.includes('150M'))).toBe(true);
+    expect(wc.some(w => w.type === 'removed' && oldText.slice(w.start, w.end).includes('100M'))).toBe(true);
+    expect(wc.some(w => w.type === 'added' && newText.slice(w.start, w.end).includes('150M'))).toBe(true);
   });
 
-  // PD-U15: Unchanged spans preserved in word diff
-  it('PD-U15: word-level diff preserves unchanged spans', () => {
-    const old = makeSection('s1', 'S', [makeParagraph('Revenue increased by 10% in fiscal 2023.', 100)]);
-    const neu = makeSection('s1', 'S', [makeParagraph('Revenue increased by 15% in fiscal 2024.', 100)]);
+  // PD-U15: Unchanged spans filtered from word diff (BQ6)
+  it('PD-U15: word-level diff contains only added and removed entries with offsets', () => {
+    const oldText = 'Revenue increased by 10% in fiscal 2023.';
+    const newText = 'Revenue increased by 15% in fiscal 2024.';
+    const old = makeSection('s1', 'S', [makeParagraph(oldText, 100)]);
+    const neu = makeSection('s1', 'S', [makeParagraph(newText, 100)]);
     const changes = paragraphDiffs(match(old, neu));
     assertDefined(changes[0].wordChanges);
     const wc = changes[0].wordChanges;
-    const unchanged = wc.filter(w => w.type === 'unchanged').map(w => w.value).join('');
-    expect(unchanged).toContain('Revenue increased by');
+    // Only added and removed entries (type union no longer includes 'unchanged')
+    expect(wc.every(w => w.type === 'added' || w.type === 'removed')).toBe(true);
+    // Each entry has valid start/end offsets
+    expect(wc.every(w => typeof w.start === 'number' && typeof w.end === 'number' && w.start < w.end)).toBe(true);
+    // The actual changes are still present via offsets
+    expect(wc.some(w => w.type === 'removed' && oldText.slice(w.start, w.end).includes('10'))).toBe(true);
+    expect(wc.some(w => w.type === 'added' && newText.slice(w.start, w.end).includes('15'))).toBe(true);
   });
 
   // PD-U16: Whitespace-only differences treated as unchanged

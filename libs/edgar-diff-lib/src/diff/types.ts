@@ -83,10 +83,15 @@ export interface TableMatchResult {
 
 // --- Paragraph-level diff types (US-1.6) ---
 
-/** A word-level change within a modified or moved paragraph. */
+/** A word-level change within a modified or moved paragraph.
+ *  `start`/`end` are character offsets within the old paragraph text (for 'removed')
+ *  or new paragraph text (for 'added'). Unchanged spans are omitted. */
 export interface WordChange {
-  type: 'added' | 'removed' | 'unchanged';
-  value: string;
+  type: 'added' | 'removed';
+  /** Start character offset (inclusive) within the paragraph text. */
+  start: number;
+  /** End character offset (exclusive) within the paragraph text. */
+  end: number;
 }
 
 /** Diff result for a single paragraph. */

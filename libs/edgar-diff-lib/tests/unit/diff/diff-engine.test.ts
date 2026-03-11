@@ -667,9 +667,10 @@ describe('JSON serialization', () => {
     const pd = json.sectionDiffs[0].paragraphDiffs[0];
     expect(pd.wordChanges).toBeDefined();
     expect(pd.wordChanges.length).toBeGreaterThan(0);
-    const hasTypeAndValue = pd.wordChanges.every(
-      (wc: { type: string; value: string }) => typeof wc.type === 'string' && typeof wc.value === 'string',
+    const hasTypeAndOffsets = pd.wordChanges.every(
+      (wc: { type: string; start: number; end: number }) =>
+        typeof wc.type === 'string' && typeof wc.start === 'number' && typeof wc.end === 'number',
     );
-    expect(hasTypeAndValue).toBe(true);
+    expect(hasTypeAndOffsets).toBe(true);
   });
 });
