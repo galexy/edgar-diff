@@ -1,12 +1,10 @@
 import { Temporal } from '@js-temporal/polyfill';
 import type {
   SourceLocation,
-  FilingSection,
-  Paragraph,
   Table,
   TableCell,
 } from '../types.js';
-import type { RawFiling } from '../client/types.js';
+import type { FormType } from '../client/types.js';
 
 /** Classification of a diff element. */
 export type ChangeType = 'added' | 'removed' | 'modified' | 'unchanged' | 'reordered' | 'moved';
@@ -43,8 +41,6 @@ export interface RowDiff {
 
 export interface TableDiff {
   changeType: ChangeType;
-  oldTable?: Table;
-  newTable?: Table;
   rowDiffs: RowDiff[];
   /** Flat list of all cell-level changes (convenience accessor, derived from rowDiffs). */
   cellDiffs: CellDiff[];
@@ -87,17 +83,20 @@ export interface TableMatchResult {
 
 // --- Paragraph-level diff types (US-1.6) ---
 
-/** A word-level change within a modified or moved paragraph. */
+/** A word-level change within a modified or moved paragraph.
+ *  `start`/`end` are character offsets within the old paragraph text (for 'removed')
+ *  or new paragraph text (for 'added'). Unchanged spans are omitted. */
 export interface WordChange {
-  type: 'added' | 'removed' | 'unchanged';
-  value: string;
+  type: 'added' | 'removed';
+  /** Start character offset (inclusive) within the paragraph text. */
+  start: number;
+  /** End character offset (exclusive) within the paragraph text. */
+  end: number;
 }
 
 /** Diff result for a single paragraph. */
 export interface ParagraphDiff {
   changeType: ChangeType;
-  oldParagraph?: Paragraph;
-  newParagraph?: Paragraph;
   /** Word-level diff breakdown. Present for 'modified' and 'moved' (when text also changed). */
   wordChanges?: WordChange[];
   sourceMapping: DiffRange;
@@ -110,18 +109,26 @@ export interface SectionDiff {
   id: string;
   heading: string;
   changeType: ChangeType;
-  oldSection?: FilingSection;
-  newSection?: FilingSection;
   paragraphDiffs: ParagraphDiff[];
   tableDiffs: TableDiff[];
   subsectionDiffs: SectionDiff[];
   sourceMapping: DiffRange;
 }
 
+/** Filing metadata included in diff output (RawFiling minus the html field). */
+export interface DiffFilingMetadata {
+  accessionNumber: string;
+  cik: string;
+  formType: FormType;
+  filingDate: Temporal.PlainDate;
+  primaryDocumentFilename: string;
+  fetchedAt: Temporal.Instant;
+}
+
 /** Top-level diff result. */
 export interface StructuredDiff {
-  oldFiling: RawFiling;
-  newFiling: RawFiling;
+  oldFiling: DiffFilingMetadata;
+  newFiling: DiffFilingMetadata;
   sectionDiffs: SectionDiff[];
   summary: {
     added: number;

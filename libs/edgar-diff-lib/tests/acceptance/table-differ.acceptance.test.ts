@@ -100,10 +100,8 @@ describe('AC-2: identical tables produce unchanged diff', () => {
       // P2: no cells changed
       expect(diff.summary.cellsChanged).toBe(0);
 
-      // P3: all rowDiffs have changeType 'unchanged'
-      for (const rd of diff.rowDiffs) {
-        expect(rd.changeType).toBe('unchanged');
-      }
+      // P3: rowDiffs is empty (unchanged rows are filtered from rowDiffs)
+      expect(diff.rowDiffs).toHaveLength(0);
 
       // P4: cellDiffs flat list is empty
       expect(diff.cellDiffs).toHaveLength(0);
@@ -266,10 +264,10 @@ describe('AC-5: added table detection', () => {
       const addedDiffs = diffs.filter(d => d.changeType === 'added');
       expect(addedDiffs.length).toBeGreaterThanOrEqual(1);
 
-      // P2: Added TableDiffs have newTable set, oldTable undefined
+      // P2: Added TableDiffs have sourceMapping.new set, sourceMapping.old undefined
       for (const d of addedDiffs) {
-        expect(d.newTable).toBeDefined();
-        expect(d.oldTable).toBeUndefined();
+        expect(d.sourceMapping.new).toBeDefined();
+        expect(d.sourceMapping.old).toBeUndefined();
       }
 
       // P3: Added TableDiffs have empty rowDiffs and cellDiffs
@@ -293,10 +291,10 @@ describe('AC-6: removed table detection', () => {
       const removedDiffs = diffs.filter(d => d.changeType === 'removed');
       expect(removedDiffs.length).toBeGreaterThanOrEqual(1);
 
-      // P2: Removed TableDiffs have oldTable set, newTable undefined
+      // P2: Removed TableDiffs have sourceMapping.old set, sourceMapping.new undefined
       for (const d of removedDiffs) {
-        expect(d.oldTable).toBeDefined();
-        expect(d.newTable).toBeUndefined();
+        expect(d.sourceMapping.old).toBeDefined();
+        expect(d.sourceMapping.new).toBeUndefined();
       }
 
       // P3: Removed TableDiffs have empty rowDiffs and cellDiffs

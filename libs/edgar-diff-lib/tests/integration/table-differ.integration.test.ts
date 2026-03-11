@@ -189,7 +189,8 @@ describe('table diff integration', () => {
     const added = diffs.filter(d => d.changeType === 'added');
     expect(matched.length).toBe(1);
     expect(added.length).toBe(1);
-    expect(added[0].newTable).toBeDefined();
-    expect(added[0].oldTable).toBeUndefined();
+    expect('newTable' in added[0]).toBe(false);
+    expect('oldTable' in added[0]).toBe(false);
+    expect(added[0].sourceMapping.new).toBeDefined();
   });
 });

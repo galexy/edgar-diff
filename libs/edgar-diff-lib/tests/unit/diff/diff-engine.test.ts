@@ -72,14 +72,16 @@ describe('diffFilings', () => {
     expect(result).toHaveProperty('generatedAt');
   });
 
-  it('U-DF-2: oldFiling and newFiling reference input documents', () => {
+  it('U-DF-2: oldFiling and newFiling are DiffFilingMetadata (no html)', () => {
     const { oldDoc, newDoc } = makeDocumentPair(
       [{ id: 'item-1', heading: 'Item 1', content: 'a' }],
       [{ id: 'item-1', heading: 'Item 1', content: 'b' }],
     );
     const result = diffFilings(oldDoc, newDoc);
-    expect(result.oldFiling).toBe(oldDoc.filing);
-    expect(result.newFiling).toBe(newDoc.filing);
+    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
+    expect(result.newFiling.accessionNumber).toBe(newDoc.filing.accessionNumber);
+    expect('html' in result.oldFiling).toBe(false);
+    expect('html' in result.newFiling).toBe(false);
   });
 
   it('U-DF-3: generatedAt is a valid Temporal.Instant', () => {
@@ -241,7 +243,7 @@ describe('diffFilings — table behavior', () => {
     expect(sectionDiff.tableDiffs).toHaveLength(0);
   });
 
-  it('U-MSD-3: matched sections with identical tables produce unchanged tableDiffs', () => {
+  it('U-MSD-3: matched sections with identical tables produce empty tableDiffs (unchanged filtered)', () => {
     const table = [['Header', 'Value'], ['Row1', '100']];
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
@@ -255,8 +257,8 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sectionDiff = result.sectionDiffs[0];
-    expect(sectionDiff.tableDiffs).toHaveLength(1);
-    expect(sectionDiff.tableDiffs[0].changeType).toBe('unchanged');
+    // Unchanged tables are filtered out
+    expect(sectionDiff.tableDiffs).toHaveLength(0);
   });
 
   it('U-MSD-4: added section WITH tables has tableDiffs with changeType added', () => {
@@ -280,8 +282,9 @@ describe('diffFilings — table behavior', () => {
     expect(addedSection!.tableDiffs).toHaveLength(2);
     for (const td of addedSection!.tableDiffs) {
       expect(td.changeType).toBe('added');
-      expect(td.newTable).toBeDefined();
-      expect(td.oldTable).toBeUndefined();
+      expect('newTable' in td).toBe(false);
+      expect('oldTable' in td).toBe(false);
+      expect(td.sourceMapping.new).toBeDefined();
       expect(td.rowDiffs).toEqual([]);
       expect(td.cellDiffs).toEqual([]);
     }
@@ -308,8 +311,9 @@ describe('diffFilings — table behavior', () => {
     expect(removedSection!.tableDiffs).toHaveLength(2);
     for (const td of removedSection!.tableDiffs) {
       expect(td.changeType).toBe('removed');
-      expect(td.oldTable).toBeDefined();
-      expect(td.newTable).toBeUndefined();
+      expect('oldTable' in td).toBe(false);
+      expect('newTable' in td).toBe(false);
+      expect(td.sourceMapping.old).toBeDefined();
       expect(td.rowDiffs).toEqual([]);
       expect(td.cellDiffs).toEqual([]);
     }
@@ -410,7 +414,7 @@ describe('diffFilings — table behavior', () => {
     expect(sd.tableDiffs[0].changeType).toBe('removed');
   });
 
-  it('U-MSD-9: multiple tables in matched section are all diffed', () => {
+  it('U-MSD-9: multiple tables in matched section — unchanged tables filtered', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
         makeTable([['Revenue', '$100'], ['Costs', '$80']], 0),
@@ -425,10 +429,12 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    expect(sd.tableDiffs).toHaveLength(2);
+    // Only the modified table remains (unchanged table filtered out)
+    expect(sd.tableDiffs).toHaveLength(1);
+    expect(sd.tableDiffs[0].changeType).toBe('modified');
   });
 
-  it('U-MSD-10: mismatched table counts (3 old, 2 new) produces correct mix', () => {
+  it('U-MSD-10: mismatched table counts (3 old, 2 new) — unchanged filtered', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
         makeTable([['T1-Header', 'V1']], 0),
@@ -444,10 +450,137 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    // Should have entries for all tables: matched + removed
+    // T1 is unchanged (filtered), T2 is modified, T3 is removed → 2 diffs
     expect(sd.tableDiffs.length).toBeGreaterThanOrEqual(2);
     const removed = sd.tableDiffs.filter(td => td.changeType === 'removed');
     expect(removed.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('slim diff filtering (new behavior)', () => {
+  it('DE-S1: unchanged paragraphs filtered from matched section output', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Stable paragraph one.', 0),
+        makeParagraph('Stable paragraph two.', 100),
+        makeParagraph('This paragraph changes.', 200),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Stable paragraph one.', 0),
+        makeParagraph('Stable paragraph two.', 100),
+        makeParagraph('This paragraph has changed.', 200),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    // Only the modified paragraph remains (2 unchanged filtered)
+    expect(sd.paragraphDiffs).toHaveLength(1);
+    expect(sd.paragraphDiffs[0].changeType).toBe('modified');
+  });
+
+  it('DE-S2: unchanged tables filtered from matched section output', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Metric', 'Value'], ['Revenue', '$100']], 0),
+        makeTable([['Asset', 'Amount'], ['Cash', '$50']], 200),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([['Metric', 'Value'], ['Revenue', '$120']], 0),
+        makeTable([['Asset', 'Amount'], ['Cash', '$50']], 200),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    // Only the modified table remains (1 unchanged filtered)
+    expect(sd.tableDiffs).toHaveLength(1);
+    expect(sd.tableDiffs[0].changeType).toBe('modified');
+  });
+
+  it('DE-S3: section with all unchanged content → empty paragraphDiffs and tableDiffs', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Unchanged text.', 0),
+        makeTable([['Header', 'Value'], ['Row1', '100']], 100),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [
+        makeParagraph('Unchanged text.', 0),
+        makeTable([['Header', 'Value'], ['Row1', '100']], 100),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const sd = result.sectionDiffs[0];
+    expect(sd.changeType).toBe('unchanged');
+    expect(sd.paragraphDiffs).toEqual([]);
+    expect(sd.tableDiffs).toEqual([]);
+    // Section still appears in sectionDiffs (sections are NOT filtered)
+    expect(result.sectionDiffs).toHaveLength(1);
+  });
+
+  it('DE-S4: summary counts computed before filtering (unchanged row count preserved)', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([
+          ['Metric', 'Value'],
+          ['Revenue', '$100'],
+          ['Costs', '$80'],
+          ['Income', '$20'],
+        ], 0),
+      ]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-8', 'Item 8. Financial Statements', [
+        makeTable([
+          ['Metric', 'Value'],
+          ['Revenue', '$120'],
+          ['Costs', '$80'],
+          ['Income', '$20'],
+        ], 0),
+      ]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+    const td = result.sectionDiffs[0].tableDiffs[0];
+    // Summary counts reflect all rows (computed before filtering)
+    expect(td.summary.rowsUnchanged).toBeGreaterThanOrEqual(1);
+    // But rowDiffs only has changed rows
+    expect(td.rowDiffs.length).toBeLessThan(
+      td.summary.rowsAdded + td.summary.rowsRemoved + td.summary.rowsModified + td.summary.rowsUnchanged,
+    );
+  });
+
+  it('DE-S5: oldFiling/newFiling are DiffFilingMetadata (no html)', () => {
+    const oldDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [makeParagraph('Text.', 0)]),
+    ]);
+    const newDoc = makeStructuredDoc([
+      makeSection('item-1', 'Item 1. Business', [makeParagraph('Text updated.', 0)]),
+    ]);
+    const result = diffFilings(oldDoc, newDoc);
+
+    // html field must NOT be present (not just undefined — absent from the object)
+    expect('html' in result.oldFiling).toBe(false);
+    expect('html' in result.newFiling).toBe(false);
+
+    // All DiffFilingMetadata fields must be present
+    expect(result.oldFiling.accessionNumber).toBeDefined();
+    expect(result.oldFiling.cik).toBeDefined();
+    expect(result.oldFiling.formType).toBeDefined();
+    expect(result.oldFiling.filingDate).toBeDefined();
+    expect(result.oldFiling.primaryDocumentFilename).toBeDefined();
+    expect(result.oldFiling.fetchedAt).toBeDefined();
+
+    // Values match original RawFiling
+    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
+    expect(result.oldFiling.cik).toBe(oldDoc.filing.cik);
+    expect(result.oldFiling.formType).toBe(oldDoc.filing.formType);
+    expect(result.newFiling.accessionNumber).toBe(newDoc.filing.accessionNumber);
+    expect(result.newFiling.cik).toBe(newDoc.filing.cik);
+    expect(result.newFiling.formType).toBe(newDoc.filing.formType);
   });
 });
 
@@ -534,9 +667,10 @@ describe('JSON serialization', () => {
     const pd = json.sectionDiffs[0].paragraphDiffs[0];
     expect(pd.wordChanges).toBeDefined();
     expect(pd.wordChanges.length).toBeGreaterThan(0);
-    const hasTypeAndValue = pd.wordChanges.every(
-      (wc: { type: string; value: string }) => typeof wc.type === 'string' && typeof wc.value === 'string',
+    const hasTypeAndOffsets = pd.wordChanges.every(
+      (wc: { type: string; start: number; end: number }) =>
+        typeof wc.type === 'string' && typeof wc.start === 'number' && typeof wc.end === 'number',
     );
-    expect(hasTypeAndValue).toBe(true);
+    expect(hasTypeAndOffsets).toBe(true);
   });
 });

@@ -5,6 +5,7 @@ import { Temporal } from '@js-temporal/polyfill';
 import { parseFiling } from '../../../src/parser/parser.js';
 import { diffFilings } from '../../../src/diff/diff-engine.js';
 import { makeRawFiling } from '../../helpers/ground-truth.js';
+import type { Paragraph } from '../../../src/types.js';
 
 const SPIKE_FIXTURES = join(import.meta.dirname, '..', '..', '..', 'spikes', 'diff-algorithm', 'fixtures');
 
@@ -33,8 +34,11 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
   it('E2E-1: parseFiling -> diffFilings produces complete StructuredDiff', () => {
     const result = diffFilings(oldDoc, newDoc);
 
-    expect(result.oldFiling).toBe(oldFiling);
-    expect(result.newFiling).toBe(newFiling);
+    // DiffFilingMetadata — value equality, no html
+    expect(result.oldFiling.accessionNumber).toBe(oldFiling.accessionNumber);
+    expect(result.newFiling.accessionNumber).toBe(newFiling.accessionNumber);
+    expect('html' in result.oldFiling).toBe(false);
+    expect('html' in result.newFiling).toBe(false);
     expect(result.sectionDiffs).toBeDefined();
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
     expect(result.summary).toBeDefined();
@@ -48,25 +52,25 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
     expect(typeof result.summary.reordered).toBe('number');
   });
 
-  it('E2E-2: StructuredDiff output is JSON-serializable', () => {
+  it('E2E-2: StructuredDiff output is JSON-serializable (DiffFilingMetadata)', () => {
     const result = diffFilings(oldDoc, newDoc);
 
-    // Temporal.Instant needs custom serialization
-    const serialized = JSON.stringify(result, (key, value) => {
-      if (value instanceof Temporal.Instant) {
-        return value.toString();
-      }
-      if (value instanceof Temporal.PlainDate) {
-        return value.toString();
-      }
-      return value;
-    });
+    // Temporal polyfill provides toJSON() natively — no custom replacer needed
+    const serialized = JSON.stringify(result);
 
     expect(() => JSON.parse(serialized)).not.toThrow();
     const parsed = JSON.parse(serialized);
     expect(parsed.sectionDiffs.length).toBe(result.sectionDiffs.length);
     expect(parsed.summary).toEqual(result.summary);
     expect(typeof parsed.generatedAt).toBe('string');
+
+    // DiffFilingMetadata: no html field in serialized output
+    expect('html' in parsed.oldFiling).toBe(false);
+    expect('html' in parsed.newFiling).toBe(false);
+    // Metadata fields present
+    expect(parsed.oldFiling.accessionNumber).toBeDefined();
+    expect(parsed.oldFiling.cik).toBeDefined();
+    expect(typeof parsed.oldFiling.filingDate).toBe('string');
   });
 
   it('E2E-3: DiffRange source mappings reference valid offsets', () => {
@@ -102,7 +106,7 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
     }
   });
 
-  it('E2E-4: diffing a document against itself produces all unchanged', () => {
+  it('E2E-4: diffing a document against itself produces all unchanged (with filtering)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -113,6 +117,9 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
+      // BQ6: unchanged paragraphs and tables are filtered from output
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
     }
   });
 
@@ -293,6 +300,10 @@ describe('E2E: structured diff with tables', () => {
         expect(parsedTd.cellDiffs.length).toBe(origTd.cellDiffs.length);
         expect(parsedTd.summary).toEqual(origTd.summary);
 
+        // BQ6: oldTable/newTable absent after round-trip
+        expect('oldTable' in parsedTd).toBe(false);
+        expect('newTable' in parsedTd).toBe(false);
+
         // cellDiff oldValue/newValue preserved
         for (let k = 0; k < origTd.cellDiffs.length; k++) {
           expect(parsedTd.cellDiffs[k].oldValue).toBe(origTd.cellDiffs[k].oldValue);
@@ -307,7 +318,7 @@ describe('E2E: structured diff with tables', () => {
     expect(typeof parsed.newFiling.filingDate).toBe('string');
   });
 
-  it('E2E-T6: self-diff produces no table changes', () => {
+  it('E2E-T6: self-diff produces no table changes (all filtered)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -316,10 +327,9 @@ describe('E2E: structured diff with tables', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
-      for (const td of sd.tableDiffs) {
-        expect(td.changeType).toBe('unchanged');
-        expect(td.summary.cellsChanged).toBe(0);
-      }
+      // BQ6: unchanged paragraphs and tables are filtered from output
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
     }
   });
 
@@ -343,5 +353,117 @@ describe('E2E: structured diff with tables', () => {
       }
     }
     expect(result1.summary).toEqual(result2.summary);
+  });
+
+  it('E2E-S1: output JSON size is within target bounds (< 1MB)', () => {
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.stringify(result);
+    const sizeBytes = json.length;
+    const sizeMB = sizeBytes / (1024 * 1024);
+
+    // Log actual size for manual inspection
+    console.log(`E2E-S1: output JSON size = ${sizeBytes} bytes (${sizeMB.toFixed(2)} MB)`);
+
+    // Target: ~0.2MB for typical diffs (was ~22MB before BQ6)
+    // Apple 10-K is a large filing with many tables/sections — allow up to 2MB
+    expect(sizeBytes).toBeLessThan(2 * 1024 * 1024); // < 2MB
+  });
+});
+
+describe('E2E: single word change produces minimal focused diff', () => {
+  const originalHtml = loadSpikeFixture('apple-fy2024.htm');
+  // Replace the first occurrence of "revenue" with "XREVENUEX" (unmistakable marker)
+  const modifiedHtml = originalHtml.replace(/\brevenue\b/i, 'XREVENUEX');
+
+  // Sanity: the replacement actually changed something
+  expect(modifiedHtml).not.toBe(originalHtml);
+
+  const originalFiling = makeRawFiling(originalHtml, {
+    accessionNumber: '0000320193-24-000123',
+    cik: '0000320193',
+    filingDate: Temporal.PlainDate.from('2024-11-01'),
+  });
+  const modifiedFiling = makeRawFiling(modifiedHtml, {
+    accessionNumber: '0000320193-24-000124',
+    cik: '0000320193',
+    filingDate: Temporal.PlainDate.from('2024-11-01'),
+  });
+
+  const originalDoc = parseFiling(originalFiling);
+  const modifiedDoc = parseFiling(modifiedFiling);
+
+  it('E2E-S2: single word change produces minimal focused diff output', () => {
+    const result = diffFilings(originalDoc, modifiedDoc);
+
+    // Exactly 1 section should be modified
+    const modifiedSections = result.sectionDiffs.filter(
+      (sd) => sd.changeType !== 'unchanged',
+    );
+    expect(modifiedSections.length).toBe(1);
+    expect(modifiedSections[0].changeType).toBe('modified');
+
+    // That section should have exactly 1 modified paragraphDiff
+    const modifiedParagraphs = modifiedSections[0].paragraphDiffs.filter(
+      (pd) => pd.changeType === 'modified',
+    );
+    expect(modifiedParagraphs.length).toBe(1);
+
+    // The modified paragraph should have wordChanges containing the specific change
+    const wordChanges = modifiedParagraphs[0].wordChanges;
+    expect(wordChanges).toBeDefined();
+    expect(wordChanges!.length).toBeGreaterThan(0);
+
+    // Should contain a 'removed' word and an 'added' word for the change
+    const removedWords = wordChanges!.filter((wc) => wc.type === 'removed');
+    const addedWords = wordChanges!.filter((wc) => wc.type === 'added');
+    expect(removedWords.length).toBeGreaterThan(0);
+    expect(addedWords.length).toBeGreaterThan(0);
+
+    // Find the actual paragraph text from the parsed document to verify offsets
+    const newMapping = modifiedParagraphs[0].sourceMapping.new!;
+    function findParagraph(sections: typeof modifiedDoc.sections): Paragraph | undefined {
+      for (const s of sections) {
+        const found = s.blocks.find(
+          (b): b is Paragraph =>
+            b.type === 'paragraph' && b.source.start === newMapping.start && b.source.end === newMapping.end,
+        );
+        if (found) return found;
+        const nested = findParagraph(s.subsections);
+        if (nested) return nested;
+      }
+      return undefined;
+    }
+    const newParagraph = findParagraph(modifiedDoc.sections);
+    expect(newParagraph).toBeDefined();
+    // The added word offset should map to text containing our replacement
+    expect(addedWords.some((wc) => newParagraph!.text.slice(wc.start, wc.end).includes('XREVENUEX'))).toBe(true);
+
+    // No tableDiffs anywhere (we only changed paragraph text)
+    for (const sd of result.sectionDiffs) {
+      expect(sd.tableDiffs).toEqual([]);
+    }
+
+    // All other sections should be unchanged with empty diffs
+    const unchangedSections = result.sectionDiffs.filter(
+      (sd) => sd.changeType === 'unchanged',
+    );
+    expect(unchangedSections.length).toBe(result.sectionDiffs.length - 1);
+    for (const sd of unchangedSections) {
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
+    }
+
+    // Summary should show exactly 1 modified
+    expect(result.summary.modified).toBe(1);
+    expect(result.summary.added).toBe(0);
+    expect(result.summary.removed).toBe(0);
+    expect(result.summary.reordered).toBe(0);
+    expect(result.summary.unchanged).toBe(result.sectionDiffs.length - 1);
+
+    // Output JSON should be small (< 50 KB for a single word change)
+    const json = JSON.stringify(result);
+    const sizeBytes = json.length;
+    console.log(`E2E-S2: output JSON size = ${sizeBytes} bytes (${(sizeBytes / 1024).toFixed(1)} KB)`);
+    expect(sizeBytes).toBeLessThan(50 * 1024); // < 50 KB
   });
 });

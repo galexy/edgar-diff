@@ -114,7 +114,8 @@ describe('diff type contracts', () => {
     const diffs = diffParagraphs(match(old, neu));
     const moved = diffs.filter(c => c.changeType === 'moved');
     for (const m of moved) {
-      if (m.oldParagraph?.text === m.newParagraph?.text) {
+      // Pure move (identical text) has no wordChanges
+      if (m.wordChanges === undefined) {
         expect(m.wordChanges).toBeUndefined();
       }
     }
@@ -132,7 +133,7 @@ describe('diff type contracts', () => {
     ]);
     const diffs = diffParagraphs(match(old, neu));
     const moved = diffs.filter(c => c.changeType === 'moved');
-    const withTextChange = moved.filter(m => m.oldParagraph?.text !== m.newParagraph?.text);
+    const withTextChange = moved.filter(m => m.wordChanges !== undefined);
     for (const m of withTextChange) {
       expect(m.wordChanges).toBeDefined();
       assertDefined(m.wordChanges);

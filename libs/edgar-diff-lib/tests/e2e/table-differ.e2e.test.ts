@@ -53,10 +53,14 @@ describe('table diff e2e', () => {
         continue;
       }
 
-      // Summary counts should equal total rowDiffs
+      // Summary counts should be internally consistent (unchanged rows are filtered from rowDiffs)
       const total = diff.summary.rowsAdded + diff.summary.rowsRemoved +
         diff.summary.rowsModified + diff.summary.rowsUnchanged;
-      expect(total).toBe(diff.rowDiffs.length);
+      expect(total).toBeGreaterThanOrEqual(diff.rowDiffs.length);
+      // rowDiffs only contains changed rows (no unchanged)
+      expect(diff.rowDiffs.length).toBe(
+        diff.summary.rowsAdded + diff.summary.rowsRemoved + diff.summary.rowsModified,
+      );
 
       // cellDiffs.length should equal summary.cellsChanged
       expect(diff.cellDiffs.length).toBe(diff.summary.cellsChanged);

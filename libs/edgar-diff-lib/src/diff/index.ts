@@ -30,6 +30,6 @@ export type { SectionMatch, AlignmentResult } from './section-aligner.js';
 export { diffParagraphs } from './paragraph-differ.js';
 
 export type {
-  SectionDiff, StructuredDiff,
+  SectionDiff, StructuredDiff, DiffFilingMetadata,
   ParagraphDiff, WordChange, AlignmentOptions, DiffOptions,
 } from './types.js';

@@ -4,6 +4,12 @@ import type { ContentBlock, Paragraph } from '../types.js';
 import type { SectionMatch } from './section-aligner.js';
 import type { ParagraphDiff, WordChange } from './types.js';
 
+/** Internal type that carries paragraph references through the pipeline. Stripped at the boundary. */
+interface InternalParagraphDiff extends ParagraphDiff {
+  _oldParagraph?: Paragraph;
+  _newParagraph?: Paragraph;
+}
+
 const MOVE_THRESHOLD = 0.9;
 
 function normalizeText(text: string): string {
@@ -12,10 +18,25 @@ function normalizeText(text: string): string {
 
 function computeWordChanges(oldText: string, newText: string): WordChange[] {
   const changes = diffWords(oldText, newText);
-  return changes.map(c => ({
-    type: c.added ? 'added' : c.removed ? 'removed' : 'unchanged',
-    value: c.value,
-  }));
+  const result: WordChange[] = [];
+  let oldPos = 0;
+  let newPos = 0;
+
+  for (const c of changes) {
+    const len = c.value.length;
+    if (c.added) {
+      result.push({ type: 'added', start: newPos, end: newPos + len });
+      newPos += len;
+    } else if (c.removed) {
+      result.push({ type: 'removed', start: oldPos, end: oldPos + len });
+      oldPos += len;
+    } else {
+      oldPos += len;
+      newPos += len;
+    }
+  }
+
+  return result;
 }
 
 function extractParagraphs(blocks: ContentBlock[]): Paragraph[] {
@@ -25,7 +46,7 @@ function extractParagraphs(blocks: ContentBlock[]): Paragraph[] {
 function diffParagraphPair(
   oldParagraphs: Paragraph[],
   newParagraphs: Paragraph[],
-): ParagraphDiff[] {
+): InternalParagraphDiff[] {
   if (oldParagraphs.length === 0 && newParagraphs.length === 0) return [];
 
   const oldNormalized = oldParagraphs.map(p => normalizeText(p.text));
@@ -33,7 +54,7 @@ function diffParagraphPair(
 
   const result = diffArrays(oldNormalized, newNormalized);
 
-  const changes: ParagraphDiff[] = [];
+  const changes: InternalParagraphDiff[] = [];
   let oldIdx = 0;
   let newIdx = 0;
 
@@ -43,8 +64,8 @@ function diffParagraphPair(
       for (let i = 0; i < count; i++) {
         changes.push({
           changeType: 'unchanged',
-          oldParagraph: oldParagraphs[oldIdx],
-          newParagraph: newParagraphs[newIdx],
+          _oldParagraph: oldParagraphs[oldIdx],
+          _newParagraph: newParagraphs[newIdx],
           sourceMapping: {
             old: oldParagraphs[oldIdx].source,
             new: newParagraphs[newIdx].source,
@@ -57,7 +78,7 @@ function diffParagraphPair(
       for (let i = 0; i < count; i++) {
         changes.push({
           changeType: 'removed',
-          oldParagraph: oldParagraphs[oldIdx],
+          _oldParagraph: oldParagraphs[oldIdx],
           sourceMapping: { old: oldParagraphs[oldIdx].source },
         });
         oldIdx++;
@@ -66,7 +87,7 @@ function diffParagraphPair(
       for (let i = 0; i < count; i++) {
         changes.push({
           changeType: 'added',
-          newParagraph: newParagraphs[newIdx],
+          _newParagraph: newParagraphs[newIdx],
           sourceMapping: { new: newParagraphs[newIdx].source },
         });
         newIdx++;
@@ -78,8 +99,8 @@ function diffParagraphPair(
   return detectMoves(paired);
 }
 
-function pairRemovedAdded(changes: ParagraphDiff[]): ParagraphDiff[] {
-  const result: ParagraphDiff[] = [];
+function pairRemovedAdded(changes: InternalParagraphDiff[]): InternalParagraphDiff[] {
+  const result: InternalParagraphDiff[] = [];
   let i = 0;
   while (i < changes.length) {
     if (
@@ -87,15 +108,15 @@ function pairRemovedAdded(changes: ParagraphDiff[]): ParagraphDiff[] {
       i + 1 < changes.length &&
       changes[i + 1].changeType === 'added'
     ) {
-      const oldPara = changes[i].oldParagraph;
-      const newPara = changes[i + 1].newParagraph;
+      const oldPara = changes[i]._oldParagraph;
+      const newPara = changes[i + 1]._newParagraph;
       if (!oldPara || !newPara) { i++; continue; }
       const oldText = oldPara.text;
       const newText = newPara.text;
       result.push({
         changeType: 'modified',
-        oldParagraph: changes[i].oldParagraph,
-        newParagraph: changes[i + 1].newParagraph,
+        _oldParagraph: oldPara,
+        _newParagraph: newPara,
         wordChanges: computeWordChanges(oldText, newText),
         sourceMapping: {
           old: changes[i].sourceMapping.old,
@@ -111,7 +132,7 @@ function pairRemovedAdded(changes: ParagraphDiff[]): ParagraphDiff[] {
   return result;
 }
 
-function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
+function detectMoves(changes: InternalParagraphDiff[]): InternalParagraphDiff[] {
   const removedIndices: number[] = [];
   const addedIndices: number[] = [];
 
@@ -125,12 +146,12 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
   // Pre-compute normalized text for all candidates (avoids redundant normalizeText calls)
   const removedNorms = new Map<number, string>();
   for (const ri of removedIndices) {
-    const p = changes[ri].oldParagraph;
+    const p = changes[ri]._oldParagraph;
     if (p) removedNorms.set(ri, normalizeText(p.text));
   }
   const addedNorms = new Map<number, string>();
   for (const ai of addedIndices) {
-    const p = changes[ai].newParagraph;
+    const p = changes[ai]._newParagraph;
     if (p) addedNorms.set(ai, normalizeText(p.text));
   }
 
@@ -154,12 +175,12 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
       if (usedAdded.has(ai)) continue;
       usedRemoved.add(ri);
       usedAdded.add(ai);
-      const oldPara = changes[ri].oldParagraph!;
-      const newPara = changes[ai].newParagraph!;
-      const movedEntry: ParagraphDiff = {
+      const oldPara = changes[ri]._oldParagraph!;
+      const newPara = changes[ai]._newParagraph!;
+      const movedEntry: InternalParagraphDiff = {
         changeType: 'moved',
-        oldParagraph: oldPara,
-        newParagraph: newPara,
+        _oldParagraph: oldPara,
+        _newParagraph: newPara,
         sourceMapping: { old: oldPara.source, new: newPara.source },
       };
       result[ri] = movedEntry;
@@ -233,15 +254,15 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
       usedRemoved.add(pair.removedIdx);
       usedAdded.add(pair.addedIdx);
 
-      const oldPara = changes[pair.removedIdx].oldParagraph!;
-      const newPara = changes[pair.addedIdx].newParagraph!;
+      const oldPara = changes[pair.removedIdx]._oldParagraph!;
+      const newPara = changes[pair.addedIdx]._newParagraph!;
       const rNorm = removedNorms.get(pair.removedIdx)!;
       const aNorm = addedNorms.get(pair.addedIdx)!;
 
-      const movedEntry: ParagraphDiff = {
+      const movedEntry: InternalParagraphDiff = {
         changeType: 'moved',
-        oldParagraph: oldPara,
-        newParagraph: newPara,
+        _oldParagraph: oldPara,
+        _newParagraph: newPara,
         sourceMapping: { old: oldPara.source, new: newPara.source },
       };
       if (rNorm !== aNorm) {
@@ -262,5 +283,7 @@ function detectMoves(changes: ParagraphDiff[]): ParagraphDiff[] {
 export function diffParagraphs(match: SectionMatch): ParagraphDiff[] {
   const oldParagraphs = extractParagraphs(match.oldSection.blocks);
   const newParagraphs = extractParagraphs(match.newSection.blocks);
-  return diffParagraphPair(oldParagraphs, newParagraphs);
+  const internal = diffParagraphPair(oldParagraphs, newParagraphs);
+  // Strip internal fields (BQ6: computeWordChanges already omits unchanged spans)
+  return internal.map(({ _oldParagraph, _newParagraph, ...diff }) => diff);
 }

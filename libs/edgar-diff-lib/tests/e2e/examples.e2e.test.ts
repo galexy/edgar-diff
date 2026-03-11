@@ -32,7 +32,7 @@ describe('example scripts smoke tests', () => {
     const stdout = runExample('diff-with-tables.ts');
 
     expect(stdout).toContain('diff-with-tables');
-    expect(stdout).toContain('Table diffs:');
+    expect(stdout).toContain('Table changes:');
     expect(stdout).toContain('Cells changed:');
   }, 60_000);
 

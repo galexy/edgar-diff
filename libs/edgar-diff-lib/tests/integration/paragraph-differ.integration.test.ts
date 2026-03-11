@@ -55,9 +55,15 @@ describe('PD-I1: cross-year diff produces reasonable change count', () => {
     // Cross-year filings should have some changes
     expect(totalChanges).toBeGreaterThan(0);
 
-    // But not everything should be changed (some paragraphs are boilerplate)
+    // Unchanged paragraphs are now filtered from diffFilings output.
+    // Verify that total changes is less than total paragraphs (some unchanged exist but are filtered).
     const unchangedCount = allParagraphDiffs.filter(pd => pd.changeType === 'unchanged').length;
-    expect(unchangedCount).toBeGreaterThan(0);
+    expect(unchangedCount).toBe(0); // unchanged paragraphs are filtered out
+    // But not all paragraphs should be changed — unchanged sections have empty paragraphDiffs
+    const sectionsWithEmptyParagraphs = result.sectionDiffs.filter(
+      sd => sd.paragraphDiffs.length === 0 && sd.changeType === 'unchanged',
+    ).length;
+    expect(sectionsWithEmptyParagraphs).toBeGreaterThan(0);
   });
 });
 
@@ -99,11 +105,9 @@ describe('PD-I3: identity diff', () => {
     expect(addedSections).toHaveLength(0);
     expect(removedSections).toHaveLength(0);
 
-    // All paragraph diffs should be unchanged
+    // Self-diff: all paragraphs are unchanged and filtered out
     for (const sd of result.sectionDiffs) {
-      for (const pd of sd.paragraphDiffs) {
-        expect(pd.changeType).toBe('unchanged');
-      }
+      expect(sd.paragraphDiffs).toHaveLength(0);
     }
   });
 });
