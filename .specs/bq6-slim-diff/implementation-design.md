@@ -13,7 +13,7 @@ The source content is redundant — consumers already have the parsed documents 
 This is a breaking change to the public API. The approach is:
 
 1. **Remove embedded source objects** from `SectionDiff`, `ParagraphDiff`, and `TableDiff` type definitions
-2. **Strip the `html` field** from `RawFiling` at the top level, keeping only metadata (introduce `FilingMetadata` type)
+2. **Strip the `html` field** from `RawFiling` at the top level, keeping only metadata (introduce `DiffFilingMetadata` type)
 3. **Filter out unchanged elements** — unchanged paragraphs, tables, and table rows add no information to a diff and are the primary source of bloat
 4. **Preserve all diff-meaningful data** — `changeType`, `wordChanges`, `cellDiffs`, `rowDiffs`, `sourceMapping`, `summary`
 
@@ -38,7 +38,7 @@ export interface StructuredDiff {
 
 **After:**
 ```typescript
-export interface FilingMetadata {
+export interface DiffFilingMetadata {
   accessionNumber: string;
   cik: string;
   formType: FormType;
@@ -48,17 +48,17 @@ export interface FilingMetadata {
 }
 
 export interface StructuredDiff {
-  oldFiling: FilingMetadata;   // no html field
-  newFiling: FilingMetadata;   // no html field
+  oldFiling: DiffFilingMetadata;   // no html field
+  newFiling: DiffFilingMetadata;   // no html field
   sectionDiffs: SectionDiff[];
   summary: { added: number; removed: number; modified: number; unchanged: number; reordered: number };
   generatedAt: Temporal.Instant;
 }
 ```
 
-`FilingMetadata` is `Omit<RawFiling, 'html'>` as a named type. It lives in `diff/types.ts` alongside the other diff types, with `FormType` imported from `client/types.ts`.
+`DiffFilingMetadata` is `Omit<RawFiling, 'html'>` as a named type. It lives in `diff/types.ts` alongside the other diff types, with `FormType` imported from `client/types.ts`.
 
-**Naming note:** There is an existing `FilingMetadata` in `client/types.ts` (lines 69-74) used internally for EFTS search results with a different shape (`formType: string`, `filingDate: string`). Since the diff-specific type lives in `diff/types.ts` and is only imported from there, the names don't collide at the import level. If ambiguity becomes a concern during implementation, rename to `DiffFilingMetadata`.
+**Naming note:** There is an existing `FilingMetadata` in `client/types.ts` (lines 69-74) used internally for EFTS search results with a different shape (`formType: string`, `filingDate: string`). The diff-specific type is named `DiffFilingMetadata` to avoid confusion. Since they live in different modules (`client/types.ts` vs `diff/types.ts`), there is no import-level collision.
 
 ### 2. `SectionDiff` — remove embedded sections
 
@@ -153,12 +153,12 @@ export interface TableDiff {
 ### 1. `libs/edgar-diff-lib/src/diff/types.ts` — Type definitions
 
 **Changes:**
-- Add `FilingMetadata` interface (new type, ~7 lines)
-- Add `import type { FormType } from '../client/types.js'` for `FilingMetadata`
+- Add `DiffFilingMetadata` interface (new type, ~7 lines)
+- Add `import type { FormType } from '../client/types.js'` for `DiffFilingMetadata`
 - Remove `oldSection?` / `newSection?` from `SectionDiff`
 - Remove `oldParagraph?` / `newParagraph?` from `ParagraphDiff`
 - Remove `oldTable?` / `newTable?` from `TableDiff`
-- Update `StructuredDiff.oldFiling` / `newFiling` from `RawFiling` to `FilingMetadata`
+- Update `StructuredDiff.oldFiling` / `newFiling` from `RawFiling` to `DiffFilingMetadata`
 - Remove unused imports: `FilingSection`, `Paragraph`, `Table` (no longer referenced)
 - Keep `TableCell` import (still used by `NormalizedCell`)
 
@@ -166,9 +166,9 @@ export interface TableDiff {
 
 **Changes:**
 
-a) **Add `toFilingMetadata()` helper:**
+a) **Add `toDiffFilingMetadata()` helper:**
 ```typescript
-function toFilingMetadata(filing: RawFiling): FilingMetadata {
+function toDiffFilingMetadata(filing: RawFiling): DiffFilingMetadata {
   return {
     accessionNumber: filing.accessionNumber,
     cik: filing.cik,
@@ -195,16 +195,16 @@ tableDiffs = tableDiffs.filter(td => td.changeType !== 'unchanged');
 ```
 
 c) **Update `diffFilings()` return value:**
-- Replace `oldDoc.filing` with `toFilingMetadata(oldDoc.filing)`
-- Replace `newDoc.filing` with `toFilingMetadata(newDoc.filing)`
+- Replace `oldDoc.filing` with `toDiffFilingMetadata(oldDoc.filing)`
+- Replace `newDoc.filing` with `toDiffFilingMetadata(newDoc.filing)`
 
 d) **Update imports:**
-- Add `FilingMetadata` import from `./types.js`
+- Add `DiffFilingMetadata` import from `./types.js`
 - Add `RawFiling` import from `../client/types.js` (for the helper parameter type)
 
-e) **`toFilingMetadata()` is independently testable:**
+e) **`toDiffFilingMetadata()` is independently testable:**
 - Input: `RawFiling` with large `html` string
-- Output: `FilingMetadata` with all metadata fields, `html` key **absent** (not just `undefined`)
+- Output: `DiffFilingMetadata` with all metadata fields, `html` key **absent** (not just `undefined`)
 - Should have a direct unit test in `diff-engine.test.ts`
 
 ### 3. `libs/edgar-diff-lib/src/diff/paragraph-differ.ts` — Paragraph diffing
@@ -293,12 +293,12 @@ Also, in `diff-engine.ts` `makeSectionDiff()` — the inline `TableDiff` objects
 ### 5. `libs/edgar-diff-lib/src/diff/index.ts` — Barrel exports
 
 **Changes:**
-- Export `FilingMetadata` type from `./types.js`
+- Export `DiffFilingMetadata` type from `./types.js`
 
 ### 6. `libs/edgar-diff-lib/src/index.ts` — Public API re-exports
 
 **Changes:**
-- Export `FilingMetadata` type (add to the diff type re-exports)
+- Export `DiffFilingMetadata` type (add to the diff type re-exports)
 
 ### 7. Test files — Update assertions
 
@@ -306,7 +306,7 @@ Multiple test files reference `oldSection`, `newSection`, `oldParagraph`, `newPa
 
 | Test file | Changes needed |
 |-----------|---------------|
-| `tests/unit/diff-filings.test.ts` | Remove assertions on `oldSection`/`newSection`, `oldFiling.html`/`newFiling.html`; update to `FilingMetadata` shape |
+| `tests/unit/diff-filings.test.ts` | Remove assertions on `oldSection`/`newSection`, `oldFiling.html`/`newFiling.html`; update to `DiffFilingMetadata` shape |
 | `tests/unit/diff/diff-engine.test.ts` | Same as above |
 | `tests/unit/paragraph-differ.test.ts` | Remove assertions on `oldParagraph`/`newParagraph`; verify `sourceMapping` instead |
 | `tests/unit/table-differ.test.ts` | Remove assertions on `oldTable`/`newTable`; verify unchanged rows are filtered out |
@@ -352,8 +352,8 @@ diffFilings(oldDoc, newDoc, options?)
   ├── buildSummary(sectionDiffs)   ← unchanged
   │
   └── Return StructuredDiff {
-        oldFiling: toFilingMetadata(oldDoc.filing),   ← NEW: stripped
-        newFiling: toFilingMetadata(newDoc.filing),   ← NEW: stripped
+        oldFiling: toDiffFilingMetadata(oldDoc.filing),   ← NEW: stripped
+        newFiling: toDiffFilingMetadata(newDoc.filing),   ← NEW: stripped
         sectionDiffs,                                  ← slimmed
         summary,
         generatedAt
@@ -371,7 +371,7 @@ Filtering happens at specific architectural boundaries, separating diff algorith
 | Unchanged paragraphs | `makeSectionDiff()` in `diff-engine.ts` | Output assembly concern, not diff algorithm |
 | Unchanged tables | `makeSectionDiff()` in `diff-engine.ts` | Same — `diffTables()` returns the complete picture |
 | Unchanged rows | `diffTable()` in `table-differ.ts` | Part of `TableDiff` construction (rows are internal to a table) |
-| `html` field | `toFilingMetadata()` in `diff-engine.ts` | Stripped when building `StructuredDiff` |
+| `html` field | `toDiffFilingMetadata()` in `diff-engine.ts` | Stripped when building `StructuredDiff` |
 
 **Key principle:** `diffParagraphs()` and `diffTables()` remain complete diff functions — they return **all** entries including unchanged. Filtering unchanged paragraphs and tables is applied at the `SectionDiff` assembly point in `makeSectionDiff()`. This keeps the diff algorithms pure and testable independently.
 
@@ -427,14 +427,14 @@ For added and removed sections, all child elements have non-unchanged change typ
 
 | Change | Migration |
 |--------|-----------|
-| `StructuredDiff.oldFiling` / `newFiling` type changes from `RawFiling` to `FilingMetadata` | Consumers accessing `.html` must get it from the original `StructuredDocument.filing.html` instead |
+| `StructuredDiff.oldFiling` / `newFiling` type changes from `RawFiling` to `DiffFilingMetadata` | Consumers accessing `.html` must get it from the original `StructuredDocument.filing.html` instead |
 | `SectionDiff.oldSection` / `newSection` removed | Use `sourceMapping.old` / `sourceMapping.new` to locate section in source HTML |
 | `ParagraphDiff.oldParagraph` / `newParagraph` removed | Use `sourceMapping` + `wordChanges` for diff content; use source document for full text |
 | `TableDiff.oldTable` / `newTable` removed | Use `sourceMapping` for source location; use `cellDiffs` / `rowDiffs` for diff content |
 | Unchanged paragraphs no longer in `paragraphDiffs[]` | Previously `paragraphDiffs` included `changeType: 'unchanged'` entries; now only changed items appear |
 | Unchanged tables no longer in `tableDiffs[]` | Same as paragraphs |
 | Unchanged rows no longer in `rowDiffs[]` | `summary.rowsUnchanged` still reports the count |
-| New exported type `FilingMetadata` | Available for import from the public API |
+| New exported type `DiffFilingMetadata` | Available for import from the public API |
 
 ### Unchanged API surface
 
@@ -499,7 +499,7 @@ For added and removed sections, all child elements have non-unchanged change typ
 
 The `pairRemovedAdded()` and `detectMoves()` functions currently read `changes[i].oldParagraph` / `changes[i].newParagraph` during intermediate processing. The `InternalParagraphDiff` approach ensures these reads continue to work. The stripping happens only at the `diffParagraphs()` boundary — all internal functions work with the enriched type.
 
-### 9. `FilingMetadata.filingDate` serialization
+### 9. `DiffFilingMetadata.filingDate` serialization
 
 `Temporal.PlainDate` serializes to ISO string (e.g., `"2023-11-03"`) via `toJSON()`. Same behavior as before — no change.
 
@@ -574,11 +574,11 @@ for (const pd of sectionDiff.paragraphDiffs) {
 
 ## Implementation Order
 
-1. **Types first** — Update `diff/types.ts` (add `FilingMetadata`, remove embedded source fields)
+1. **Types first** — Update `diff/types.ts` (add `DiffFilingMetadata`, remove embedded source fields)
 2. **Table differ** — Update `table-differ.ts` (remove `oldTable`/`newTable`, filter unchanged rows)
 3. **Paragraph differ** — Update `paragraph-differ.ts` (introduce `InternalParagraphDiff`, strip at boundary)
-4. **Diff engine** — Update `diff-engine.ts` (add `toFilingMetadata`, filter unchanged paragraphs/tables, remove `oldSection`/`newSection`)
-5. **Exports** — Update `diff/index.ts` and `src/index.ts` to export `FilingMetadata`
+4. **Diff engine** — Update `diff-engine.ts` (add `toDiffFilingMetadata`, filter unchanged paragraphs/tables, remove `oldSection`/`newSection`)
+5. **Exports** — Update `diff/index.ts` and `src/index.ts` to export `DiffFilingMetadata`
 6. **Tests** — Update all test files to match new types and filtering behavior
 7. **Examples** — Update any example scripts
 
@@ -588,12 +588,12 @@ Steps 2 and 3 can be done in parallel. Step 4 depends on 1-3. Step 6 depends on 
 
 | File | Change | Estimated lines |
 |------|--------|----------------|
-| `diff/types.ts` | Add `FilingMetadata`; remove 6 optional fields from 3 interfaces; update `StructuredDiff` | ~15 lines changed |
-| `diff/diff-engine.ts` | Add `toFilingMetadata()`; filter unchanged paragraphs/tables; remove `oldSection`/`newSection` from return | ~20 lines changed |
+| `diff/types.ts` | Add `DiffFilingMetadata`; remove 6 optional fields from 3 interfaces; update `StructuredDiff` | ~15 lines changed |
+| `diff/diff-engine.ts` | Add `toDiffFilingMetadata()`; filter unchanged paragraphs/tables; remove `oldSection`/`newSection` from return | ~20 lines changed |
 | `diff/paragraph-differ.ts` | Add `InternalParagraphDiff`; refactor internal functions; strip at boundary | ~30 lines changed |
 | `diff/table-differ.ts` | Remove `oldTable`/`newTable`; filter unchanged rows; reorder summary computation | ~25 lines changed |
-| `diff/index.ts` | Export `FilingMetadata` | +1 line |
-| `src/index.ts` | Re-export `FilingMetadata` | +1 line |
+| `diff/index.ts` | Export `DiffFilingMetadata` | +1 line |
+| `src/index.ts` | Re-export `DiffFilingMetadata` | +1 line |
 | Test files (10+) | Update assertions for removed fields and filtering | ~200 lines across files |
 | Example scripts | Remove references to embedded source objects | ~20 lines across files |
 
