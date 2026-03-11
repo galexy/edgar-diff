@@ -182,15 +182,20 @@ describe('paragraph-differ', () => {
     expect(wc.some(w => w.type === 'added' && w.value.includes('150M'))).toBe(true);
   });
 
-  // PD-U15: Unchanged spans preserved in word diff
-  it('PD-U15: word-level diff preserves unchanged spans', () => {
+  // PD-U15: Unchanged spans filtered from word diff (BQ6)
+  it('PD-U15: word-level diff contains only added and removed entries', () => {
     const old = makeSection('s1', 'S', [makeParagraph('Revenue increased by 10% in fiscal 2023.', 100)]);
     const neu = makeSection('s1', 'S', [makeParagraph('Revenue increased by 15% in fiscal 2024.', 100)]);
     const changes = paragraphDiffs(match(old, neu));
     assertDefined(changes[0].wordChanges);
     const wc = changes[0].wordChanges;
-    const unchanged = wc.filter(w => w.type === 'unchanged').map(w => w.value).join('');
-    expect(unchanged).toContain('Revenue increased by');
+    // No unchanged entries in output
+    expect(wc.filter(w => w.type === 'unchanged')).toHaveLength(0);
+    // Only added and removed entries remain
+    expect(wc.every(w => w.type === 'added' || w.type === 'removed')).toBe(true);
+    // The actual changes are still present
+    expect(wc.some(w => w.type === 'removed' && w.value.includes('10'))).toBe(true);
+    expect(wc.some(w => w.type === 'added' && w.value.includes('15'))).toBe(true);
   });
 
   // PD-U16: Whitespace-only differences treated as unchanged
