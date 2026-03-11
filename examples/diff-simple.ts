@@ -52,5 +52,5 @@ for (const sd of result.sectionDiffs) {
 
 // Write JSON output
 const outputPath = join(import.meta.dirname, 'diff-output.json');
-writeFileSync(outputPath, JSON.stringify(result, null, 2));
+writeFileSync(outputPath, JSON.stringify(result));
 console.log(`\nJSON output written to ${outputPath}`);

@@ -37,7 +37,7 @@ const diffTime = performance.now() - t1;
 log(`Parse time: ${parseTime.toFixed(0)}ms | Diff time: ${diffTime.toFixed(0)}ms`);
 
 // Serialize — no custom replacer needed, Temporal polyfill provides toJSON()
-const json = JSON.stringify(result, null, 2);
+const json = JSON.stringify(result);
 log(`JSON size: ${(json.length / 1024).toFixed(1)} KB`);
 
 // Verify round-trip
