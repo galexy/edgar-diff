@@ -368,3 +368,85 @@ describe('E2E: structured diff with tables', () => {
     expect(sizeBytes).toBeLessThan(2 * 1024 * 1024); // < 2MB
   });
 });
+
+describe('E2E: single word change produces minimal focused diff', () => {
+  const originalHtml = loadSpikeFixture('apple-fy2024.htm');
+  // Replace the first occurrence of "revenue" with "XREVENUEX" (unmistakable marker)
+  const modifiedHtml = originalHtml.replace(/\brevenue\b/i, 'XREVENUEX');
+
+  // Sanity: the replacement actually changed something
+  expect(modifiedHtml).not.toBe(originalHtml);
+
+  const originalFiling = makeRawFiling(originalHtml, {
+    accessionNumber: '0000320193-24-000123',
+    cik: '0000320193',
+    filingDate: Temporal.PlainDate.from('2024-11-01'),
+  });
+  const modifiedFiling = makeRawFiling(modifiedHtml, {
+    accessionNumber: '0000320193-24-000124',
+    cik: '0000320193',
+    filingDate: Temporal.PlainDate.from('2024-11-01'),
+  });
+
+  const originalDoc = parseFiling(originalFiling);
+  const modifiedDoc = parseFiling(modifiedFiling);
+
+  it('E2E-S2: single word change produces minimal focused diff output', () => {
+    const result = diffFilings(originalDoc, modifiedDoc);
+
+    // Exactly 1 section should be modified
+    const modifiedSections = result.sectionDiffs.filter(
+      (sd) => sd.changeType !== 'unchanged',
+    );
+    expect(modifiedSections.length).toBe(1);
+    expect(modifiedSections[0].changeType).toBe('modified');
+
+    // That section should have exactly 1 modified paragraphDiff
+    const modifiedParagraphs = modifiedSections[0].paragraphDiffs.filter(
+      (pd) => pd.changeType === 'modified',
+    );
+    expect(modifiedParagraphs.length).toBe(1);
+
+    // The modified paragraph should have wordChanges containing the specific change
+    const wordChanges = modifiedParagraphs[0].wordChanges;
+    expect(wordChanges).toBeDefined();
+    expect(wordChanges!.length).toBeGreaterThan(0);
+
+    // Should contain a 'removed' word and an 'added' word for the change
+    const removedWords = wordChanges!.filter((wc) => wc.type === 'removed');
+    const addedWords = wordChanges!.filter((wc) => wc.type === 'added');
+    expect(removedWords.length).toBeGreaterThan(0);
+    expect(addedWords.length).toBeGreaterThan(0);
+
+    // The added word should contain our replacement
+    expect(addedWords.some((wc) => wc.value.includes('XREVENUEX'))).toBe(true);
+
+    // No tableDiffs anywhere (we only changed paragraph text)
+    for (const sd of result.sectionDiffs) {
+      expect(sd.tableDiffs).toEqual([]);
+    }
+
+    // All other sections should be unchanged with empty diffs
+    const unchangedSections = result.sectionDiffs.filter(
+      (sd) => sd.changeType === 'unchanged',
+    );
+    expect(unchangedSections.length).toBe(result.sectionDiffs.length - 1);
+    for (const sd of unchangedSections) {
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
+    }
+
+    // Summary should show exactly 1 modified
+    expect(result.summary.modified).toBe(1);
+    expect(result.summary.added).toBe(0);
+    expect(result.summary.removed).toBe(0);
+    expect(result.summary.reordered).toBe(0);
+    expect(result.summary.unchanged).toBe(result.sectionDiffs.length - 1);
+
+    // Output JSON should be small (< 50 KB for a single word change)
+    const json = JSON.stringify(result);
+    const sizeBytes = json.length;
+    console.log(`E2E-S2: output JSON size = ${sizeBytes} bytes (${(sizeBytes / 1024).toFixed(1)} KB)`);
+    expect(sizeBytes).toBeLessThan(50 * 1024); // < 50 KB
+  });
+});
