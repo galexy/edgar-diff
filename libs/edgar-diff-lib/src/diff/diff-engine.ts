@@ -1,10 +1,23 @@
 import { Temporal } from '@js-temporal/polyfill';
 import type { StructuredDocument, FilingSection, ContentBlock, Table } from '../types.js';
-import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange, TableDiff } from './types.js';
+import type { RawFiling } from '../client/types.js';
+import type { StructuredDiff, SectionDiff, DiffOptions, DiffRange, DiffFilingMetadata, TableDiff } from './types.js';
 import { alignSections, classifySectionDiff } from './section-aligner.js';
 import type { SectionMatch } from './section-aligner.js';
 import { diffParagraphs } from './paragraph-differ.js';
 import { diffTables } from './table-differ.js';
+
+/** Strip the html field from a RawFiling to produce DiffFilingMetadata. */
+function toDiffFilingMetadata(filing: RawFiling): DiffFilingMetadata {
+  return {
+    accessionNumber: filing.accessionNumber,
+    cik: filing.cik,
+    formType: filing.formType,
+    filingDate: filing.filingDate,
+    primaryDocumentFilename: filing.primaryDocumentFilename,
+    fetchedAt: filing.fetchedAt,
+  };
+}
 
 /** Extract table blocks from a section's content blocks. */
 function extractTables(blocks: ContentBlock[]): Table[] {
@@ -44,8 +57,9 @@ function makeSectionDiff(
   if (options.oldSection) sourceMapping.old = options.oldSection.source;
   if (options.newSection) sourceMapping.new = options.newSection.source;
 
-  // Compute paragraph-level diffs for matched sections
-  const paragraphDiffs = options.match ? diffParagraphs(options.match) : [];
+  // Compute paragraph-level diffs for matched sections, then filter unchanged
+  const allParagraphDiffs = options.match ? diffParagraphs(options.match) : [];
+  const paragraphDiffs = allParagraphDiffs.filter(pd => pd.changeType !== 'unchanged');
 
   // Compute table diffs
   let tableDiffs: TableDiff[];
@@ -58,7 +72,6 @@ function makeSectionDiff(
     // Added section — all tables are added
     tableDiffs = extractTables(options.newSection.blocks).map(table => ({
       changeType: 'added' as const,
-      newTable: table,
       rowDiffs: [],
       cellDiffs: [],
       sourceMapping: { new: table.source },
@@ -68,7 +81,6 @@ function makeSectionDiff(
     // Removed section — all tables are removed
     tableDiffs = extractTables(options.oldSection.blocks).map(table => ({
       changeType: 'removed' as const,
-      oldTable: table,
       rowDiffs: [],
       cellDiffs: [],
       sourceMapping: { old: table.source },
@@ -78,12 +90,13 @@ function makeSectionDiff(
     tableDiffs = [];
   }
 
+  // Filter unchanged tables
+  tableDiffs = tableDiffs.filter(td => td.changeType !== 'unchanged');
+
   return {
     id: section.id,
     heading: section.heading,
     changeType,
-    oldSection: options.oldSection,
-    newSection: options.newSection,
     paragraphDiffs,
     tableDiffs,
     subsectionDiffs: [],
@@ -140,8 +153,8 @@ export function diffFilings(
   }
 
   return {
-    oldFiling: oldDoc.filing,
-    newFiling: newDoc.filing,
+    oldFiling: toDiffFilingMetadata(oldDoc.filing),
+    newFiling: toDiffFilingMetadata(newDoc.filing),
     sectionDiffs,
     summary: buildSummary(sectionDiffs),
     generatedAt: Temporal.Now.instant(),

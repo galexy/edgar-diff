@@ -209,9 +209,13 @@ describe('diff pipeline integration', () => {
 
     const result = diffFilings(oldDoc, newDoc);
 
-    // Reference equality — diffFilings passes through the filing objects
-    expect(result.oldFiling).toBe(oldDoc.filing);
-    expect(result.newFiling).toBe(newDoc.filing);
+    // DiffFilingMetadata — value equality (no longer reference equality), no html
+    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
+    expect(result.oldFiling.cik).toBe(oldDoc.filing.cik);
+    expect(result.newFiling.accessionNumber).toBe(newDoc.filing.accessionNumber);
+    expect(result.newFiling.cik).toBe(newDoc.filing.cik);
+    expect('html' in result.oldFiling).toBe(false);
+    expect('html' in result.newFiling).toBe(false);
 
     // Metadata fields are accessible
     expect(result.oldFiling.accessionNumber).toBeDefined();
@@ -271,6 +275,16 @@ describe('diff pipeline integration', () => {
     // item-8 has 2 tables → tableDiffs populated
     const item8 = result.sectionDiffs.find((d) => d.id === 'item-8')!;
     expect(item8.tableDiffs.length).toBeGreaterThanOrEqual(2);
+
+    // BQ6: Verify unchanged paragraphs/tables are filtered from output
+    for (const sd of result.sectionDiffs) {
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).not.toBe('unchanged');
+      }
+      for (const td of sd.tableDiffs) {
+        expect(td.changeType).not.toBe('unchanged');
+      }
+    }
   });
 
   it('I-DP-7: diffFilings with added and removed sections containing tables', () => {
@@ -306,8 +320,9 @@ describe('diff pipeline integration', () => {
     expect(zebraSection.tableDiffs).toHaveLength(2);
     for (const td of zebraSection.tableDiffs) {
       expect(td.changeType).toBe('removed');
-      expect(td.oldTable).toBeDefined();
-      expect(td.newTable).toBeUndefined();
+      expect('oldTable' in td).toBe(false);
+      expect('newTable' in td).toBe(false);
+      expect(td.sourceMapping.old).toBeDefined();
     }
 
     // quantum added → tableDiffs has 1 entry with changeType 'added'
@@ -316,8 +331,9 @@ describe('diff pipeline integration', () => {
     expect(quantumSection.changeType).toBe('added');
     expect(quantumSection.tableDiffs).toHaveLength(1);
     expect(quantumSection.tableDiffs[0].changeType).toBe('added');
-    expect(quantumSection.tableDiffs[0].newTable).toBeDefined();
-    expect(quantumSection.tableDiffs[0].oldTable).toBeUndefined();
+    expect('newTable' in quantumSection.tableDiffs[0]).toBe(false);
+    expect('oldTable' in quantumSection.tableDiffs[0]).toBe(false);
+    expect(quantumSection.tableDiffs[0].sourceMapping.new).toBeDefined();
 
     // item-2 matched → tableDiffs computed via diffTables()
     const item2 = result.sectionDiffs.find((d) => d.id === 'item-2')!;
@@ -346,6 +362,8 @@ describe('diff pipeline integration', () => {
     expect(removedSection).toBeDefined();
     for (const td of removedSection.tableDiffs) {
       expect(td.changeType).toBe('removed');
+      expect('oldTable' in td).toBe(false);
+      expect('newTable' in td).toBe(false);
       expect(td.rowDiffs).toEqual([]);
       expect(td.cellDiffs).toEqual([]);
       expect(td.summary).toEqual({
@@ -364,6 +382,8 @@ describe('diff pipeline integration', () => {
     expect(addedSection).toBeDefined();
     for (const td of addedSection.tableDiffs) {
       expect(td.changeType).toBe('added');
+      expect('oldTable' in td).toBe(false);
+      expect('newTable' in td).toBe(false);
       expect(td.rowDiffs).toEqual([]);
       expect(td.cellDiffs).toEqual([]);
       expect(td.summary).toEqual({
@@ -418,7 +438,9 @@ describe('boundary conditions — structured diff', () => {
     const newDoc = makeStructuredDoc([makeSection('item-8', 'Item 8', tables)]);
 
     const result = diffFilings(oldDoc, newDoc);
-    expect(result.sectionDiffs[0].tableDiffs).toHaveLength(10);
+    // BQ6: identical tables are all unchanged → all filtered from output
+    expect(result.sectionDiffs[0].tableDiffs).toHaveLength(0);
+    expect(result.sectionDiffs[0].changeType).toBe('unchanged');
   });
 
   it('B-4: section with single-cell table → tableDiffs produced', () => {

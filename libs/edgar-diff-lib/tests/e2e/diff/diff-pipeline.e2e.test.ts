@@ -33,8 +33,11 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
   it('E2E-1: parseFiling -> diffFilings produces complete StructuredDiff', () => {
     const result = diffFilings(oldDoc, newDoc);
 
-    expect(result.oldFiling).toBe(oldFiling);
-    expect(result.newFiling).toBe(newFiling);
+    // DiffFilingMetadata — value equality, no html
+    expect(result.oldFiling.accessionNumber).toBe(oldFiling.accessionNumber);
+    expect(result.newFiling.accessionNumber).toBe(newFiling.accessionNumber);
+    expect('html' in result.oldFiling).toBe(false);
+    expect('html' in result.newFiling).toBe(false);
     expect(result.sectionDiffs).toBeDefined();
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
     expect(result.summary).toBeDefined();
@@ -48,25 +51,25 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
     expect(typeof result.summary.reordered).toBe('number');
   });
 
-  it('E2E-2: StructuredDiff output is JSON-serializable', () => {
+  it('E2E-2: StructuredDiff output is JSON-serializable (DiffFilingMetadata)', () => {
     const result = diffFilings(oldDoc, newDoc);
 
-    // Temporal.Instant needs custom serialization
-    const serialized = JSON.stringify(result, (key, value) => {
-      if (value instanceof Temporal.Instant) {
-        return value.toString();
-      }
-      if (value instanceof Temporal.PlainDate) {
-        return value.toString();
-      }
-      return value;
-    });
+    // Temporal polyfill provides toJSON() natively — no custom replacer needed
+    const serialized = JSON.stringify(result);
 
     expect(() => JSON.parse(serialized)).not.toThrow();
     const parsed = JSON.parse(serialized);
     expect(parsed.sectionDiffs.length).toBe(result.sectionDiffs.length);
     expect(parsed.summary).toEqual(result.summary);
     expect(typeof parsed.generatedAt).toBe('string');
+
+    // DiffFilingMetadata: no html field in serialized output
+    expect('html' in parsed.oldFiling).toBe(false);
+    expect('html' in parsed.newFiling).toBe(false);
+    // Metadata fields present
+    expect(parsed.oldFiling.accessionNumber).toBeDefined();
+    expect(parsed.oldFiling.cik).toBeDefined();
+    expect(typeof parsed.oldFiling.filingDate).toBe('string');
   });
 
   it('E2E-3: DiffRange source mappings reference valid offsets', () => {
@@ -102,7 +105,7 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
     }
   });
 
-  it('E2E-4: diffing a document against itself produces all unchanged', () => {
+  it('E2E-4: diffing a document against itself produces all unchanged (with filtering)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -113,6 +116,9 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
+      // BQ6: unchanged paragraphs and tables are filtered from output
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
     }
   });
 
@@ -293,6 +299,10 @@ describe('E2E: structured diff with tables', () => {
         expect(parsedTd.cellDiffs.length).toBe(origTd.cellDiffs.length);
         expect(parsedTd.summary).toEqual(origTd.summary);
 
+        // BQ6: oldTable/newTable absent after round-trip
+        expect('oldTable' in parsedTd).toBe(false);
+        expect('newTable' in parsedTd).toBe(false);
+
         // cellDiff oldValue/newValue preserved
         for (let k = 0; k < origTd.cellDiffs.length; k++) {
           expect(parsedTd.cellDiffs[k].oldValue).toBe(origTd.cellDiffs[k].oldValue);
@@ -307,7 +317,7 @@ describe('E2E: structured diff with tables', () => {
     expect(typeof parsed.newFiling.filingDate).toBe('string');
   });
 
-  it('E2E-T6: self-diff produces no table changes', () => {
+  it('E2E-T6: self-diff produces no table changes (all filtered)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -316,10 +326,9 @@ describe('E2E: structured diff with tables', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
-      for (const td of sd.tableDiffs) {
-        expect(td.changeType).toBe('unchanged');
-        expect(td.summary.cellsChanged).toBe(0);
-      }
+      // BQ6: unchanged paragraphs and tables are filtered from output
+      expect(sd.paragraphDiffs).toEqual([]);
+      expect(sd.tableDiffs).toEqual([]);
     }
   });
 
@@ -343,5 +352,19 @@ describe('E2E: structured diff with tables', () => {
       }
     }
     expect(result1.summary).toEqual(result2.summary);
+  });
+
+  it('E2E-S1: output JSON size is within target bounds (< 1MB)', () => {
+    const result = diffFilings(oldDoc, newDoc);
+    const json = JSON.stringify(result);
+    const sizeBytes = json.length;
+    const sizeMB = sizeBytes / (1024 * 1024);
+
+    // Log actual size for manual inspection
+    console.log(`E2E-S1: output JSON size = ${sizeBytes} bytes (${sizeMB.toFixed(2)} MB)`);
+
+    // Target: ~0.2MB for typical diffs (was ~22MB before BQ6)
+    // Apple 10-K is a large filing with many tables/sections — allow up to 2MB
+    expect(sizeBytes).toBeLessThan(2 * 1024 * 1024); // < 2MB
   });
 });

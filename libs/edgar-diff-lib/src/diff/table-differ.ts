@@ -118,8 +118,6 @@ export function diffTable(oldTable: Table, newTable: Table): TableDiff {
   if (oldGrid.rowCount === 0 && newGrid.rowCount === 0) {
     return {
       changeType: 'unchanged',
-      oldTable,
-      newTable,
       rowDiffs: [],
       cellDiffs: [],
       sourceMapping,
@@ -236,24 +234,25 @@ export function diffTable(oldTable: Table, newTable: Table): TableDiff {
     }
   }
 
-  // Compute summary
-  const allCellDiffs = rowDiffs.flatMap((rd) => rd.cellDiffs);
+  // Compute summary BEFORE filtering (counts must reflect all rows)
   const rowsAdded = rowDiffs.filter((rd) => rd.changeType === 'added').length;
   const rowsRemoved = rowDiffs.filter((rd) => rd.changeType === 'removed').length;
   const rowsModified = rowDiffs.filter((rd) => rd.changeType === 'modified').length;
   const rowsUnchanged = rowDiffs.filter((rd) => rd.changeType === 'unchanged').length;
-  const cellsChanged = allCellDiffs.length;
 
-  const changeType: ChangeType = cellsChanged === 0 && rowsAdded === 0 && rowsRemoved === 0
+  const changeType: ChangeType = rowsAdded === 0 && rowsRemoved === 0 && rowsModified === 0
     ? 'unchanged'
     : 'modified';
 
+  // Filter unchanged rows AFTER summary computation
+  const changedRowDiffs = rowDiffs.filter((rd) => rd.changeType !== 'unchanged');
+  const cellDiffs = changedRowDiffs.flatMap((rd) => rd.cellDiffs);
+  const cellsChanged = cellDiffs.length;
+
   return {
     changeType,
-    oldTable,
-    newTable,
-    rowDiffs,
-    cellDiffs: allCellDiffs,
+    rowDiffs: changedRowDiffs,
+    cellDiffs,
     sourceMapping,
     summary: { rowsAdded, rowsRemoved, rowsModified, rowsUnchanged, cellsChanged },
   };
@@ -275,7 +274,6 @@ export function diffTables(oldTables: Table[], newTables: Table[]): TableDiff[] 
   for (const table of matchResult.added) {
     results.push({
       changeType: 'added',
-      newTable: table,
       rowDiffs: [],
       cellDiffs: [],
       sourceMapping: { new: table.source },
@@ -287,7 +285,6 @@ export function diffTables(oldTables: Table[], newTables: Table[]): TableDiff[] 
   for (const table of matchResult.removed) {
     results.push({
       changeType: 'removed',
-      oldTable: table,
       rowDiffs: [],
       cellDiffs: [],
       sourceMapping: { old: table.source },

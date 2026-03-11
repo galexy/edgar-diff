@@ -4,16 +4,14 @@ import { diffTable, diffTables } from '../../src/diff/table-differ.js';
 import { makeTable, makeTableRow, makeTableCell, makeFinancialTable } from '../helpers/table-diff-helpers.js';
 
 describe('row alignment', () => {
-  it('identical rows => all RowDiff changeType unchanged', () => {
+  it('identical rows => unchanged, rowDiffs empty (unchanged rows filtered)', () => {
     const table = makeFinancialTable({
       headers: ['Metric', '2023'],
       rows: [{ label: 'Revenue', values: ['$100'] }],
     });
     const result = diffTable(table, table);
     expect(result.changeType).toBe('unchanged');
-    for (const rd of result.rowDiffs) {
-      expect(rd.changeType).toBe('unchanged');
-    }
+    expect(result.rowDiffs).toEqual([]);
   });
 
   it('inserted row in the middle => RowDiff with changeType added, newRowIndex set', () => {
@@ -90,7 +88,9 @@ describe('row alignment', () => {
       makeTableRow([makeTableCell('A'), makeTableCell('B')]),
     ]);
     const result = diffTable(oldTable, newTable);
-    expect(result.rowDiffs[0].changeType).toBe('unchanged');
+    // Unchanged rows are filtered out
+    expect(result.rowDiffs).toEqual([]);
+    expect(result.changeType).toBe('unchanged');
   });
 });
 
@@ -277,8 +277,9 @@ describe('diffTables', () => {
     expect(result[0].changeType).toBe('added');
     expect(result[0].rowDiffs).toEqual([]);
     expect(result[0].cellDiffs).toEqual([]);
-    expect(result[0].newTable).toBe(new1);
-    expect(result[0].oldTable).toBeUndefined();
+    expect('newTable' in result[0]).toBe(false);
+    expect('oldTable' in result[0]).toBe(false);
+    expect(result[0].sourceMapping.new).toBeDefined();
   });
 
   it('removed tables have changeType removed, empty rowDiffs/cellDiffs', () => {
@@ -288,8 +289,9 @@ describe('diffTables', () => {
     expect(result[0].changeType).toBe('removed');
     expect(result[0].rowDiffs).toEqual([]);
     expect(result[0].cellDiffs).toEqual([]);
-    expect(result[0].oldTable).toBe(old1);
-    expect(result[0].newTable).toBeUndefined();
+    expect('oldTable' in result[0]).toBe(false);
+    expect('newTable' in result[0]).toBe(false);
+    expect(result[0].sourceMapping.old).toBeDefined();
   });
 
   it('summary counts are consistent: rowsAdded + rowsRemoved + rowsModified + rowsUnchanged = total rows', () => {
