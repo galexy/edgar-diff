@@ -63,7 +63,7 @@ describe('PD-I1: cross-year diff produces reasonable change count', () => {
     const sectionsWithEmptyParagraphs = result.sectionDiffs.filter(
       sd => sd.paragraphDiffs.length === 0 && sd.changeType === 'unchanged',
     ).length;
-    expect(sectionsWithEmptyParagraphs).toBeGreaterThanOrEqual(0);
+    expect(sectionsWithEmptyParagraphs).toBeGreaterThan(0);
   });
 });
 
