@@ -140,13 +140,37 @@ export interface TableDiff {
 
 ### 5. Types NOT changed
 
-- `ChangeType` — unchanged
+- `ChangeType` — unchanged (see note below on `'unchanged'` value retention)
 - `DiffRange` / `SourceLocation` — unchanged (these are the key to source lookups)
 - `CellDiff` — unchanged (already contains only diff data + sourceMapping)
 - `RowDiff` — unchanged (already contains only diff data)
 - `WordChange` — unchanged
 - `NormalizedGrid`, `NormalizedCell`, `TableMatch`, `TableMatchResult` — internal types, unchanged
 - `RawFiling` — unchanged (it's a client type; we just stop referencing it from diff output)
+
+### Where does `changeType: 'unchanged'` still appear in slimmed output?
+
+After filtering, `'unchanged'` is eliminated from most output levels but **retained at the section level**:
+
+| Level | `'unchanged'` in output? | Why |
+|-------|-------------------------|-----|
+| `SectionDiff.changeType` | **Yes** | Unchanged sections are kept in `sectionDiffs[]` (see edge case #1) |
+| `ParagraphDiff.changeType` | **No** | Filtered out in `makeSectionDiff()` |
+| `TableDiff.changeType` | **No** | Filtered out in `makeSectionDiff()` |
+| `RowDiff.changeType` | **No** | Filtered out in `diffTable()` |
+| `CellDiff.changeType` | **No** | `compareCells()` returns `null` for unchanged cells — they're never constructed |
+| `TableDiff.summary.rowsUnchanged` | **Yes** (as a count) | Summary counts reflect all rows, computed before row filtering |
+| `StructuredDiff.summary.unchanged` | **Yes** (as a count) | Top-level summary counts unchanged sections |
+
+**The `'unchanged'` value in `ChangeType` is still needed for three reasons:**
+
+1. **Section-level output**: `SectionDiff` entries with `changeType: 'unchanged'` appear in `sectionDiffs[]`. They provide the section inventory — consumers can see which sections exist unchanged without needing the source documents. These entries are tiny (id, heading, changeType, sourceMapping, empty arrays) so they don't contribute to bloat.
+
+2. **Internal computation**: `diffParagraphs()` and `diffTables()` return unchanged entries internally (filtering happens downstream in `makeSectionDiff()`). `classifySectionDiff()` uses `'unchanged'` to classify sections. Removing the value from the union would break internal logic.
+
+3. **Summary counts**: `buildSummary()` counts unchanged sections for `StructuredDiff.summary.unchanged`. `TableDiff.summary.rowsUnchanged` reports unchanged row counts even though those rows aren't in `rowDiffs[]`.
+
+**Alternative considered: also filter unchanged sections.** This would eliminate `'unchanged'` from all output. Rejected because: (a) unchanged sections are small after slimming (~50 bytes each vs. megabytes before), (b) the section inventory is useful context, (c) `summary.unchanged` count would become unverifiable without the actual entries.
 
 ## Files to Modify
 
