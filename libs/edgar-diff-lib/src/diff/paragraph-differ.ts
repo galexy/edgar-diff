@@ -269,11 +269,6 @@ export function diffParagraphs(match: SectionMatch): ParagraphDiff[] {
   const oldParagraphs = extractParagraphs(match.oldSection.blocks);
   const newParagraphs = extractParagraphs(match.newSection.blocks);
   const internal = diffParagraphPair(oldParagraphs, newParagraphs);
-  // Strip internal fields and filter unchanged entries from wordChanges (BQ6)
-  return internal.map(({ _oldParagraph, _newParagraph, ...diff }) => ({
-    ...diff,
-    ...(diff.wordChanges && {
-      wordChanges: diff.wordChanges.filter(wc => wc.type !== 'unchanged'),
-    }),
-  }));
+  // Strip internal fields but keep all entries (including unchanged)
+  return internal.map(({ _oldParagraph, _newParagraph, ...diff }) => diff);
 }
