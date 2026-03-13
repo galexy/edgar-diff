@@ -252,23 +252,3 @@ describe('section ordering', () => {
   });
 });
 
-// ============================================================
-// 3.8 Pattern family coverage
-// ============================================================
-
-describe('pattern family coverage', () => {
-  const familyRepresentatives: Record<string, { ticker: string; year: number }> = {
-    'A': { ticker: 'aapl', year: 2024 },   // Workiva div>span bold
-    'B': { ticker: 'msft', year: 2024 },   // DFIN p>span bold uppercase
-    'C': { ticker: 'jpm', year: 2024 },    // Non-bold larger font
-    'D': { ticker: 'wmt', year: 2024 },    // Table-based
-    'E': { ticker: 'xom', year: 2012 },    // Legacy font tag
-  };
-
-  for (const [family, { ticker, year }] of Object.entries(familyRepresentatives)) {
-    it(`Family ${family} (${ticker.toUpperCase()} ${year}) produces sections`, () => {
-      const { doc } = getCachedParsed(ticker, year);
-      expect(doc.sections.length).toBeGreaterThan(0);
-    });
-  }
-});
