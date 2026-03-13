@@ -13,13 +13,13 @@ The test strategy splits into two tiers:
 | Component | File | Props | Responsibility |
 |-----------|------|-------|---------------|
 | `FilingPanel` | `components/FilingPanel.tsx` | `label: string, document?: StructuredDocument` | Panel with heading, filing selector, and content area. Renders `FilingContent` when `document` provided, placeholder when not. |
-| `FilingContent` | `components/FilingContent.tsx` (new) | `document: StructuredDocument` | Renders original HTML sliced by section `SourceLocation` offsets. Each section wrapped in a `<section id={section.id}>` element. Strips `<style>` blocks to prevent CSS leakage. Contains `sliceSections()` pure function. |
+| `FilingContent` | `components/FilingContent.tsx` (new) | `document: StructuredDocument` | Renders original HTML sliced by section `SourceLocation` offsets. Each section wrapped in a `<section id="section-{section.id}">` element. Strips `<style>` blocks to prevent CSS leakage. Contains `sliceSections()` pure function. |
 
 ### Internal types (in FilingContent.tsx)
 
 ```typescript
 interface HtmlSection {
-  id: string;    // section.id, "preamble", or "content"
+  id: string;    // "section-{section.id}", "section-preamble", or "section-content"
   html: string;  // raw HTML slice from filing.html (with <style> blocks stripped)
 }
 ```
@@ -79,9 +79,9 @@ Scenario: HTML is sliced into sections using SourceLocation start/end
 Scenario: Each section container has an ID for scroll-to-section navigation
   Given a StructuredDocument with sections having ids "item-1", "item-1a", "item-2"
   When a FilingPanel is mounted with that document
-  Then a <section id="item-1"> element exists
-  And a <section id="item-1a"> element exists
-  And a <section id="item-2"> element exists
+  Then a <section id="section-item-1"> element exists
+  And a <section id="section-item-1a"> element exists
+  And a <section id="section-item-2"> element exists
 ```
 
 ### AC-5: Original formatting is preserved
@@ -122,7 +122,7 @@ Scenario: Filing content does not overflow panel boundaries
 Scenario: Content before the first section is rendered as preamble
   Given a StructuredDocument with filing.html that has content before the first section's start offset
   When a FilingPanel is mounted with that document
-  Then the preamble content is rendered in a <section id="preamble"> element
+  Then the preamble content is rendered in a <section id="section-preamble"> element
   And it appears before the first section container in DOM order
 ```
 
@@ -267,7 +267,7 @@ describe('FilingPanel', () => {
       <FilingPanel label="Filing A" document={doc} />
     );
 
-    expect(container.querySelector('#item-1a')).not.toBeNull();
+    expect(container.querySelector('#section-item-1a')).not.toBeNull();
   });
 
   it('renders multiple section containers in order', () => {
@@ -285,14 +285,14 @@ describe('FilingPanel', () => {
       <FilingPanel label="Filing A" document={doc} />
     );
 
-    expect(container.querySelector('#item-1')).not.toBeNull();
-    expect(container.querySelector('#item-1a')).not.toBeNull();
-    expect(container.querySelector('#item-2')).not.toBeNull();
+    expect(container.querySelector('#section-item-1')).not.toBeNull();
+    expect(container.querySelector('#section-item-1a')).not.toBeNull();
+    expect(container.querySelector('#section-item-2')).not.toBeNull();
 
     // Verify DOM order
-    const item1 = container.querySelector('#item-1')!;
-    const item1a = container.querySelector('#item-1a')!;
-    const item2 = container.querySelector('#item-2')!;
+    const item1 = container.querySelector('#section-item-1')!;
+    const item1a = container.querySelector('#section-item-1a')!;
+    const item2 = container.querySelector('#section-item-2')!;
     expect(
       item1.compareDocumentPosition(item1a) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
@@ -435,7 +435,7 @@ describe('FilingContent', () => {
     expect(screen.getByText('Content')).toBeInTheDocument();
 
     // Preamble gets id="section-preamble"
-    const preamble = container.querySelector('#preamble');
+    const preamble = container.querySelector('#section-preamble');
     expect(preamble).not.toBeNull();
   });
 
@@ -446,7 +446,7 @@ describe('FilingContent', () => {
     ]);
     const { container } = render(<FilingContent document={doc} />);
 
-    expect(container.querySelector('#preamble')).toBeNull();
+    expect(container.querySelector('#section-preamble')).toBeNull();
   });
 
   // --- Section ID assignment ---
@@ -460,8 +460,8 @@ describe('FilingContent', () => {
     ]);
     const { container } = render(<FilingContent document={doc} />);
 
-    const s1 = container.querySelector('#item-1');
-    const s2 = container.querySelector('#item-2');
+    const s1 = container.querySelector('#section-item-1');
+    const s2 = container.querySelector('#section-item-2');
     expect(s1).not.toBeNull();
     expect(s2).not.toBeNull();
     expect(s1?.tagName.toLowerCase()).toBe('section');
@@ -470,13 +470,13 @@ describe('FilingContent', () => {
 
   // --- No sections fallback ---
 
-  it('renders entire HTML as id="content" when there are no sections', () => {
+  it('renders entire HTML as id="section-content" when there are no sections', () => {
     const html = '<p>No sections here</p>';
     const doc = makeDoc(html, []);
     const { container } = render(<FilingContent document={doc} />);
 
     expect(screen.getByText('No sections here')).toBeInTheDocument();
-    expect(container.querySelector('#content')).not.toBeNull();
+    expect(container.querySelector('#section-content')).not.toBeNull();
   });
 
   it('renders empty container when HTML is empty and no sections', () => {
@@ -495,7 +495,7 @@ describe('FilingContent', () => {
     ]);
     const { container } = render(<FilingContent document={doc} />);
 
-    expect(container.querySelector('#item-1')).not.toBeNull();
+    expect(container.querySelector('#section-item-1')).not.toBeNull();
     expect(screen.getByText('All the content')).toBeInTheDocument();
   });
 
@@ -624,7 +624,7 @@ describe('App — US-2.3 additions', () => {
     expect(screen.queryByText('Filing A')).toBeInTheDocument();
     // At least one section container should exist under Filing A
     const { container } = render(<App />);
-    expect(container.querySelector('#item-1')).not.toBeNull();
+    expect(container.querySelector('#section-item-1')).not.toBeNull();
   });
 
   it('Filing B shows placeholder text (no document provided)', () => {
@@ -655,7 +655,7 @@ describe('Boundary conditions', () => {
     const doc = makeDoc(html, []);
     const { container } = render(<FilingContent document={doc} />);
     expect(screen.getByText('No sections here')).toBeInTheDocument();
-    expect(container.querySelector('#content')).not.toBeNull();
+    expect(container.querySelector('#section-content')).not.toBeNull();
   });
 
   it('handles 1 section', () => {
@@ -664,7 +664,7 @@ describe('Boundary conditions', () => {
       makeSection('item-1', 'Item 1', 0, html.length),
     ]);
     const { container } = render(<FilingContent document={doc} />);
-    expect(container.querySelector('#item-1')).not.toBeNull();
+    expect(container.querySelector('#section-item-1')).not.toBeNull();
   });
 
   it('handles many sections (20+)', () => {
@@ -680,7 +680,7 @@ describe('Boundary conditions', () => {
 
     // All 20 sections rendered
     for (let i = 0; i < 20; i++) {
-      expect(container.querySelector(`#sec-${i}`)).not.toBeNull();
+      expect(container.querySelector(`#section-sec-${i}`)).not.toBeNull();
     }
   });
 
@@ -698,7 +698,7 @@ describe('Boundary conditions', () => {
     ]);
     const { container } = render(<FilingContent document={doc} />);
     // Section container exists but has empty innerHTML
-    const section = container.querySelector('#empty');
+    const section = container.querySelector('#section-empty');
     expect(section).not.toBeNull();
     expect(section?.innerHTML).toBe('');
   });
@@ -709,7 +709,7 @@ describe('Boundary conditions', () => {
       makeSection('item-1', 'Item 1', html.length, html.length),
     ]);
     const { container } = render(<FilingContent document={doc} />);
-    expect(container.querySelector('#preamble')).not.toBeNull();
+    expect(container.querySelector('#section-preamble')).not.toBeNull();
     expect(screen.getByText('All preamble')).toBeInTheDocument();
   });
 });
@@ -817,7 +817,7 @@ describe('CSS isolation structure', () => {
 });
 ```
 
-> **Visual CSS isolation checks** (filing `<style>` blocks don't leak to app chrome, content stays within panel bounds, `contain: content` works, `all: initial` resets Tailwind preflight) are covered in the UAT doc.
+> **Visual CSS isolation checks** (content stays within panel bounds, `contain: content` works, `all: initial` resets Tailwind preflight, inline styles render correctly after `<style>` block stripping) are covered in the UAT doc.
 
 ---
 
@@ -868,7 +868,7 @@ const NO_SECTIONS_DOC = makeDoc(
   '<p>Raw filing content with no recognized sections</p>',
   [],
 );
-// Renders as <section id="content"> with the full HTML
+// Renders as <section id="section-content"> with the full HTML
 ```
 
 #### Preamble fixture
@@ -879,7 +879,7 @@ const item1Start = PREAMBLE_HTML.indexOf('<h2>');
 const PREAMBLE_DOC = makeDoc(PREAMBLE_HTML, [
   makeSection('item-1', 'Item 1. Business', item1Start, PREAMBLE_HTML.length),
 ]);
-// Renders preamble <section id="preamble"> + <section id="item-1">
+// Renders preamble <section id="section-preamble"> + <section id="section-item-1">
 ```
 
 ### Creating mock `RawFiling` objects
@@ -930,6 +930,7 @@ See `.specs/us-2-3-filing-content/uat.md` (separate file).
 - HTML content insertion: rendered HTML contains expected text, tags are not escaped
 - Class presence: `.filing-content-root`, `.filing-section` classes exist
 - Tag preservation: `<table>`, `<b>`, `<i>`, `<ul>/<li>` are present in the DOM
+- Style stripping: `<style>` blocks are removed, inline `style` attributes are preserved
 - Backward compatibility: no document → placeholder shown, no `FilingContent` rendered
 - Error handling: malformed inputs don't crash
 - Component composition: label, selector, and content all render together

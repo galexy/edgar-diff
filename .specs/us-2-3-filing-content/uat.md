@@ -105,6 +105,8 @@ Manual acceptance tests executed by a tester agent via Chrome DevTools MCP at th
 - Section navigation sidebar appearance unchanged
 - Filing styles (fonts, colors, backgrounds from the 10-K HTML) do not override the app's UI
 - Panel headers and selectors remain correctly styled
+- No `<style>` elements in the rendered DOM (use DevTools Elements to confirm — `<style>` blocks are stripped by `sliceSections()`)
+- Inline `style` attributes on filing elements are preserved (e.g., bold text, colored spans)
 
 <!-- Reference screenshot: screenshots/07-css-isolation.png -->
 
