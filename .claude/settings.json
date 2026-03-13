@@ -2,7 +2,8 @@
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "BEADS_DIR": "/workspace/.beads",
-    "FEATURE_MEMORY": "true"
+    "FEATURE_MEMORY": "true",
+    "NX_OUTPUT_STYLE": "stream"
   },
   "permissions": {
     "deny": [
