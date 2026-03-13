@@ -1,12 +1,15 @@
-import type { StructuredDocument } from '@edgar-diff/lib';
+import type { StructuredDocument, SectionDiff } from '@edgar-diff/lib';
+import type { Side } from '../lib/highlight-injector';
 import { FilingContent } from './FilingContent';
 
 interface FilingPanelProps {
   label: string;
   document?: StructuredDocument;
+  sectionDiffs?: SectionDiff[];
+  side?: Side;
 }
 
-export function FilingPanel({ label, document }: FilingPanelProps) {
+export function FilingPanel({ label, document, sectionDiffs, side }: FilingPanelProps) {
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
       <div className="shrink-0 px-4 py-3 border-b border-gray-200 bg-white">
@@ -20,7 +23,7 @@ export function FilingPanel({ label, document }: FilingPanelProps) {
       </div>
       <div className="flex-1 overflow-y-auto p-4">
         {document ? (
-          <FilingContent document={document} />
+          <FilingContent document={document} sectionDiffs={sectionDiffs} side={side} />
         ) : (
           <p className="text-sm text-gray-400 italic">
             Filing content will appear here
