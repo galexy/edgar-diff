@@ -1,0 +1,33 @@
+{
+  "name": "web",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "apps/web/src",
+  "targets": {
+    "typecheck": {
+      "command": "tsc --noEmit -p tsconfig.json",
+      "options": {
+        "cwd": "apps/web"
+      },
+      "dependsOn": ["^build"],
+      "cache": true
+    },
+    "dev": {
+      "command": "vite dev",
+      "options": {
+        "cwd": "apps/web"
+      },
+      "dependsOn": ["^build"]
+    },
+    "build": {
+      "command": "vite build",
+      "options": {
+        "cwd": "apps/web"
+      },
+      "dependsOn": ["^build"],
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/dist"],
+      "cache": true
+    }
+  }
+}
