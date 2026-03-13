@@ -46,38 +46,17 @@ describe('TokenBucketRateLimiter', () => {
       vi.useRealTimers();
     });
 
-    it('should throw on capacity <= 0', () => {
-      expect(() => new TokenBucketRateLimiter({ capacity: 0 })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-      expect(() => new TokenBucketRateLimiter({ capacity: -1 })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-    });
-
-    it('should throw on refillRate <= 0', () => {
-      expect(() => new TokenBucketRateLimiter({ refillRate: 0 })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-      expect(() => new TokenBucketRateLimiter({ refillRate: -5 })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-    });
-
-    it('should throw on NaN capacity or refillRate', () => {
-      expect(() => new TokenBucketRateLimiter({ capacity: NaN })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-      expect(() => new TokenBucketRateLimiter({ refillRate: NaN })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-    });
-
-    it('should throw on Infinity capacity or refillRate', () => {
-      expect(() => new TokenBucketRateLimiter({ capacity: Infinity })).toThrow(
-        'capacity and refillRate must be finite positive numbers'
-      );
-      expect(() => new TokenBucketRateLimiter({ refillRate: Infinity })).toThrow(
+    it.each([
+      ['capacity: 0', { capacity: 0 }],
+      ['capacity: -1', { capacity: -1 }],
+      ['refillRate: 0', { refillRate: 0 }],
+      ['refillRate: -5', { refillRate: -5 }],
+      ['capacity: NaN', { capacity: NaN }],
+      ['refillRate: NaN', { refillRate: NaN }],
+      ['capacity: Infinity', { capacity: Infinity }],
+      ['refillRate: Infinity', { refillRate: Infinity }],
+    ])('should throw on %s', (_label, opts) => {
+      expect(() => new TokenBucketRateLimiter(opts)).toThrow(
         'capacity and refillRate must be finite positive numbers'
       );
     });

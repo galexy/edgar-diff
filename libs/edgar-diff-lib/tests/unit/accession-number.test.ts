@@ -44,74 +44,28 @@ describe('parseAccessionNumber', () => {
   });
 
   describe('invalid inputs', () => {
-    it('should throw on empty string', () => {
-      expect(() => parseAccessionNumber('')).toThrow();
-    });
-
-    it('should throw on whitespace-only', () => {
-      expect(() => parseAccessionNumber('   ')).toThrow();
-    });
-
-    it('should throw on missing dashes', () => {
-      expect(() => parseAccessionNumber('000032019323000106')).toThrow();
-    });
-
-    it('should throw on too few segments', () => {
-      expect(() => parseAccessionNumber('0000320193-23')).toThrow();
-    });
-
-    it('should throw on too many segments', () => {
-      expect(() => parseAccessionNumber('0000320193-23-000106-extra')).toThrow();
-    });
-
-    it('should throw on non-numeric CIK', () => {
-      expect(() => parseAccessionNumber('abcdefghij-23-000106')).toThrow();
-    });
-
-    it('should throw on non-numeric year', () => {
-      expect(() => parseAccessionNumber('0000320193-XX-000106')).toThrow();
-    });
-
-    it('should throw on non-numeric sequence', () => {
-      expect(() => parseAccessionNumber('0000320193-23-ABCDEF')).toThrow();
-    });
-
-    it('should throw on very long string', () => {
-      expect(() => parseAccessionNumber('0'.repeat(1000))).toThrow();
-    });
-
-    it('should throw on special characters', () => {
-      expect(() => parseAccessionNumber('0000320193-23-00010<script>')).toThrow();
-    });
-
-    it('should throw on unicode characters', () => {
-      expect(() => parseAccessionNumber('0000320193-23-00010\u00e9')).toThrow();
-    });
-
-    it('should throw on null bytes', () => {
-      expect(() => parseAccessionNumber('0000320193-23-\x00000106')).toThrow();
-    });
-
-    it('should throw on path traversal', () => {
-      expect(() => parseAccessionNumber('../../etc/passwd')).toThrow();
-    });
-
-    it('should throw on newlines', () => {
-      expect(() => parseAccessionNumber('0000320193\n-23-000106')).toThrow();
-    });
-
-    it('should throw on leading/trailing dashes', () => {
-      expect(() => parseAccessionNumber('-0000320193-23-000106-')).toThrow();
-    });
-
-    it('should throw on null', () => {
+    it.each([
+      ['empty string', ''],
+      ['whitespace-only', '   '],
+      ['missing dashes', '000032019323000106'],
+      ['too few segments', '0000320193-23'],
+      ['too many segments', '0000320193-23-000106-extra'],
+      ['non-numeric CIK', 'abcdefghij-23-000106'],
+      ['non-numeric year', '0000320193-XX-000106'],
+      ['non-numeric sequence', '0000320193-23-ABCDEF'],
+      ['very long string', '0'.repeat(1000)],
+      ['special characters', '0000320193-23-00010<script>'],
+      ['unicode characters', '0000320193-23-00010\u00e9'],
+      ['null bytes', '0000320193-23-\x00000106'],
+      ['path traversal', '../../etc/passwd'],
+      ['newlines', '0000320193\n-23-000106'],
+      ['leading/trailing dashes', '-0000320193-23-000106-'],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(() => parseAccessionNumber(null as any)).toThrow();
-    });
-
-    it('should throw on undefined', () => {
+      ['null', null as any],
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(() => parseAccessionNumber(undefined as any)).toThrow();
+      ['undefined', undefined as any],
+    ])('should throw on %s', (_label, input) => {
+      expect(() => parseAccessionNumber(input)).toThrow();
     });
   });
 });

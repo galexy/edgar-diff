@@ -78,34 +78,8 @@ describe('fetchWithRetry', () => {
     expect(mockFetch).toHaveBeenCalledTimes(3);
   });
 
-  it('should NOT retry on 404', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response('Not Found', { status: 404 }));
-
-    await expect(
-      fetchWithRetry('https://example.com', {}, defaultOpts, accession, mockFetch)
-    ).rejects.toThrow(EdgarNetworkError);
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('should NOT retry on 400', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response('', { status: 400 }));
-    await expect(
-      fetchWithRetry('https://example.com', {}, defaultOpts, accession, mockFetch)
-    ).rejects.toThrow(EdgarNetworkError);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('should NOT retry on 403', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response('', { status: 403 }));
-    await expect(
-      fetchWithRetry('https://example.com', {}, defaultOpts, accession, mockFetch)
-    ).rejects.toThrow(EdgarNetworkError);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
-
-  it('should NOT retry on 500', async () => {
-    const mockFetch = vi.fn().mockResolvedValue(new Response('', { status: 500 }));
+  it.each([404, 400, 403, 500])('should NOT retry on %i', async (status) => {
+    const mockFetch = vi.fn().mockResolvedValue(new Response('', { status }));
     await expect(
       fetchWithRetry('https://example.com', {}, defaultOpts, accession, mockFetch)
     ).rejects.toThrow(EdgarNetworkError);
