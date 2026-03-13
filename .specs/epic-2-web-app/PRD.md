@@ -218,6 +218,23 @@ Acceptance criteria:
 - A toggle button allows the user to enable/disable sync scrolling
 - When sync is disabled, panels scroll independently
 
+### Phase 6: Visual Polish
+
+Phases 1–5 prioritize functional correctness — getting data flowing, interactions working, and features behaving correctly with minimal default styling. Phase 6 is a dedicated visual polish pass where the UI is iterated against the mockup (`mockup.png`) to match the target look and feel.
+
+#### US-2.12: Visual Polish to Match Mockup
+
+As a user, I want the application to look polished and match the design mockup so that it feels professional and easy to use.
+
+Acceptance criteria:
+- Layout proportions match the mockup (sidebar width, panel balance, header height)
+- Typography: heading sizes, body text, section labels match the mockup's visual hierarchy
+- Color scheme: diff highlight colors (red/green), background shades, borders match the mockup
+- Filing selector dropdowns match the mockup's dropdown style and content layout
+- Section nav styling: checkmarks, change count badges, active state highlighting match the mockup
+- Spacing and padding: consistent margins, section dividers, and whitespace match the mockup
+- Validated by capturing screenshots via Chrome DevTools MCP and comparing against `mockup.png`
+
 ---
 
 ## Technical Considerations
@@ -241,6 +258,7 @@ The recommended approach is a thin proxy (e.g., an Express server or Vite dev se
 
 - **Component tests:** Vitest + React Testing Library for each UI component
 - **Fixture-based integration tests:** Render components with real `StructuredDocument` and `StructuredDiff` fixtures from the library's test suite
+- **Visual validation via Chrome DevTools MCP:** Each story must be validated against the running dev server using the Chrome DevTools MCP server. Agents should navigate to the app, capture screenshots, and verify rendering against expectations. Chrome runs headless in the devcontainer. This replaces manual browser inspection — the agent sees what the user would see.
 - **E2E tests:** Playwright for critical user flows (search → select → view diff) — deferred to a later story if scope allows
 
 ### Accessibility
@@ -269,9 +287,14 @@ US-2.9 (Filing Selectors) ┼─► US-2.10 (Live Pipeline)
 US-2.5 (Paragraph Diff) ──┘
 
 US-2.10 (Live Pipeline) ─► US-2.11 (Sync Scrolling)
+                        ─► US-2.12 (Visual Polish)
 ```
 
-Phase 1–3 can be developed and validated entirely with hardcoded fixture data — no network calls needed. Phase 4 introduces live data. Phase 5 is polish that builds on the full pipeline.
+Phase 1–3 can be developed and validated entirely with hardcoded fixture data — no network calls needed. Phase 4 introduces live data. Phase 5 adds UX polish. Phase 6 is a dedicated visual pass against the mockup.
+
+**Functional-first strategy:** Phases 1–5 focus on getting features working correctly with minimal default styling. Phase 6 then iterates the visuals to match the mockup. This avoids throwaway CSS work in early stages and concentrates visual iteration where it matters — when real data is rendered and the full UI can be compared to the mockup side-by-side.
+
+**Visual validation:** Every story is validated by running the dev server and inspecting via Chrome DevTools MCP (headless Chrome). Agents capture screenshots and verify rendering, replacing manual browser inspection.
 
 ---
 
