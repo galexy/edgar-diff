@@ -14,9 +14,9 @@ Extend the existing highlight injection pipeline (from US-2.5) to process `Secti
 
 1. **Extend `applyHighlightsToSection` — not a new function.** Table replacements are collected into the same `replacements[]` array as paragraph replacements. Paragraph and table source ranges are non-overlapping (they're sibling content blocks), so a single reverse-order application pass handles both.
 
-2. **Class injection on existing tags, not `<ins>`/`<del>` wrappers.** Unlike paragraphs, tables have strict content models — `<ins>`/`<del>` cannot be children of `<table>`, `<tbody>`, or `<tr>`. Instead, we inject CSS classes directly into `<tr>`, `<td>`, and `<th>` opening tags. This preserves valid HTML structure (AC-4).
+2. **Class injection on existing tags, not `<ins>`/`<del>` wrappers.** Tables have strict content models — `<ins>`/`<del>` cannot be children of `<table>`, `<tbody>`, or `<tr>` (the HTML spec only allows `<caption>`, `<colgroup>`, `<thead>`, `<tbody>`, `<tfoot>`, `<tr>` as children of `<table>`; and only `<td>`/`<th>` as children of `<tr>`). Browsers aggressively reparse invalid nesting, breaking table layouts. Instead, we inject CSS classes directly into `<tr>`, `<td>`, and `<th>` opening tags for row-level and cell-level highlighting. This preserves valid HTML structure (AC-4).
 
-3. **Old→new annotation for modified cells.** For `changeType === 'modified'`, replace the cell's inner HTML with `<del>old</del> → <ins>new</ins>`. This displays the magnitude of change at a glance — critical for financial tables where users compare numeric values between filings. Shown on BOTH sides so users see the change context regardless of which panel they're reading.
+3. **Old→new annotation for modified cells.** For `changeType === 'modified'`, replace the cell's inner HTML with `<del>old</del> → <ins>new</ins>`. **This does NOT violate decision #2** — `<ins>` and `<del>` are valid phrasing content *inside* `<td>`/`<th>` elements (they're flow content children, just like `<span>` or `<b>`). The restriction in decision #2 applies only to the *structural* level: `<ins>`/`<del>` cannot wrap `<tr>` or `<td>` elements themselves. Placing them inside cell content is standard HTML. This annotation displays the magnitude of change at a glance — critical for financial tables where users compare numeric values between filings. Shown on BOTH sides so users see the change context regardless of which panel they're reading.
 
 4. **`buildTableIndex` mirrors `buildParagraphIndex`.** A new lookup map from `"start:end"` → `Table` enables O(1) retrieval of `TableRow.source` offsets needed for row-level highlighting (since `RowDiff` lacks its own `sourceMapping`).
 
@@ -145,6 +145,17 @@ StructuredDiff.sectionDiffs[].tableDiffs[]
   │
   └── Renders via dangerouslySetInnerHTML (unchanged)
 ```
+
+### Column changes (no ColumnDiff type)
+
+There is no `ColumnDiff` type in the diff library. Column additions/removals are represented as individual `CellDiff` entries within each row. For example, if a new year column is added to a financial table:
+
+- Each **added row** (if the row is entirely new) contains `CellDiff` entries with `changeType: 'added'` for all cells, including the new column.
+- Each **modified row** (existing row that gained a column) contains a `CellDiff` with `changeType: 'added'` for the new column cell, alongside `CellDiff` entries with `changeType: 'unchanged'` or `'modified'` for existing cells.
+
+The diff engine's `compareCells()` function handles this: when `oldCell` is null/undefined but `newCell` exists at a grid position, it produces a `CellDiff` with `changeType: 'added'` (and vice versa for removed columns). The normalized grid ensures column positions align correctly even when colspan/rowspan differ between old and new tables.
+
+**This means column-level changes are already fully supported** by the cell-level highlighting algorithm — no special column handling is needed. Each affected cell gets its own `CellDiff` with the appropriate `changeType` and `sourceMapping`.
 
 ### Side filtering (same logic as paragraphs)
 
