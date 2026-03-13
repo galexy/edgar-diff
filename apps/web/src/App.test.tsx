@@ -88,11 +88,13 @@ describe('App', () => {
     expect(container.querySelector('.filing-content-root')).not.toBeNull();
   });
 
-  it('Filing B shows placeholder text (no document provided)', () => {
-    render(<App />);
-    // Only Filing B has placeholder — Filing A has fixture content
-    const placeholders = screen.getAllByText(/filing content will appear here/i);
-    expect(placeholders).toHaveLength(1);
+  it('Filing B renders filing content from fixture (not placeholder)', () => {
+    const { container } = render(<App />);
+    // Both panels now render content — Filing B has the same fixture with side="new"
+    const contentRoots = container.querySelectorAll('.filing-content-root');
+    expect(contentRoots.length).toBe(2);
+    // No placeholder text
+    expect(screen.queryByText(/filing content will appear here/i)).toBeNull();
   });
 
   it('Filing A renders preamble content before sections', () => {

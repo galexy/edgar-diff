@@ -1,5 +1,4 @@
-import type { WordChange, ParagraphDiff, SectionDiff } from '@edgar-diff/lib';
-import type { SourceLocation, Paragraph } from '@edgar-diff/lib';
+import type { WordChange, SectionDiff, Paragraph } from '@edgar-diff/lib';
 
 export type Side = 'old' | 'new';
 
