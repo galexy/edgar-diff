@@ -15,6 +15,11 @@ const tsNodeResolver = createNodeResolver({
 });
 
 export default [
+  // Global ignores — build output, generated files
+  {
+    ignores: ['**/dist/**'],
+  },
+
   ...nxPlugin.configs['flat/base'],
   ...nxPlugin.configs['flat/typescript'],
   ...nxPlugin.configs['flat/javascript'],
@@ -41,6 +46,17 @@ export default [
   // Register eslint-plugin-import-x with TypeScript-aware resolver for library files
   {
     files: ['libs/edgar-diff-lib/src/**/*.ts'],
+    plugins: {
+      'import-x': importXPlugin,
+    },
+    settings: {
+      'import-x/resolver-next': [tsNodeResolver],
+    },
+  },
+
+  // Register eslint-plugin-import-x with TypeScript-aware resolver for web app files
+  {
+    files: ['apps/web/src/**/*.{ts,tsx}'],
     plugins: {
       'import-x': importXPlugin,
     },
