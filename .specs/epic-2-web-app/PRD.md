@@ -40,7 +40,7 @@ A web application that lets users search for a public company, select two SEC fi
 
 - **Framework:** React 19 with TypeScript
 - **Build tool:** Vite (via `@nx/react` plugin for Nx integration)
-- **Styling:** Tailwind CSS (utility-first, fast iteration)
+- **Styling:** Tailwind CSS v4 (utility-first, fast iteration)
 - **Routing:** React Router (single page, minimal routes needed)
 - **State management:** React context + hooks (no Redux — app state is small)
 - **Package location:** `apps/web` within the existing Nx monorepo
@@ -110,18 +110,17 @@ Acceptance criteria:
 
 ### Phase 2: Content Rendering
 
-#### US-2.3: Render Structured Filing Content
+#### US-2.3: Render Original Filing HTML
 
-As a user, I want to see a filing's sections, paragraphs, and tables rendered in a panel so that I can read the filing content.
+As a user, I want to see the original SEC filing HTML rendered in each panel so that I can read the filing exactly as it appears on EDGAR.
 
 Acceptance criteria:
-- Given a `StructuredDocument` (from test fixtures or hardcoded data), render its content in a filing panel
-- Each `FilingSection` renders with its heading as a section header
-- `Paragraph` blocks render as styled text paragraphs
-- `Table` blocks render as HTML tables with proper headers, row/column structure, and colspan/rowspan
-- Content is readable and visually clean (appropriate typography, spacing)
-- Sections are separated visually (dividers or spacing)
-- Both Filing A and Filing B panels render their respective documents
+- Given a `StructuredDocument`, render the **original HTML** (from `filing.html`) in each filing panel — not a re-rendering from the structured data
+- The `StructuredDocument.sections` are used to identify section boundaries (via `SourceLocation` offsets) so content can be sliced into navigable sections
+- The original formatting, tables, nested HTML tags, and styling are preserved as-is
+- Each section is wrapped in a container element with an ID derived from the section's `id` field (for scroll-to-section navigation)
+- Content is readable within the panel (may need basic CSS resets to constrain the filing's original styles)
+- Both Filing A and Filing B panels render their respective filing HTML
 
 #### US-2.4: Section Navigation
 
@@ -140,24 +139,29 @@ Acceptance criteria:
 
 As a user, I want to see word-level changes highlighted in the filing text so that I can quickly identify what changed between filings.
 
+The core challenge is **injecting highlight markup into the original filing HTML** using the source map locations from `StructuredDiff`. The `ParagraphDiff.sourceMapping` provides character offsets into the original HTML, and `WordChange` entries provide character offsets within paragraph text. The implementation must splice `<ins>`/`<del>` (or `<mark>`) tags into the raw HTML at these offsets while correctly handling nested HTML tags, entities, and whitespace.
+
 Acceptance criteria:
-- Given a `StructuredDiff`, render paragraph changes with inline highlighting
+- Given a `StructuredDiff`, highlight changes by injecting markup into the original filing HTML at the `SourceLocation` offsets
 - Added words/phrases in Filing B are highlighted green
 - Removed words/phrases in Filing A are highlighted red with strikethrough
-- Modified paragraphs show the word-level diff (using `WordChange` data from the library)
+- Modified paragraphs show word-level highlights (using `WordChange` offsets mapped back to HTML source positions)
 - Added paragraphs (whole paragraph new in Filing B) are highlighted with a green background
 - Removed paragraphs (present only in Filing A) are highlighted with a red background
-- Unchanged paragraphs render normally with no highlighting
+- Unchanged content renders as the unmodified original HTML
+- Highlight injection handles nested HTML tags gracefully (e.g., a change spanning `<b>bold</b> text` produces valid HTML)
 
 #### US-2.6: Table Diff Highlighting
 
 As a user, I want to see cell-level changes in tables so that I can identify which values changed.
 
+Same approach as paragraph diff: the `TableDiff` and `CellDiff` entries provide `SourceLocation` offsets into the original HTML. Highlight markup is injected at those positions in the original table HTML rather than re-rendering the table from structured data.
+
 Acceptance criteria:
-- Changed cells are highlighted (green for new values, red for old values)
+- Changed cells are highlighted by injecting markup into the original table HTML at `CellDiff.sourceMapping` offsets (green for new values, red for old values)
 - Added/removed rows are highlighted as a block
 - Cell values show old → new when modified
-- Table structure (headers, colspan, rowspan) is preserved in the diff view
+- Original table structure (headers, colspan, rowspan, styling) is preserved — no re-rendering from structured data
 
 #### US-2.7: Section Change Badges
 
@@ -265,7 +269,7 @@ The recommended approach is a thin proxy (e.g., an Express server or Vite dev se
 
 ### Accessibility
 
-- Semantic HTML for diff content (use `<ins>` and `<del>` elements for additions/removals)
+- Use `<ins>` and `<del>` elements (or `<mark>` with appropriate ARIA roles) for injected diff highlights in the original HTML
 - Keyboard navigation for section sidebar
 - ARIA labels on diff highlights explaining the change type
 - Color is not the only indicator of change type (strikethrough for removals, underline or bold for additions)
