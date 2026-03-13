@@ -92,6 +92,8 @@ Acceptance criteria:
 - `pnpm nx run web:typecheck` and `pnpm nx run web:lint` pass
 - The app imports and uses a type from `@edgar-diff/lib` to prove the workspace dependency works (e.g., display the library's `FormType` union in the page)
 - Tailwind CSS is configured and a utility class renders correctly
+- Chrome DevTools MCP is configured and working: agent can navigate to the dev server URL, capture a screenshot, and verify the page renders (this validates the visual testing pipeline for all subsequent stories)
+- Chrome is installed in the devcontainer (headless mode) and the MCP server is added to `.mcp.json`
 
 #### US-2.2: Side-by-Side Layout Skeleton
 
