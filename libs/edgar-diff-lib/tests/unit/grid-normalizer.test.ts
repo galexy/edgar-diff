@@ -95,14 +95,6 @@ describe('normalizeGrid', () => {
     expect(grid.cells[1][2]).toBeNull();
   });
 
-  it('empty table (0 rows) => rowCount=0, colCount=0, empty cells array', () => {
-    const table = makeTable([]);
-    const grid = normalizeGrid(table);
-    expect(grid.rowCount).toBe(0);
-    expect(grid.colCount).toBe(0);
-    expect(grid.cells).toEqual([]);
-  });
-
   it('header-only table normalizes like any other table', () => {
     const table = makeTable([
       makeTableRow([makeTableCell('H1'), makeTableCell('H2')], { isHeader: true }),

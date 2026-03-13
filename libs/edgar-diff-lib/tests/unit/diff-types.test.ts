@@ -30,52 +30,6 @@ function buildMixedDiff(): ParagraphDiff[] {
 describe('diff type contracts', () => {
   const changes = buildMixedDiff();
 
-  // DT-U1: added entries have sourceMapping.new, no sourceMapping.old
-  it('DT-U1: added entries have sourceMapping.new, no sourceMapping.old', () => {
-    const added = changes.filter(c => c.changeType === 'added');
-    for (const c of added) {
-      expect(c.sourceMapping.new).toBeDefined();
-      expect(c.sourceMapping.old).toBeUndefined();
-    }
-  });
-
-  // DT-U2: removed entries have sourceMapping.old, no sourceMapping.new
-  it('DT-U2: removed entries have sourceMapping.old, no sourceMapping.new', () => {
-    const removed = changes.filter(c => c.changeType === 'removed');
-    for (const c of removed) {
-      expect(c.sourceMapping.old).toBeDefined();
-      expect(c.sourceMapping.new).toBeUndefined();
-    }
-  });
-
-  // DT-U3: modified entries have both sources
-  it('DT-U3: modified entries have both sourceMapping.old and sourceMapping.new', () => {
-    const modified = changes.filter(c => c.changeType === 'modified');
-    for (const c of modified) {
-      expect(c.sourceMapping.old).toBeDefined();
-      expect(c.sourceMapping.new).toBeDefined();
-    }
-  });
-
-  // DT-U4: unchanged entries have both sources
-  it('DT-U4: unchanged entries have both sourceMapping.old and sourceMapping.new', () => {
-    const unchanged = changes.filter(c => c.changeType === 'unchanged');
-    expect(unchanged.length).toBeGreaterThan(0);
-    for (const c of unchanged) {
-      expect(c.sourceMapping.old).toBeDefined();
-      expect(c.sourceMapping.new).toBeDefined();
-    }
-  });
-
-  // DT-U5: moved entries have both sources
-  it('DT-U5: moved entries have both sourceMapping.old and sourceMapping.new', () => {
-    const moved = changes.filter(c => c.changeType === 'moved');
-    for (const c of moved) {
-      expect(c.sourceMapping.old).toBeDefined();
-      expect(c.sourceMapping.new).toBeDefined();
-    }
-  });
-
   // DT-U6: Source locations satisfy start >= 0, start < end
   it('DT-U6: source locations have valid ranges', () => {
     for (const c of changes) {

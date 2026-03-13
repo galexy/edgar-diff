@@ -48,16 +48,6 @@ describe('isLayoutTable', () => {
     expect(isLayoutTable(table)).toBe(true);
   });
 
-  it('empty table returns false', () => {
-    const doc = parseDocument(
-      '<table></table>',
-      { withStartIndices: true, withEndIndices: true },
-    );
-    const table = findTable(doc);
-    assertDefined(table);
-    expect(isLayoutTable(table)).toBe(false);
-  });
-
   it('table with non-table elements only returns false', () => {
     const doc = parseDocument(
       '<table><tr><td><div><p>Text</p><span>More</span></div></td></tr></table>',

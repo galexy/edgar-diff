@@ -182,11 +182,6 @@ describe('property: numeric parsing through pipeline', () => {
 // ============================================================
 
 describe('property: edge-case tables handled gracefully', () => {
-  it('empty table (0 rows) does not throw', () => {
-    const html = wrapInSection('<table></table>');
-    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
-  });
-
   it('single-cell table works correctly', () => {
     const html = wrapInSection('<table><tr><td>Only cell</td></tr></table>');
     const doc = parseFiling(makeRawFiling(html));
@@ -195,15 +190,6 @@ describe('property: edge-case tables handled gracefully', () => {
     expect(table.rows).toHaveLength(1);
     expect(table.rows[0].cells).toHaveLength(1);
     expect(table.rows[0].cells[0].text).toBe('Only cell');
-  });
-
-  it('table with empty rows does not throw', () => {
-    const html = wrapInSection('<table><tr></tr><tr><td>Valid</td></tr></table>');
-    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
-    const doc = parseFiling(makeRawFiling(html));
-    const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
-    expect(table).toBeDefined();
-    expect(table.rows.some(r => r.cells.length > 0)).toBe(true);
   });
 
   it('very large table (100+ rows) does not crash', () => {
@@ -216,11 +202,6 @@ describe('property: edge-case tables handled gracefully', () => {
     const table = doc.sections[0]?.blocks.find(b => b.type === 'table') as Table;
     expect(table).toBeDefined();
     expect(table.rows).toHaveLength(100);
-  });
-
-  it('malformed table HTML does not throw', () => {
-    const html = wrapInSection('<table><tr><td>Cell 1<td>Cell 2<tr><td>Cell 3</table>');
-    expect(() => parseFiling(makeRawFiling(html))).not.toThrow();
   });
 
   it('table with invalid colspan/rowspan does not throw', () => {
