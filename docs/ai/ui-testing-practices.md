@@ -51,16 +51,26 @@ apps/web/src/
 
 **When to run:** At the **end of the dev/test cycle**, after all automated tests pass. UAT is the final sanity check before a PR is considered complete. Think of it as the agent equivalent of a developer eyeballing the page in a browser.
 
-**Where they live:** Each story's spec directory:
-```
-.specs/<story-name>/uat.md
-```
+**Two levels of UAT docs:**
 
-For example:
+#### Story-Level UAT (`.specs/<story>/uat.md`)
+
+Detailed checks specific to a single story. Lives with the spec and contains the full set of verification steps, reference screenshot placeholders, and pass/fail criteria for that story. Created during the design phase.
+
 ```
 .specs/us-2-2-layout-skeleton/uat.md
 .specs/us-2-3-filing-content/uat.md
 ```
+
+#### App-Level UAT (`apps/web/tests/uat.md`)
+
+A cumulative, **pruned** sanity suite covering the entire app. Updated by each story — new checks are added, obsolete checks are removed or rewritten. Used for regular full-app validation across stories, not just for the story that introduced the check.
+
+```
+apps/web/tests/uat.md
+```
+
+**Each story must update both:** create its own `.specs/<story>/uat.md` AND update the app-level `apps/web/tests/uat.md` (adding new checks, pruning checks that are no longer relevant due to UI changes). The app-level file should stay concise — it's a sanity suite, not an exhaustive test log.
 
 ---
 
@@ -112,10 +122,12 @@ These serve as **informal visual baselines** for future comparison. They are not
 
 For any UI story:
 
-1. **Design phase:** Write test plan (automated tests) AND UAT doc in `.specs/<story>/`
+1. **Design phase:** Write test plan (automated tests) AND story-level UAT doc in `.specs/<story>/`
 2. **Implementation phase:** Write code + automated tests (TDD or test-after)
 3. **Verification phase:**
    - Run `NX_OUTPUT_STYLE=stream pnpm nx run web:test` — all automated tests pass
-   - Run UAT steps via Chrome DevTools MCP — all visual checks pass
+   - Run story-level UAT steps via Chrome DevTools MCP — all visual checks pass
    - Capture reference screenshots (first implementation only)
-4. **PR review:** Automated tests provide regression safety; UAT doc provides visual verification record
+4. **Update app-level UAT:** Add new checks to `apps/web/tests/uat.md`, prune obsolete ones
+5. **Run app-level UAT:** Sanity-check the full app (not just the story) via MCP
+6. **PR review:** Automated tests provide regression safety; UAT docs provide visual verification record

@@ -15,6 +15,15 @@ pnpm nx affected --target=test        # Only affected projects (faster)
 
 **pnpm is managed via corepack** (not installed globally). If you hit `pnpm: command not found`, run `corepack enable`. See [docs/setup.md](docs/setup.md) for full setup instructions and common error fixes.
 
+## Testing Practices
+
+For UI stories, this project uses a **two-tier testing strategy**: automated Vitest tests AND agent-executed UAT (manual visual checks via Chrome DevTools MCP). See **[docs/ai/ui-testing-practices.md](docs/ai/ui-testing-practices.md)** for the full reference, including when to use each tier, how UAT docs are structured, and where reference screenshots live.
+
+**Key points:**
+- Automated tests (`*.test.tsx`) cover DOM structure, semantics, and accessibility
+- UAT docs (`.specs/<story>/uat.md`) cover visual layout, scroll behavior, and responsive checks
+- UAT runs at the **end of the dev/test cycle** as a final sanity check before PR completion
+
 <!-- BEGIN BEADS INTEGRATION -->
 ## Issue Tracking with bd (beads)
 
