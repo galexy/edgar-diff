@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { WordChange, ParagraphDiff, SectionDiff, Paragraph } from '@edgar-diff/lib';
+import type { WordChange, ParagraphDiff, SectionDiff, Paragraph, CellDiff } from '@edgar-diff/lib';
 import { wrapParagraph, injectWordHighlights, applyHighlightsToSection, injectClass, escapeHtml, highlightCell } from './highlight-injector';
 
 // ─── 2.7 wrapParagraph ──────────────────────────────────────────
@@ -423,5 +423,137 @@ describe('injectClass', () => {
     expect(injectClass('<TR>', 'diff-row-added')).toBe('<TR class="diff-row-added">');
     expect(injectClass('<TD>', 'diff-cell-added')).toBe('<TD class="diff-cell-added">');
     expect(injectClass('<TH>', 'diff-cell-added')).toBe('<TH class="diff-cell-added">');
+  });
+});
+
+// ─── 3.2 escapeHtml ─────────────────────────────────────────────
+
+describe('escapeHtml', () => {
+  it('escapes & to &amp;', () => {
+    expect(escapeHtml('AT&T')).toBe('AT&amp;T');
+  });
+
+  it('escapes < and > to &lt; and &gt;', () => {
+    expect(escapeHtml('a < b > c')).toBe('a &lt; b &gt; c');
+  });
+
+  it('escapes " to &quot;', () => {
+    expect(escapeHtml('say "hello"')).toBe('say &quot;hello&quot;');
+  });
+
+  it("escapes ' to &#39;", () => {
+    expect(escapeHtml("it's")).toBe('it&#39;s');
+  });
+
+  it('escapes all special characters together', () => {
+    expect(escapeHtml('a & b < c > d " e \' f')).toBe(
+      'a &amp; b &lt; c &gt; d &quot; e &#39; f',
+    );
+  });
+
+  it('returns empty string unchanged', () => {
+    expect(escapeHtml('')).toBe('');
+  });
+
+  it('returns plain text unchanged', () => {
+    expect(escapeHtml('$1,234')).toBe('$1,234');
+  });
+});
+
+// ─── 3.3 highlightCell — single cell highlighting ───────────────
+
+function makeCellDiff(
+  changeType: CellDiff['changeType'],
+  opts: {
+    oldSource?: { start: number; end: number };
+    newSource?: { start: number; end: number };
+    oldValue?: string;
+    newValue?: string;
+  } = {},
+): CellDiff {
+  return {
+    row: 0,
+    col: 0,
+    changeType,
+    oldValue: opts.oldValue,
+    newValue: opts.newValue,
+    sourceMapping: {
+      old: opts.oldSource,
+      new: opts.newSource,
+    },
+  };
+}
+
+describe('highlightCell', () => {
+  it('HC-U1: added cell injects diff-cell-added class, preserves inner content', () => {
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, makeCellDiff('added'), 'new');
+    expect(result).toBe('<td class="diff-cell-added">$1,234</td>');
+  });
+
+  it('HC-U2: removed cell injects diff-cell-removed class, preserves inner content', () => {
+    const html = '<td>$1,000</td>';
+    const result = highlightCell(html, makeCellDiff('removed'), 'old');
+    expect(result).toBe('<td class="diff-cell-removed">$1,000</td>');
+  });
+
+  it('HC-U3: modified cell injects diff-cell-modified class AND replaces inner content', () => {
+    const cd = makeCellDiff('modified', { oldValue: '$1,000', newValue: '$1,234' });
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('class="diff-cell-modified"');
+    expect(result).toContain('<del');
+    expect(result).toContain('<ins');
+  });
+
+  it('HC-U4: modified cell annotation contains <del class="diff-removed">oldValue</del>', () => {
+    const cd = makeCellDiff('modified', { oldValue: '$1,000', newValue: '$1,234' });
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('<del class="diff-removed">$1,000</del>');
+  });
+
+  it('HC-U5: modified cell annotation contains <ins class="diff-added">newValue</ins>', () => {
+    const cd = makeCellDiff('modified', { oldValue: '$1,000', newValue: '$1,234' });
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('<ins class="diff-added">$1,234</ins>');
+  });
+
+  it('HC-U6: modified cell annotation contains → separator', () => {
+    const cd = makeCellDiff('modified', { oldValue: '$1,000', newValue: '$1,234' });
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('→');
+    expect(result).toContain('diff-arrow');
+  });
+
+  it('HC-U7: modified cell with <th> tag — correct closing tag detected', () => {
+    const cd = makeCellDiff('modified', { oldValue: 'Revenue', newValue: 'Net Revenue' });
+    const html = '<th>Revenue</th>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('<th class="diff-cell-modified">');
+    expect(result).toMatch(/<\/th>$/);
+    expect(result).not.toContain('</td>');
+  });
+
+  it('HC-U8: values with &, <, > are HTML-escaped in annotation', () => {
+    const cd = makeCellDiff('modified', { oldValue: 'A & B', newValue: 'C < D' });
+    const html = '<td>C &lt; D</td>';
+    const result = highlightCell(html, cd, 'new');
+    expect(result).toContain('A &amp; B');
+    expect(result).toContain('C &lt; D');
+  });
+
+  it('HC-U9: unchanged cell returns original HTML unmodified', () => {
+    const html = '<td>$1,234</td>';
+    const result = highlightCell(html, makeCellDiff('unchanged'), 'new');
+    expect(result).toBe(html);
+  });
+
+  it('HC-U10: cell with existing class — diff-cell-* class appended via injectClass', () => {
+    const html = '<td class="num">$1,234</td>';
+    const result = highlightCell(html, makeCellDiff('added'), 'new');
+    expect(result).toBe('<td class="num diff-cell-added">$1,234</td>');
   });
 });
