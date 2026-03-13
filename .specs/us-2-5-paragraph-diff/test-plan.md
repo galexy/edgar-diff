@@ -131,7 +131,7 @@ Scenario: Moved paragraphs without word changes render as unchanged
   Then no highlights are applied
 ```
 
-> **Known gap:** Moved paragraphs without word changes have no visual indicator, so users cannot tell a paragraph was relocated. A distinct "moved" indicator (e.g., blue/purple border, arrow icon, or tooltip) should be added in a future story. Filed as a follow-up concern.
+> **Known gap:** Moved paragraphs without word changes have no visual indicator, so users cannot tell a paragraph was relocated. A distinct "moved" indicator (e.g., blue/purple border, arrow icon, or tooltip) should be added in a future story. Tracked in **edgar-diff-rop**.
 
 ---
 
@@ -246,7 +246,7 @@ File: `apps/web/src/components/FilingContent.test.tsx` (extends existing test fi
 | ID | Test | Rationale |
 |----|------|-----------|
 | FC-I11 | Moved paragraph with wordChanges renders word-level highlights | Moved + modified (AC-10) |
-| FC-I12 | Moved paragraph without wordChanges renders as unchanged (no highlights) | Moved without edit (AC-10) — **known gap**: no visual move indicator |
+| FC-I12 | Moved paragraph without wordChanges renders as unchanged (no highlights) | Moved without edit (AC-10) — **known gap**: no visual move indicator (edgar-diff-rop) |
 | FC-I13 | Reordered paragraph renders as unchanged (no highlights) | Reordered deferred to future story |
 
 ---
