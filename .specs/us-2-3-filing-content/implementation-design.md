@@ -29,9 +29,9 @@ App
     ├── FilingPanel (label="Filing A", document={fixtureDoc})
     │   ├── Panel header (label + disabled selector)
     │   └── FilingContent (document={fixtureDoc})
-    │       ├── <section id="section-preamble">   ← html before first Item
-    │       ├── <section id="section-item-1">     ← html.slice(start, end)
-    │       ├── <section id="section-item-1a">    ← html.slice(start, end)
+    │       ├── <section id="preamble">       ← html before first Item
+    │       ├── <section id="item-1">        ← html.slice(start, end)
+    │       ├── <section id="item-1a">       ← html.slice(start, end)
     │       └── ...
     ├── Divider
     └── FilingPanel (label="Filing B")    ← no document, shows placeholder
@@ -68,7 +68,7 @@ function sliceSections(document: StructuredDocument): HtmlSection[] {
   // Preamble: content before the first section
   if (sections.length > 0 && sections[0].source.start > 0) {
     result.push({
-      id: 'section-preamble',
+      id: 'preamble',
       html: stripStyleBlocks(html.slice(0, sections[0].source.start)),
     });
   }
@@ -76,14 +76,14 @@ function sliceSections(document: StructuredDocument): HtmlSection[] {
   // Each section: slice using source offsets, strip <style> blocks
   for (const section of sections) {
     result.push({
-      id: `section-${section.id}`,
+      id: section.id,
       html: stripStyleBlocks(html.slice(section.source.start, section.source.end)),
     });
   }
 
   // If no sections, render entire HTML as a single block
   if (sections.length === 0 && html.length > 0) {
-    result.push({ id: 'section-content', html: stripStyleBlocks(html) });
+    result.push({ id: 'content', html: stripStyleBlocks(html) });
   }
 
   return result;
@@ -109,8 +109,8 @@ export function FilingContent({ document }: FilingContentProps) {
 
 **Rationale:**
 - `sliceSections` is a pure function — easy to unit test independently.
-- Each `<section>` gets a `section-` prefixed `id` (e.g., `id="section-item-1a"`), enabling scroll-to-section in US-2.4 via `document.getElementById()` and easy querying via `[id^="section-"]`.
-- The prefix avoids ID collisions between filing section IDs and other DOM elements in the app.
+- Each `<section>` gets `id={section.id}` directly (e.g., `id="item-1a"`), enabling scroll-to-section in US-2.4 via `document.getElementById()`.
+- The parser normalizes all section IDs to `item-*` format, so no collision with reserved IDs `"preamble"` or `"content"`.
 - When there are no sections but HTML exists, we render the whole HTML as a single block to avoid a blank panel.
 
 ### `apps/web/src/components/filing-content.css`
@@ -410,8 +410,8 @@ describe('FilingContent', () => {
     ];
     const { container } = render(<FilingContent document={makeDoc(html, sections)} />);
 
-    expect(container.querySelector('#section-item-1')).toBeInTheDocument();
-    expect(container.querySelector('#section-item-2')).toBeInTheDocument();
+    expect(container.querySelector('#item-1')).toBeInTheDocument();
+    expect(container.querySelector('#item-2')).toBeInTheDocument();
   });
 
   it('renders entire HTML when there are no sections', () => {
@@ -470,7 +470,7 @@ describe('FilingContent', () => {
 
 ```typescript
 interface HtmlSection {
-  id: string;    // "section-{section.id}" (e.g., "section-item-1a") or "section-preamble" or "section-content"
+  id: string;    // section.id (e.g., "item-1a") or "preamble" or "content"
   html: string;  // raw HTML slice
 }
 ```
@@ -504,7 +504,7 @@ FilingContent({ document })
 │   ├── Section 1: html.slice(sections[0].source.start, sections[0].source.end)
 │   ├── Section 2: html.slice(sections[1].source.start, sections[1].source.end)
 │   └── ...
-└── Renders each HtmlSection as <section id="section-{id}" dangerouslySetInnerHTML />
+└── Renders each HtmlSection as <section id={id} dangerouslySetInnerHTML />
 ```
 
 ## CSS Isolation Strategy
@@ -559,13 +559,13 @@ Shadow DOM provides stronger style isolation but adds complexity:
 Input: document.filing.html (string), document.sections (FilingSection[])
 
 1. If sections is non-empty AND sections[0].source.start > 0:
-   → Emit preamble: { id: "section-preamble", html: stripStyleBlocks(html.slice(0, sections[0].start)) }
+   → Emit preamble: { id: "preamble", html: stripStyleBlocks(html.slice(0, sections[0].start)) }
 
 2. For each section in sections:
-   → Emit: { id: "section-" + section.id, html: stripStyleBlocks(html.slice(section.source.start, section.source.end)) }
+   → Emit: { id: section.id, html: stripStyleBlocks(html.slice(section.source.start, section.source.end)) }
 
 3. If sections is empty AND html is non-empty:
-   → Emit: { id: "section-content", html: stripStyleBlocks(html) }
+   → Emit: { id: "content", html: stripStyleBlocks(html) }
 ```
 
 ### Key properties (validated by parser tests)
@@ -601,7 +601,7 @@ The parser guarantees no gaps between consecutive sections (each section's end =
 
 2. **Document with empty HTML** — `sliceSections` returns `[]` (the `html.length > 0` guard). `FilingContent` renders an empty `.filing-content-root` div.
 
-3. **Document with HTML but no sections** — Entire HTML rendered as a single `<section id="section-content">`. This handles filings the parser can't section (non-10-K forms, unusual formatting).
+3. **Document with HTML but no sections** — Entire HTML rendered as a single `<section id="content">`. This handles filings the parser can't section (non-10-K forms, unusual formatting).
 
 4. **Very large HTML (1-5MB)** — `dangerouslySetInnerHTML` can handle large strings; the browser parses and renders incrementally. The `overflow-y-auto` on the parent panel provides scrolling. No virtualization needed for US-2.3 — if performance is an issue with 10MB+ filings, we can add lazy section rendering in a future story.
 
@@ -621,7 +621,7 @@ The parser guarantees no gaps between consecutive sections (each section's end =
 
 3. **Temporal polyfill in fixture** — The `RawFiling` type uses `Temporal.PlainDate` and `Temporal.Instant`. The app already imports `@js-temporal/polyfill`. Confirm this is available in the web app's dependencies. **Recommendation:** Check `apps/web/package.json`; add if missing.
 
-4. **Section ID uniqueness** — All DOM IDs use the `section-` prefix (e.g., `section-item-1a`, `section-preamble`). The parser normalizes section IDs to `item-*` format, so no collision with `section-preamble` or `section-content` is possible. The prefix also avoids collisions with other DOM elements.
+4. **Section ID uniqueness** — Section IDs use the parser's `item-*` format directly (e.g., `item-1a`). Reserved IDs `"preamble"` and `"content"` won't collide since the parser normalizes all section IDs to `item-*` format.
 
 ## Implementation Checklist
 
