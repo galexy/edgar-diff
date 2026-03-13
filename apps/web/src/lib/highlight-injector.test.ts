@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { WordChange } from '@edgar-diff/lib';
-import { wrapParagraph, injectWordHighlights } from './highlight-injector';
+import type { WordChange, ParagraphDiff, SectionDiff, Paragraph } from '@edgar-diff/lib';
+import { wrapParagraph, injectWordHighlights, applyHighlightsToSection } from './highlight-injector';
 
 // ─── 2.7 wrapParagraph ──────────────────────────────────────────
 
@@ -212,5 +212,166 @@ describe('injectWordHighlights — normalization', () => {
     const changes: WordChange[] = [{ type: 'removed', start: 0, end: 5 }];
     const result = injectWordHighlights(html, changes, text);
     expect(result).toBe('hello world');
+  });
+});
+
+// ─── 2.8 applyHighlightsToSection ───────────────────────────────
+
+function makeParagraph(text: string, start: number, end: number): Paragraph {
+  return { type: 'paragraph', text, source: { start, end } };
+}
+
+function makeParagraphDiff(
+  changeType: ParagraphDiff['changeType'],
+  oldLoc?: { start: number; end: number },
+  newLoc?: { start: number; end: number },
+  wordChanges?: WordChange[],
+): ParagraphDiff {
+  return {
+    changeType,
+    wordChanges,
+    sourceMapping: {
+      old: oldLoc ? { start: oldLoc.start, end: oldLoc.end } : undefined,
+      new: newLoc ? { start: newLoc.start, end: newLoc.end } : undefined,
+    },
+  };
+}
+
+function makeSectionDiff(
+  id: string,
+  paragraphDiffs: ParagraphDiff[],
+  changeType: SectionDiff['changeType'] = 'modified',
+): SectionDiff {
+  return {
+    id,
+    heading: id,
+    changeType,
+    paragraphDiffs,
+    tableDiffs: [],
+    subsectionDiffs: [],
+    sourceMapping: { old: { start: 0, end: 100 }, new: { start: 0, end: 100 } },
+  };
+}
+
+describe('applyHighlightsToSection', () => {
+  it('AS-U1: added paragraph on new side gets <ins class="diff-paragraph-added"> wrapping', () => {
+    // Section HTML: <p>Hello world</p>
+    // The paragraph source in the filing is at absolute offsets 100..119
+    // Section starts at offset 100, so relative offset is 0..19
+    const sectionHtml = '<p>Hello world</p>';
+    const sectionOffset = 100;
+
+    const paragraphDiff = makeParagraphDiff(
+      'added',
+      undefined, // no old source (it's new)
+      { start: 100, end: 118 }, // new source
+    );
+
+    const sectionDiff = makeSectionDiff('item-1', [paragraphDiff]);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set('100:118', makeParagraph('Hello world', 100, 118));
+
+    const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
+    expect(result).toContain('<ins class="diff-paragraph-added">');
+    expect(result).toContain('Hello world');
+  });
+
+  it('AS-U2: unchanged paragraphs pass through unmodified', () => {
+    const sectionHtml = '<p>Unchanged text</p>';
+    const sectionOffset = 0;
+
+    const paragraphDiff = makeParagraphDiff(
+      'unchanged',
+      { start: 0, end: 21 },
+      { start: 0, end: 21 },
+    );
+
+    const sectionDiff = makeSectionDiff('item-1', [paragraphDiff]);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set('0:21', makeParagraph('Unchanged text', 0, 21));
+
+    const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
+    expect(result).toBe(sectionHtml);
+  });
+
+  it('AS-U3: multiple paragraphs in section processed correctly', () => {
+    const sectionHtml = '<p>First para</p><p>Second para</p>';
+    const sectionOffset = 0;
+
+    const p1End = '<p>First para</p>'.length;
+
+    const paragraphDiffs: ParagraphDiff[] = [
+      makeParagraphDiff('removed', { start: 0, end: p1End }, undefined),
+      makeParagraphDiff('added', undefined, { start: p1End, end: sectionHtml.length }),
+    ];
+
+    const sectionDiff = makeSectionDiff('item-1', paragraphDiffs);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set(`0:${p1End}`, makeParagraph('First para', 0, p1End));
+    paragraphIndex.set(`${p1End}:${sectionHtml.length}`, makeParagraph('Second para', p1End, sectionHtml.length));
+
+    const resultOld = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
+    expect(resultOld).toContain('<del class="diff-paragraph-removed">');
+    expect(resultOld).toContain('First para');
+    // Added paragraph should not show on old side (no old source)
+    expect(resultOld).not.toContain('<ins');
+
+    const resultNew = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
+    expect(resultNew).toContain('<ins class="diff-paragraph-added">');
+    expect(resultNew).toContain('Second para');
+    // Removed paragraph should not show on new side (no new source)
+    expect(resultNew).not.toContain('<del');
+  });
+
+  it('AS-U4: sectionOffset > 0 — absolute SourceLocation offsets converted to relative', () => {
+    const sectionHtml = '<p>Content here</p>';
+    const sectionOffset = 500; // Section starts at byte 500 in the filing HTML
+
+    const paragraphDiff = makeParagraphDiff(
+      'removed',
+      { start: 500, end: 519 }, // absolute offsets
+      undefined,
+    );
+
+    const sectionDiff = makeSectionDiff('item-1', [paragraphDiff]);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set('500:519', makeParagraph('Content here', 500, 519));
+
+    const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
+    expect(result).toContain('<del class="diff-paragraph-removed">');
+  });
+
+  it('AS-U5: WordChanges filtered by side — old shows removed, new shows added', () => {
+    const sectionHtml = '<p>The quick brown fox</p>';
+    const sectionOffset = 0;
+
+    const paragraphDiff = makeParagraphDiff(
+      'modified',
+      { start: 0, end: 25 },
+      { start: 0, end: 25 },
+      [
+        { type: 'removed', start: 4, end: 9 },  // "quick" removed from old
+        { type: 'added', start: 4, end: 8 },     // "fast" added in new
+      ],
+    );
+
+    const sectionDiff = makeSectionDiff('item-1', [paragraphDiff]);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set('0:25', makeParagraph('The quick brown fox', 0, 25));
+
+    // Old side should only show removals
+    const resultOld = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
+    expect(resultOld).toContain('<del class="diff-removed">');
+    expect(resultOld).not.toContain('<ins');
+
+    // New side should only show additions
+    const resultNew = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
+    expect(resultNew).toContain('<ins class="diff-added">');
+    expect(resultNew).not.toContain('<del');
   });
 });

@@ -144,6 +144,74 @@ export function injectWordHighlights(
   return div.innerHTML;
 }
 
+// ─── Section-Level Highlight Application ─────────────────────────
+
+/**
+ * Apply all paragraph diff highlights to a section's HTML slice.
+ */
+export function applyHighlightsToSection(
+  sectionHtml: string,
+  sectionOffset: number,
+  sectionDiff: SectionDiff,
+  paragraphIndex: Map<string, Paragraph>,
+  side: Side,
+): string {
+  // Collect replacements: { relStart, relEnd, html }
+  const replacements: { relStart: number; relEnd: number; html: string }[] = [];
+
+  for (const pd of sectionDiff.paragraphDiffs) {
+    // Get the source location for this side
+    const sourceLoc = pd.sourceMapping[side];
+    if (!sourceLoc) continue; // No source on this side (e.g., added para on old side)
+
+    // Convert absolute offsets to relative within section slice
+    const relStart = sourceLoc.start - sectionOffset;
+    const relEnd = sourceLoc.end - sectionOffset;
+
+    // Bounds check
+    if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+
+    const paragraphHtml = sectionHtml.slice(relStart, relEnd);
+
+    let replacedHtml: string;
+
+    if (pd.changeType === 'added' && side === 'new') {
+      replacedHtml = wrapParagraph(paragraphHtml, 'added');
+    } else if (pd.changeType === 'removed' && side === 'old') {
+      replacedHtml = wrapParagraph(paragraphHtml, 'removed');
+    } else if (pd.changeType === 'modified' || pd.changeType === 'moved') {
+      // Filter word changes by side
+      const filteredChanges = (pd.wordChanges ?? []).filter((wc) =>
+        side === 'old' ? wc.type === 'removed' : wc.type === 'added',
+      );
+
+      if (filteredChanges.length === 0) continue; // Nothing to highlight for this side
+
+      // Look up the paragraph text for normalization mapping
+      const paraKey = `${sourceLoc.start}:${sourceLoc.end}`;
+      const paragraph = paragraphIndex.get(paraKey);
+      if (!paragraph) continue;
+
+      replacedHtml = injectWordHighlights(paragraphHtml, filteredChanges, paragraph.text);
+    } else {
+      // 'unchanged', 'reordered', etc. — no modification
+      continue;
+    }
+
+    replacements.push({ relStart, relEnd, html: replacedHtml });
+  }
+
+  // Apply replacements in reverse offset order to preserve positions
+  replacements.sort((a, b) => b.relStart - a.relStart);
+
+  let result = sectionHtml;
+  for (const rep of replacements) {
+    result = result.slice(0, rep.relStart) + rep.html + result.slice(rep.relEnd);
+  }
+
+  return result;
+}
+
 /**
  * Wrap a range of normalized-text positions in <ins>/<del> elements.
  * Processes in reverse piece order to avoid invalidating node references.
