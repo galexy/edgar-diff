@@ -17,7 +17,7 @@ function stripStyleBlocks(html: string): string {
 
 function sliceSections(document: StructuredDocument): HtmlSection[] {
   const { filing, sections } = document;
-  const html = filing.html;
+  const html = filing.html ?? '';
   const result: HtmlSection[] = [];
 
   // Preamble: content before the first section
