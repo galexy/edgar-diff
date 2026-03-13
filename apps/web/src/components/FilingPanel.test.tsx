@@ -146,4 +146,78 @@ describe('FilingPanel', () => {
     render(<FilingPanel label="Filing A" document={doc} />);
     expect(screen.getByText('Filing A')).toBeInTheDocument();
   });
+
+  // --- US-2.3: CSS isolation structure ---
+
+  it('content area still has overflow-y-auto when document is provided', () => {
+    const html = '<p>Content</p>';
+    const doc = makeDocument(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(
+      <FilingPanel label="Filing A" document={doc} />,
+    );
+    expect(container.querySelector('.overflow-y-auto')).not.toBeNull();
+  });
+
+  it('renders multiple section containers in DOM order', () => {
+    const html =
+      '<h2>Business</h2><p>A</p><h2>Risk</h2><p>B</p><h2>Props</h2><p>C</p>';
+    const item1aStart = html.indexOf('<h2>Risk');
+    const item2Start = html.indexOf('<h2>Props');
+    const sections = [
+      makeSection('item-1', 'Item 1. Business', 0, item1aStart),
+      makeSection('item-1a', 'Item 1A. Risk Factors', item1aStart, item2Start),
+      makeSection('item-2', 'Item 2. Properties', item2Start, html.length),
+    ];
+    const doc = makeDocument(html, sections);
+    const { container } = render(
+      <FilingPanel label="Filing A" document={doc} />,
+    );
+
+    const item1 = container.querySelector('#item-1')!;
+    const item1a = container.querySelector('#item-1a')!;
+    const item2 = container.querySelector('#item-2')!;
+    expect(item1).not.toBeNull();
+    expect(item1a).not.toBeNull();
+    expect(item2).not.toBeNull();
+
+    // Verify DOM order
+    expect(
+      item1.compareDocumentPosition(item1a) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      item1a.compareDocumentPosition(item2) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('slices HTML content by SourceLocation offsets', () => {
+    const html = 'AAAA<p>First</p>BBBB<p>Second</p>';
+    const firstStart = html.indexOf('<p>First');
+    const firstEnd = html.indexOf('BBBB');
+    const secondStart = html.indexOf('<p>Second');
+    const sections = [
+      makeSection('s1', 'First', firstStart, firstEnd),
+      makeSection('s2', 'Second', secondStart, html.length),
+    ];
+    const doc = makeDocument(html, sections);
+    render(<FilingPanel label="Filing A" document={doc} />);
+
+    expect(screen.getByText('First')).toBeInTheDocument();
+    expect(screen.getByText('Second')).toBeInTheDocument();
+  });
+
+  it('preserves inline formatting tags', () => {
+    const html = '<p><b>Bold</b> and <i>italic</i> and <u>underline</u></p>';
+    const doc = makeDocument(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(
+      <FilingPanel label="Filing A" document={doc} />,
+    );
+
+    expect(container.querySelector('b')).not.toBeNull();
+    expect(container.querySelector('i')).not.toBeNull();
+    expect(container.querySelector('u')).not.toBeNull();
+  });
 });

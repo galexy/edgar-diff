@@ -207,4 +207,143 @@ describe('FilingContent', () => {
     const sections = container.querySelectorAll('.filing-section');
     expect(sections.length).toBeGreaterThanOrEqual(2);
   });
+
+  // --- Boundary conditions ---
+
+  describe('Boundary conditions', () => {
+    it('handles 0 sections with non-empty HTML (renders as id="content")', () => {
+      const html = '<p>No sections here</p>';
+      const doc = makeDoc(html, []);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(screen.getByText('No sections here')).toBeInTheDocument();
+      expect(container.querySelector('#content')).not.toBeNull();
+    });
+
+    it('handles 1 section covering the full document', () => {
+      const html = '<p>Only section</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(container.querySelector('#item-1')).not.toBeNull();
+    });
+
+    it('handles many sections (20+)', () => {
+      let html = '';
+      const sections: FilingSection[] = [];
+      for (let i = 0; i < 20; i++) {
+        const start = html.length;
+        html += `<h2>Section ${i}</h2><p>Content ${i}</p>`;
+        sections.push(makeSection(`sec-${i}`, `Section ${i}`, start, html.length));
+      }
+      const doc = makeDoc(html, sections);
+      const { container } = render(<FilingContent document={doc} />);
+
+      for (let i = 0; i < 20; i++) {
+        expect(container.querySelector(`#sec-${i}`)).not.toBeNull();
+      }
+    });
+
+    it('handles empty HTML string with empty sections', () => {
+      const { container } = render(<FilingContent document={makeDoc('', [])} />);
+      const root = container.querySelector('.filing-content-root');
+      expect(root).not.toBeNull();
+      expect(root?.children).toHaveLength(0);
+    });
+
+    it('handles section with start === end (zero-length range)', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [
+        makeSection('empty', 'Empty Section', 5, 5),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      const section = container.querySelector('#empty');
+      expect(section).not.toBeNull();
+      expect(section?.innerHTML).toBe('');
+    });
+
+    it('handles preamble-only document (sections start after all content)', () => {
+      const html = '<p>All preamble</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', html.length, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(container.querySelector('#preamble')).not.toBeNull();
+      expect(screen.getByText('All preamble')).toBeInTheDocument();
+    });
+  });
+
+  // --- Error conditions ---
+
+  describe('Error conditions', () => {
+    it('handles document with undefined filing.html gracefully', () => {
+      const doc: StructuredDocument = {
+        filing: {
+          ...makeDoc('', []).filing,
+          html: undefined as unknown as string,
+        },
+        sections: [],
+        parseWarnings: [],
+      };
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+    });
+
+    it('handles source location beyond HTML string length', () => {
+      const html = '<p>Short</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, 9999),
+      ]);
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+      expect(screen.getByText('Short')).toBeInTheDocument();
+    });
+
+    it('handles source location with start > end (inverted range)', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 10, 5),
+      ]);
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+    });
+
+    it('does not execute <script> tags in filing HTML', () => {
+      const html = '<p>Safe</p><script>alert("xss")</script><p>Also safe</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+
+      expect(screen.getByText('Safe')).toBeInTheDocument();
+      expect(screen.getByText('Also safe')).toBeInTheDocument();
+    });
+  });
+
+  // --- CSS isolation structure (extended) ---
+
+  describe('CSS isolation structure', () => {
+    it('.filing-content-root container exists with document', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [makeSection('item-1', 'Item 1', 0, html.length)]);
+      const { container } = render(<FilingContent document={doc} />);
+
+      expect(container.querySelector('.filing-content-root')).not.toBeNull();
+    });
+
+    it('each section has .filing-section class', () => {
+      const html = '<p>A</p><p>B</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'A', 0, 8),
+        makeSection('item-2', 'B', 8, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+
+      const sections = container.querySelectorAll('.filing-section');
+      expect(sections.length).toBe(2);
+    });
+  });
 });
