@@ -1,4 +1,4 @@
-import type { StructuredDocument, SectionDiff, Paragraph } from '@edgar-diff/lib';
+import type { StructuredDocument, SectionDiff, Paragraph, Table } from '@edgar-diff/lib';
 import { applyHighlightsToSection, type Side } from '../lib/highlight-injector';
 import './filing-content.css';
 import './highlight.css';
@@ -32,6 +32,19 @@ function buildParagraphIndex(document: StructuredDocument): Map<string, Paragrap
   return index;
 }
 
+/** Build a lookup map from "start:end" → Table for O(1) retrieval. */
+function buildTableIndex(document: StructuredDocument): Map<string, Table> {
+  const index = new Map<string, Table>();
+  for (const section of document.sections) {
+    for (const block of section.blocks) {
+      if (block.type === 'table') {
+        index.set(`${block.source.start}:${block.source.end}`, block);
+      }
+    }
+  }
+  return index;
+}
+
 function sliceSections(
   document: StructuredDocument,
   sectionDiffs?: SectionDiff[],
@@ -41,9 +54,10 @@ function sliceSections(
   const html = filing.html ?? '';
   const result: HtmlSection[] = [];
 
-  // Build diff lookup and paragraph index if diffs provided
+  // Build diff lookup and indexes if diffs provided
   const diffMap = new Map(sectionDiffs?.map((sd) => [sd.id, sd]) ?? []);
   const paragraphIndex = sectionDiffs ? buildParagraphIndex(document) : undefined;
+  const tableIndex = sectionDiffs ? buildTableIndex(document) : undefined;
 
   // Preamble: content before the first section
   if (sections.length > 0 && sections[0].source.start > 0) {
@@ -66,6 +80,7 @@ function sliceSections(
         sectionDiff,
         paragraphIndex,
         side,
+        tableIndex,
       );
     }
 

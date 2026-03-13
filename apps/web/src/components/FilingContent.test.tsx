@@ -5,8 +5,14 @@ import type {
   StructuredDocument,
   FilingSection,
   Paragraph,
+  Table,
+  TableRow,
+  TableCell,
   ParagraphDiff,
   SectionDiff,
+  TableDiff,
+  RowDiff,
+  CellDiff,
   WordChange,
   ChangeType,
 } from '@edgar-diff/lib';
@@ -58,6 +64,84 @@ function makeSectionDiff(
     tableDiffs: [],
     subsectionDiffs: [],
     sourceMapping: { old: undefined, new: undefined },
+  };
+}
+
+function makeSectionDiffWithTables(
+  id: string,
+  heading: string,
+  paragraphDiffs: ParagraphDiff[],
+  tableDiffs: TableDiff[],
+  changeType: ChangeType = 'modified',
+): SectionDiff {
+  return {
+    id,
+    heading,
+    changeType,
+    paragraphDiffs,
+    tableDiffs,
+    subsectionDiffs: [],
+    sourceMapping: { old: undefined, new: undefined },
+  };
+}
+
+function makeTableBlock(rows: TableRow[], start: number, end: number): Table {
+  return { type: 'table', rows, source: { start, end } };
+}
+
+function makeTableRow(cells: TableCell[], start: number, end: number, isHeader = false): TableRow {
+  return { cells, isHeader, source: { start, end } };
+}
+
+function makeTableCell(text: string, start: number, end: number, opts: { colspan?: number; rowspan?: number } = {}): TableCell {
+  return { text, colspan: opts.colspan ?? 1, rowspan: opts.rowspan ?? 1, source: { start, end } };
+}
+
+function makeRowDiff(
+  changeType: ChangeType,
+  cellDiffs: CellDiff[],
+  oldRowIndex?: number,
+  newRowIndex?: number,
+): RowDiff {
+  return { changeType, cellDiffs, oldRowIndex, newRowIndex };
+}
+
+function makeCellDiff(
+  row: number,
+  col: number,
+  changeType: ChangeType,
+  opts: {
+    oldSource?: { start: number; end: number };
+    newSource?: { start: number; end: number };
+    oldValue?: string;
+    newValue?: string;
+  } = {},
+): CellDiff {
+  return {
+    row,
+    col,
+    changeType,
+    oldValue: opts.oldValue,
+    newValue: opts.newValue,
+    sourceMapping: {
+      old: opts.oldSource,
+      new: opts.newSource,
+    },
+  };
+}
+
+function makeTableDiff(
+  changeType: ChangeType,
+  rowDiffs: RowDiff[],
+  oldSource?: { start: number; end: number },
+  newSource?: { start: number; end: number },
+): TableDiff {
+  return {
+    changeType,
+    rowDiffs,
+    cellDiffs: rowDiffs.flatMap((rd) => rd.cellDiffs),
+    sourceMapping: { old: oldSource, new: newSource },
+    summary: { rowsAdded: 0, rowsRemoved: 0, rowsModified: 0, rowsUnchanged: 0, cellsChanged: 0 },
   };
 }
 
@@ -1356,6 +1440,326 @@ describe('FilingContent', () => {
         );
         expect(newContainer.querySelectorAll('ins').length).toBeGreaterThan(0);
         expect(newContainer.querySelectorAll('del')).toHaveLength(0);
+      });
+    });
+  });
+
+  // ─── US-2.6: Table diff highlighting ────────────────────────────
+
+  describe('Table diff highlighting', () => {
+    // Helper to build a doc with a table in a section
+    function makeTableDoc(tableHtml: string, blocks: FilingSection['blocks'] = []) {
+      const sectionHtml = `<h2>Item 1</h2>${tableHtml}`;
+      const html = sectionHtml;
+      const sectionStart = 0;
+      const sectionEnd = html.length;
+      const section = makeSection('item-1', 'Item 1', sectionStart, sectionEnd, blocks);
+      return makeDoc(html, [section]);
+    }
+
+    describe('No-op without diff data', () => {
+      it('TFC-I1: table without sectionDiffs renders normally — no diff-* classes', () => {
+        const tableHtml = '<table><tr><td>Revenue</td><td>$1,000</td></tr></table>';
+        const doc = makeTableDoc(tableHtml);
+        const { container } = render(<FilingContent document={doc} />);
+        const tds = container.querySelectorAll('td');
+        expect(tds.length).toBe(2);
+        tds.forEach((td) => {
+          expect(td.className).not.toContain('diff-');
+        });
+      });
+
+      it('TFC-I2: table with sectionDiffs but empty tableDiffs — table unmodified', () => {
+        const tableHtml = '<table><tr><td>Revenue</td><td>$1,000</td></tr></table>';
+        const doc = makeTableDoc(tableHtml);
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], []);
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const tds = container.querySelectorAll('td');
+        tds.forEach((td) => {
+          expect(td.className).not.toContain('diff-');
+        });
+      });
+    });
+
+    describe('Cell-level changes', () => {
+      it('TFC-I3: modified cell has diff-cell-modified class and old→new annotation', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>$1,234</td></tr></table>';
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('$1,234', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'modified', {
+          oldValue: '$1,000', newValue: '$1,234',
+          newSource: { start: tdStart, end: tdEnd },
+        });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const cell = container.querySelector('td');
+        expect(cell?.className).toContain('diff-cell-modified');
+        expect(cell?.querySelector('del.diff-removed')?.textContent).toBe('$1,000');
+        expect(cell?.querySelector('ins.diff-added')?.textContent).toBe('$1,234');
+      });
+
+      it('TFC-I4: added cell on new side has diff-cell-added class', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>New</td></tr></table>';
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('New', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'added', { newSource: { start: tdStart, end: tdEnd } });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const cell = container.querySelector('td');
+        expect(cell?.className).toContain('diff-cell-added');
+        expect(cell?.textContent).toBe('New');
+      });
+
+      it('TFC-I5: removed cell on old side has diff-cell-removed class', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>Old</td></tr></table>';
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('Old', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'removed', { oldSource: { start: tdStart, end: tdEnd } });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="old" />,
+        );
+        const cell = container.querySelector('td');
+        expect(cell?.className).toContain('diff-cell-removed');
+        expect(cell?.textContent).toBe('Old');
+      });
+    });
+
+    describe('Row-level changes', () => {
+      it('TFC-I7: added row on new side has diff-row-added class', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>NewRow</td></tr></table>';
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('NewRow', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const rd = makeRowDiff('added', [], undefined, 0);
+        const td = makeTableDiff('modified', [rd],
+          undefined,
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const tr = container.querySelector('tr');
+        expect(tr?.className).toContain('diff-row-added');
+      });
+
+      it('TFC-I8: removed row on old side has diff-row-removed class', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>OldRow</td></tr></table>';
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('OldRow', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const rd = makeRowDiff('removed', [], 0, undefined);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          undefined,
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="old" />,
+        );
+        const tr = container.querySelector('tr');
+        expect(tr?.className).toContain('diff-row-removed');
+      });
+    });
+
+    describe('Side filtering', () => {
+      it('TFC-I10: old side shows only removed, no added classes', () => {
+        const html = '<h2>Item 1</h2><table><tr><td>Val</td></tr></table>';
+        const tdStart = html.indexOf('<td>');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('Val', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'removed', { oldSource: { start: tdStart, end: tdEnd } });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="old" />,
+        );
+        expect(container.innerHTML).toContain('diff-cell-removed');
+        expect(container.innerHTML).not.toContain('diff-cell-added');
+        expect(container.innerHTML).not.toContain('diff-row-added');
+      });
+    });
+
+    describe('Table structure preservation', () => {
+      it('TFC-I15: colspan attribute preserved on highlighted cell', () => {
+        const html = '<h2>Item 1</h2><table><tr><td colspan="2">Span</td></tr></table>';
+        const tdStart = html.indexOf('<td');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('Span', tdStart, tdEnd, { colspan: 2 })], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'added', { newSource: { start: tdStart, end: tdEnd } });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const cell = container.querySelector('td');
+        expect(cell?.getAttribute('colspan')).toBe('2');
+        expect(cell?.className).toContain('diff-cell-added');
+      });
+
+      it('TFC-I19: existing CSS class on <td> preserved alongside diff-* class', () => {
+        const html = '<h2>Item 1</h2><table><tr><td class="num">100</td></tr></table>';
+        const tdStart = html.indexOf('<td');
+        const tdEnd = html.indexOf('</td>') + 5;
+        const tableStart = html.indexOf('<table>');
+        const tableEnd = html.indexOf('</table>') + 8;
+        const trStart = html.indexOf('<tr>');
+        const trEnd = html.indexOf('</tr>') + 5;
+
+        const doc = makeDoc(html, [
+          makeSection('item-1', 'Item 1', 0, html.length, [
+            makeTableBlock(
+              [makeTableRow([makeTableCell('100', tdStart, tdEnd)], trStart, trEnd)],
+              tableStart, tableEnd,
+            ),
+          ]),
+        ]);
+
+        const cd = makeCellDiff(0, 0, 'added', { newSource: { start: tdStart, end: tdEnd } });
+        const rd = makeRowDiff('modified', [cd], 0, 0);
+        const td = makeTableDiff('modified', [rd],
+          { start: tableStart, end: tableEnd },
+          { start: tableStart, end: tableEnd },
+        );
+        const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
+
+        const { container } = render(
+          <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
+        );
+        const cell = container.querySelector('td');
+        expect(cell?.className).toContain('num');
+        expect(cell?.className).toContain('diff-cell-added');
       });
     });
   });
