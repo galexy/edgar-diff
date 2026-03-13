@@ -1,0 +1,349 @@
+import { render, screen } from '@testing-library/react';
+import { describe, it, expect } from 'vitest';
+import { Temporal } from '@js-temporal/polyfill';
+import type { StructuredDocument, FilingSection } from '@edgar-diff/lib';
+import { FilingContent } from './FilingContent';
+
+// --- Test Fixture Helpers ---
+
+function makeSection(
+  id: string,
+  heading: string,
+  start: number,
+  end: number,
+): FilingSection {
+  return { id, heading, level: 1, blocks: [], subsections: [], source: { start, end } };
+}
+
+function makeDoc(
+  html: string,
+  sections: FilingSection[] = [],
+): StructuredDocument {
+  return {
+    filing: {
+      accessionNumber: '0000000000-00-000000',
+      cik: '0000000000',
+      formType: '10-K' as const,
+      filingDate: Temporal.PlainDate.from('2024-01-15'),
+      primaryDocumentFilename: 'test.htm',
+      html,
+      fetchedAt: Temporal.Now.instant(),
+    },
+    sections,
+    parseWarnings: [],
+  };
+}
+
+describe('FilingContent', () => {
+  // --- Preamble rendering ---
+
+  it('renders preamble content before the first section', () => {
+    const html = '<p>Preamble</p><h2>Item 1</h2><p>Content</p>';
+    const item1Start = html.indexOf('<h2>');
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', item1Start, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(screen.getByText('Preamble')).toBeInTheDocument();
+    expect(screen.getByText('Content')).toBeInTheDocument();
+    expect(container.querySelector('#preamble')).not.toBeNull();
+  });
+
+  it('does not render preamble when first section starts at offset 0', () => {
+    const html = '<h2>Item 1</h2><p>Content</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelector('#preamble')).toBeNull();
+  });
+
+  // --- Section ID assignment ---
+
+  it('wraps each section in a <section> element with the section id', () => {
+    const html = '<h2>Item 1</h2><p>A</p><h2>Item 2</h2><p>B</p>';
+    const item2Start = html.indexOf('<h2>Item 2');
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, item2Start),
+      makeSection('item-2', 'Item 2', item2Start, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    const s1 = container.querySelector('#item-1');
+    const s2 = container.querySelector('#item-2');
+    expect(s1).not.toBeNull();
+    expect(s2).not.toBeNull();
+    expect(s1?.tagName.toLowerCase()).toBe('section');
+    expect(s2?.tagName.toLowerCase()).toBe('section');
+  });
+
+  // --- No sections fallback ---
+
+  it('renders entire HTML as id="content" when there are no sections', () => {
+    const html = '<p>No sections here</p>';
+    const doc = makeDoc(html, []);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(screen.getByText('No sections here')).toBeInTheDocument();
+    expect(container.querySelector('#content')).not.toBeNull();
+  });
+
+  it('renders empty container when HTML is empty and no sections', () => {
+    const { container } = render(<FilingContent document={makeDoc('', [])} />);
+    const root = container.querySelector('.filing-content-root');
+    expect(root).not.toBeNull();
+    expect(root?.children).toHaveLength(0);
+  });
+
+  // --- Single section ---
+
+  it('handles a single section covering the full document', () => {
+    const html = '<h2>Only Section</h2><p>All the content</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelector('#item-1')).not.toBeNull();
+    expect(screen.getByText('All the content')).toBeInTheDocument();
+  });
+
+  // --- Formatting preservation ---
+
+  it('preserves table markup from original HTML', () => {
+    const html = '<h2>Item 1</h2><table><tr><td>Cell</td></tr></table>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelector('table')).not.toBeNull();
+    expect(screen.getByText('Cell')).toBeInTheDocument();
+  });
+
+  it('preserves list markup from original HTML', () => {
+    const html = '<ul><li>First</li><li>Second</li></ul>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('li')).toHaveLength(2);
+  });
+
+  // --- Style block stripping ---
+
+  it('strips <style> blocks from rendered HTML', () => {
+    const html = '<style>body { font-family: Comic Sans; }</style><p>Content</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Content')).toBeInTheDocument();
+  });
+
+  it('strips multiple <style> blocks', () => {
+    const html = '<style>.a { color: red; }</style><p>Text</p><style>.b { color: blue; }</style>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Text')).toBeInTheDocument();
+  });
+
+  it('preserves inline styles while stripping <style> blocks', () => {
+    const html = '<style>p { margin: 0; }</style><p style="color: red;">Styled text</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    const p = container.querySelector('p[style]');
+    expect(p).not.toBeNull();
+    expect(p?.getAttribute('style')).toContain('color');
+    expect(screen.getByText('Styled text')).toBeInTheDocument();
+  });
+
+  it('strips <style> blocks from preamble content too', () => {
+    const html = '<style>body { margin: 0; }</style><p>Preamble</p><h2>Item 1</h2><p>Section</p>';
+    const item1Start = html.indexOf('<h2>');
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', item1Start, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Preamble')).toBeInTheDocument();
+  });
+
+  // --- CSS isolation structure ---
+
+  it('wraps content in a .filing-content-root container', () => {
+    const html = '<p>Content</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelector('.filing-content-root')).not.toBeNull();
+  });
+
+  it('applies .filing-section class to each section element', () => {
+    const html = '<h2>A</h2><p>1</p><h2>B</h2><p>2</p>';
+    const bStart = html.indexOf('<h2>B');
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'A', 0, bStart),
+      makeSection('item-2', 'B', bStart, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    const sections = container.querySelectorAll('.filing-section');
+    expect(sections.length).toBeGreaterThanOrEqual(2);
+  });
+
+  // --- Boundary conditions ---
+
+  describe('Boundary conditions', () => {
+    it('handles 0 sections with non-empty HTML (renders as id="content")', () => {
+      const html = '<p>No sections here</p>';
+      const doc = makeDoc(html, []);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(screen.getByText('No sections here')).toBeInTheDocument();
+      expect(container.querySelector('#content')).not.toBeNull();
+    });
+
+    it('handles 1 section covering the full document', () => {
+      const html = '<p>Only section</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(container.querySelector('#item-1')).not.toBeNull();
+    });
+
+    it('handles many sections (20+)', () => {
+      let html = '';
+      const sections: FilingSection[] = [];
+      for (let i = 0; i < 20; i++) {
+        const start = html.length;
+        html += `<h2>Section ${i}</h2><p>Content ${i}</p>`;
+        sections.push(makeSection(`sec-${i}`, `Section ${i}`, start, html.length));
+      }
+      const doc = makeDoc(html, sections);
+      const { container } = render(<FilingContent document={doc} />);
+
+      for (let i = 0; i < 20; i++) {
+        expect(container.querySelector(`#sec-${i}`)).not.toBeNull();
+      }
+    });
+
+    it('handles empty HTML string with empty sections', () => {
+      const { container } = render(<FilingContent document={makeDoc('', [])} />);
+      const root = container.querySelector('.filing-content-root');
+      expect(root).not.toBeNull();
+      expect(root?.children).toHaveLength(0);
+    });
+
+    it('handles section with start === end (zero-length range)', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [
+        makeSection('empty', 'Empty Section', 5, 5),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      const section = container.querySelector('#empty');
+      expect(section).not.toBeNull();
+      expect(section?.innerHTML).toBe('');
+    });
+
+    it('handles preamble-only document (sections start after all content)', () => {
+      const html = '<p>All preamble</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', html.length, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+      expect(container.querySelector('#preamble')).not.toBeNull();
+      expect(screen.getByText('All preamble')).toBeInTheDocument();
+    });
+  });
+
+  // --- Error conditions ---
+
+  describe('Error conditions', () => {
+    it('handles document with undefined filing.html gracefully', () => {
+      const doc: StructuredDocument = {
+        filing: {
+          ...makeDoc('', []).filing,
+          html: undefined as unknown as string,
+        },
+        sections: [],
+        parseWarnings: [],
+      };
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+    });
+
+    it('handles source location beyond HTML string length', () => {
+      const html = '<p>Short</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, 9999),
+      ]);
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+      expect(screen.getByText('Short')).toBeInTheDocument();
+    });
+
+    it('handles source location with start > end (inverted range)', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 10, 5),
+      ]);
+      expect(() =>
+        render(<FilingContent document={doc} />),
+      ).not.toThrow();
+    });
+
+    it('does not execute <script> tags in filing HTML', () => {
+      const html = '<p>Safe</p><script>alert("xss")</script><p>Also safe</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'Item 1', 0, html.length),
+      ]);
+      render(<FilingContent document={doc} />);
+
+      expect(screen.getByText('Safe')).toBeInTheDocument();
+      expect(screen.getByText('Also safe')).toBeInTheDocument();
+    });
+  });
+
+  // --- CSS isolation structure (extended) ---
+
+  describe('CSS isolation structure', () => {
+    it('.filing-content-root container exists with document', () => {
+      const html = '<p>Content</p>';
+      const doc = makeDoc(html, [makeSection('item-1', 'Item 1', 0, html.length)]);
+      const { container } = render(<FilingContent document={doc} />);
+
+      expect(container.querySelector('.filing-content-root')).not.toBeNull();
+    });
+
+    it('each section has .filing-section class', () => {
+      const html = '<p>A</p><p>B</p>';
+      const doc = makeDoc(html, [
+        makeSection('item-1', 'A', 0, 8),
+        makeSection('item-2', 'B', 8, html.length),
+      ]);
+      const { container } = render(<FilingContent document={doc} />);
+
+      const sections = container.querySelectorAll('.filing-section');
+      expect(sections.length).toBe(2);
+    });
+  });
+});

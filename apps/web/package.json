@@ -9,7 +9,8 @@
   "dependencies": {
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "@edgar-diff/lib": "workspace:*"
+    "@edgar-diff/lib": "workspace:*",
+    "@js-temporal/polyfill": "^0.5.1"
   },
   "devDependencies": {
     "@types/react": "^19.1.0",

@@ -1,0 +1,28 @@
+.filing-content-root {
+  /* Contain layout and paint to prevent filing content from affecting app */
+  contain: content;
+}
+
+.filing-section {
+  /* Reset inherited styles so filing HTML starts from browser defaults */
+  all: initial;
+  display: block;
+  font-family: inherit;
+
+  /* Constrain filing content within panel */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: break-word;
+}
+
+/* Ensure tables in filings don't overflow the panel */
+.filing-section table {
+  max-width: 100%;
+  table-layout: auto;
+}
+
+/* Constrain images */
+.filing-section img {
+  max-width: 100%;
+  height: auto;
+}

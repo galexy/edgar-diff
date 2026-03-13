@@ -75,6 +75,43 @@ describe('App', () => {
       ).toBeTruthy();
     }
   });
+
+  // --- US-2.3: Integration tests ---
+
+  it('Filing A renders filing content from fixture (not placeholder)', () => {
+    const { container } = render(<App />);
+    // The real AAPL 10-K fixture should produce section containers
+    expect(container.querySelector('#item-1')).not.toBeNull();
+    expect(container.querySelector('#item-1a')).not.toBeNull();
+    expect(container.querySelector('#item-2')).not.toBeNull();
+    // FilingContent root should be present (not placeholder)
+    expect(container.querySelector('.filing-content-root')).not.toBeNull();
+  });
+
+  it('Filing B shows placeholder text (no document provided)', () => {
+    render(<App />);
+    // Only Filing B has placeholder — Filing A has fixture content
+    const placeholders = screen.getAllByText(/filing content will appear here/i);
+    expect(placeholders).toHaveLength(1);
+  });
+
+  it('Filing A renders preamble content before sections', () => {
+    const { container } = render(<App />);
+    expect(container.querySelector('#preamble')).not.toBeNull();
+    // Preamble should appear before the first section in DOM order
+    const preamble = container.querySelector('#preamble');
+    const firstSection = container.querySelector('#item-1');
+    if (preamble && firstSection) {
+      expect(
+        preamble.compareDocumentPosition(firstSection) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
+
+  it('section navigation sidebar is still present alongside filing panels', () => {
+    render(<App />);
+    expect(screen.getByRole('navigation')).toBeInTheDocument();
+  });
 });
 
 describe('Accessibility', () => {
