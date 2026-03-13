@@ -5,7 +5,7 @@
 US-2.2 replaces the current scaffold UI with a full layout skeleton: header, search bar, and a three-column content area (section nav sidebar + two filing panels). All content is static/hardcoded — no data fetching or library integration beyond what US-2.1 already wired up.
 
 The test strategy splits into two tiers:
-1. **Programmatic tests** (Vitest + Testing Library) — verify DOM structure, component composition, semantic HTML, and CSS class assertions
+1. **Programmatic tests** (Vitest + Testing Library) — verify DOM structure, component composition, semantic HTML, and accessibility
 2. **Visual validation** (Chrome DevTools MCP screenshots) — verify actual rendered layout, spacing, scroll behavior, and responsive sizing
 
 ## Component Structure (per implementation design)
@@ -21,6 +21,8 @@ The test strategy splits into two tiers:
 ---
 
 ## 1. BDD Acceptance Criteria
+
+The Gherkin scenarios below define the acceptance criteria as testable behaviors. They are **not** executed by a BDD framework — they serve as the specification that drives the actual Vitest test code in Sections 2–3. Each scenario maps to one or more `it()` blocks in the corresponding `*.test.tsx` file. "Given the app is mounted" translates to `render(<App />)` or `render(<Component />)`; "Then" assertions use Testing Library queries (`getByRole`, `getByText`, etc.) and jest-dom matchers (`toBeInTheDocument`, `toBeDisabled`, etc.).
 
 ### AC-1: Header bar with title
 
@@ -177,11 +179,6 @@ describe('SectionNav', () => {
     expect(list).toBeInTheDocument();
   });
 
-  it('has overflow styling for independent scroll', () => {
-    const { container } = render(<SectionNav />);
-    const nav = container.querySelector('nav');
-    expect(nav?.className).toMatch(/overflow/);
-  });
 });
 ```
 
@@ -200,13 +197,6 @@ describe('FilingPanel', () => {
     expect(select).toBeInTheDocument();
     expect(select).toBeDisabled();
     expect(select).toHaveTextContent(/select a filing/i);
-  });
-
-  it('has overflow styling for independent scroll', () => {
-    const { container } = render(<FilingPanel label="Filing A" />);
-    // The scrollable content area should have overflow-auto
-    const scrollable = container.querySelector('[class*="overflow"]');
-    expect(scrollable).not.toBeNull();
   });
 
   it('renders Filing B with correct heading', () => {
@@ -306,55 +296,11 @@ describe('App', () => {
 
 ---
 
-## 4. Layout & Scroll Tests (CSS Class Assertions)
+## 4. Layout & Scroll Validation
 
-jsdom does not compute CSS layout. These tests assert that the correct CSS classes are applied — actual rendering is validated visually.
+jsdom has no CSS layout engine — it cannot verify visual layout, computed widths, scroll positions, or responsive behavior. Rather than writing brittle tests that assert on Tailwind class names (which couple tests to implementation details), layout and scroll behavior are validated **visually** via Chrome DevTools MCP screenshots during implementation (see Section 6).
 
-### Layout structure assertions (in `App.test.tsx`)
-
-```typescript
-describe('App layout classes', () => {
-  it('sidebar has fixed-width class', () => {
-    const { container } = render(<App />);
-    const nav = container.querySelector('nav');
-    // Expect a Tailwind fixed-width class like w-48, w-56, w-64, etc.
-    expect(nav?.className).toMatch(/w-\d+|w-\[/);
-  });
-
-  it('content row uses flex layout within <main>', () => {
-    const { container } = render(<App />);
-    const main = container.querySelector('main');
-    expect(main).not.toBeNull();
-    expect(main?.className).toMatch(/flex/);
-  });
-
-  it('layout fills viewport height', () => {
-    const { container } = render(<App />);
-    const root = container.firstElementChild;
-    // Should have h-screen or min-h-screen
-    expect(root?.className).toMatch(/h-screen|min-h-screen/);
-  });
-
-  it('content areas have overflow classes for independent scroll', () => {
-    const { container } = render(<App />);
-    const nav = container.querySelector('nav');
-    // Nav and panel content areas should have overflow-auto or overflow-y-auto
-    expect(nav?.className).toMatch(/overflow/);
-
-    // Filing panels — find the scrollable containers
-    const scrollables = container.querySelectorAll('[class*="overflow-auto"], [class*="overflow-y-auto"]');
-    // At minimum: sidebar + 2 filing panels = 3 scrollable areas
-    expect(scrollables.length).toBeGreaterThanOrEqual(3);
-  });
-});
-```
-
-### What jsdom CANNOT test (see Section 8)
-
-- Actual scroll position or scroll events
-- Computed CSS widths (fixed sidebar vs flex panels)
-- Visual layout (columns side by side vs stacked)
-- Responsive breakpoints
+The programmatic tests in Sections 2–3 and 5 cover everything jsdom *can* reliably verify: DOM structure, semantic landmarks, text content, ARIA attributes, and component composition.
 
 ---
 
@@ -413,7 +359,9 @@ describe('Accessibility', () => {
 
 ## 6. Visual Validation Strategy (Chrome DevTools MCP)
 
-These are **manual agent steps** during implementation, not automated tests.
+**How this differs from the BDD/unit/integration tests above:** Sections 1–5 describe **persisted test code** — actual `*.test.tsx` files that run in CI via `pnpm nx run web:test`. They verify DOM structure, semantic HTML, and accessibility using jsdom.
+
+This section describes **ephemeral manual checks** performed by the implementing agent during development using Chrome DevTools MCP. These checks are not persisted as code, not run in CI, and not repeatable without an agent. They cover what jsdom cannot: actual visual layout, pixel rendering, scroll behavior, and responsive sizing. Think of them as the agent equivalent of a developer eyeballing the page in a browser.
 
 ### Screenshots to take
 
@@ -460,24 +408,23 @@ No mock data, API mocks, or test utilities beyond `@testing-library/react` are r
 
 | Limitation | Impact | Mitigation |
 |-----------|--------|-----------|
-| No CSS layout engine | Cannot verify columns are side-by-side | Assert flex/grid classes; verify visually via MCP |
-| No computed styles | Cannot check actual sidebar width in px | Assert Tailwind width class (`w-60`) |
-| No scroll rendering | Cannot test independent scroll behavior | Assert `overflow-auto` classes; verify scroll visually via MCP |
-| No responsive breakpoints | Cannot test layout at different viewports | Assert responsive utility classes; test breakpoints via MCP resize |
+| No CSS layout engine | Cannot verify columns are side-by-side | Verify visually via MCP screenshots |
+| No computed styles | Cannot check actual sidebar width in px | Verify visually via MCP screenshots |
+| No scroll rendering | Cannot test independent scroll behavior | Verify scroll visually via MCP |
+| No responsive breakpoints | Cannot test layout at different viewports | Test breakpoints via MCP viewport resize |
 | No visual regression | Cannot compare pixel output | Use MCP screenshots as informal visual checkpoints |
 
 ### What jsdom CAN do (and we test thoroughly)
 
 - DOM structure and element existence
 - Text content and ARIA attributes
-- CSS class presence (Tailwind utility classes)
 - DOM ordering (via `compareDocumentPosition`)
 - Semantic HTML landmarks (`role` queries)
 - Component composition (App renders all sub-components)
 
 ### Strategy summary
 
-**Programmatic tests** cover structure, semantics, and class-based layout intent. **MCP screenshots** cover actual visual appearance. Together they provide high confidence that the layout is correct without needing a browser-based test runner like Playwright (which would be overkill for a static layout skeleton).
+**Programmatic tests** cover structure, semantics, and accessibility. **MCP screenshots** cover actual visual appearance, layout, and scroll behavior. Together they provide high confidence that the layout is correct without needing a browser-based test runner like Playwright (which would be overkill for a static layout skeleton).
 
 ---
 
