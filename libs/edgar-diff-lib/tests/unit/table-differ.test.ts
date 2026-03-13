@@ -216,48 +216,68 @@ describe('column detection', () => {
 });
 
 describe('numeric diff', () => {
-  it('$100 -> $120: modified, oldNumericValue=100, newNumericValue=120', () => {
-    const oldTable = makeTable([makeTableRow([makeTableCell('$100', { numericValue: 100 })])]);
-    const newTable = makeTable([makeTableRow([makeTableCell('$120', { numericValue: 120 })])]);
+  it.each<{
+    name: string;
+    oldText: string;
+    oldNumeric?: number;
+    newText: string;
+    newNumeric?: number;
+    expectedChangeType: string;
+    expectedOldNumeric?: number;
+    expectedNewNumeric?: number;
+  }>([
+    {
+      name: '$100 -> $120: modified, oldNumericValue=100, newNumericValue=120',
+      oldText: '$100', oldNumeric: 100,
+      newText: '$120', newNumeric: 120,
+      expectedChangeType: 'modified',
+      expectedOldNumeric: 100, expectedNewNumeric: 120,
+    },
+    {
+      name: '$100 -> ($100): modified, sign change reflected in numeric values',
+      oldText: '$100', oldNumeric: 100,
+      newText: '($100)', newNumeric: -100,
+      expectedChangeType: 'modified',
+      expectedOldNumeric: 100, expectedNewNumeric: -100,
+    },
+    {
+      name: 'em-dash (0) vs $0: unchanged (both numericValue=0)',
+      oldText: '\u2014', oldNumeric: 0,
+      newText: '$0', newNumeric: 0,
+      expectedChangeType: 'unchanged',
+    },
+    {
+      name: '"1,000" vs "1000": unchanged (same numericValue, formatting only)',
+      oldText: '1,000', oldNumeric: 1000,
+      newText: '1000', newNumeric: 1000,
+      expectedChangeType: 'unchanged',
+    },
+    {
+      name: 'non-numeric to numeric: modified, oldNumericValue undefined',
+      oldText: 'N/A',
+      newText: '$100', newNumeric: 100,
+      expectedChangeType: 'modified',
+      expectedOldNumeric: undefined, expectedNewNumeric: 100,
+    },
+  ])('$name', ({ oldText, oldNumeric, newText, newNumeric, expectedChangeType, expectedOldNumeric, expectedNewNumeric }) => {
+    const oldOpts = oldNumeric !== undefined ? { numericValue: oldNumeric } : undefined;
+    const newOpts = newNumeric !== undefined ? { numericValue: newNumeric } : undefined;
+    const oldTable = makeTable([makeTableRow([makeTableCell(oldText, oldOpts)])]);
+    const newTable = makeTable([makeTableRow([makeTableCell(newText, newOpts)])]);
     const result = diffTable(oldTable, newTable);
-    const cd = result.cellDiffs[0];
-    expect(cd.changeType).toBe('modified');
-    expect(cd.oldNumericValue).toBe(100);
-    expect(cd.newNumericValue).toBe(120);
-  });
-
-  it('$100 -> ($100): modified, sign change reflected in numeric values', () => {
-    const oldTable = makeTable([makeTableRow([makeTableCell('$100', { numericValue: 100 })])]);
-    const newTable = makeTable([makeTableRow([makeTableCell('($100)', { numericValue: -100 })])]);
-    const result = diffTable(oldTable, newTable);
-    const cd = result.cellDiffs[0];
-    expect(cd.changeType).toBe('modified');
-    expect(cd.oldNumericValue).toBe(100);
-    expect(cd.newNumericValue).toBe(-100);
-  });
-
-  it('em-dash (0) vs $0: unchanged (both numericValue=0)', () => {
-    const oldTable = makeTable([makeTableRow([makeTableCell('\u2014', { numericValue: 0 })])]);
-    const newTable = makeTable([makeTableRow([makeTableCell('$0', { numericValue: 0 })])]);
-    const result = diffTable(oldTable, newTable);
-    expect(result.changeType).toBe('unchanged');
-  });
-
-  it('"1,000" vs "1000": unchanged (same numericValue, formatting only)', () => {
-    const oldTable = makeTable([makeTableRow([makeTableCell('1,000', { numericValue: 1000 })])]);
-    const newTable = makeTable([makeTableRow([makeTableCell('1000', { numericValue: 1000 })])]);
-    const result = diffTable(oldTable, newTable);
-    expect(result.changeType).toBe('unchanged');
-  });
-
-  it('non-numeric to numeric: modified, oldNumericValue undefined', () => {
-    const oldTable = makeTable([makeTableRow([makeTableCell('N/A')])]);
-    const newTable = makeTable([makeTableRow([makeTableCell('$100', { numericValue: 100 })])]);
-    const result = diffTable(oldTable, newTable);
-    const cd = result.cellDiffs[0];
-    expect(cd.changeType).toBe('modified');
-    expect(cd.oldNumericValue).toBeUndefined();
-    expect(cd.newNumericValue).toBe(100);
+    expect(result.changeType).toBe(expectedChangeType);
+    if (expectedOldNumeric !== undefined || expectedNewNumeric !== undefined) {
+      const cd = result.cellDiffs[0];
+      expect(cd.changeType).toBe('modified');
+      if (expectedOldNumeric !== undefined) {
+        expect(cd.oldNumericValue).toBe(expectedOldNumeric);
+      } else {
+        expect(cd.oldNumericValue).toBeUndefined();
+      }
+      if (expectedNewNumeric !== undefined) {
+        expect(cd.newNumericValue).toBe(expectedNewNumeric);
+      }
+    }
   });
 });
 

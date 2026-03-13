@@ -275,6 +275,45 @@ describe('alignSections', () => {
     expect(result.removed[0].heading).toBe('Item 1C. Cybersecurity');
   });
 
+  it('U-AS-16: alignment is deterministic across repeated calls', () => {
+    const oldSections = [
+      makeFilingSection('a', 'Alpha Section'),
+      makeFilingSection('b', 'Beta Section'),
+    ];
+    const newSections = [
+      makeFilingSection('b', 'Beta Section'),
+      makeFilingSection('a', 'Alpha Section'),
+    ];
+    const r1 = alignSections(oldSections, newSections);
+    const r2 = alignSections(oldSections, newSections);
+    expect(r1.matched.map(m => m.oldSection.id)).toEqual(r2.matched.map(m => m.oldSection.id));
+    expect(r1.matched.map(m => m.newSection.id)).toEqual(r2.matched.map(m => m.newSection.id));
+  });
+
+  it('U-AS-17: case-insensitive heading matching', () => {
+    const oldSections = [makeFilingSection('item-1a', 'RISK FACTORS')];
+    const newSections = [makeFilingSection('item-1a', 'Risk Factors')];
+    const result = alignSections(oldSections, newSections);
+    expect(result.matched).toHaveLength(1);
+    expect(result.matched[0].similarity).toBe(1);
+  });
+
+  it('U-AS-18: matched pairs have valid oldIndex and newIndex', () => {
+    const oldSections = [
+      makeFilingSection('a', 'Alpha'),
+      makeFilingSection('b', 'Beta'),
+    ];
+    const newSections = [
+      makeFilingSection('a', 'Alpha'),
+      makeFilingSection('b', 'Beta'),
+    ];
+    const result = alignSections(oldSections, newSections);
+    for (const m of result.matched) {
+      expect(m.oldIndex).toBeGreaterThanOrEqual(0);
+      expect(m.newIndex).toBeGreaterThanOrEqual(0);
+    }
+  });
+
   it('U-AS-11: threshold boundary — similarity at 0.75 matches; below does not', () => {
     // Use a custom threshold and verify boundary behavior
     const oldSections = [
