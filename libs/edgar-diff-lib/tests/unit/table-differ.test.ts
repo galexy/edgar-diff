@@ -4,15 +4,8 @@ import { diffTable, diffTables } from '../../src/diff/table-differ.js';
 import { makeTable, makeTableRow, makeTableCell, makeFinancialTable } from '../helpers/table-diff-helpers.js';
 
 describe('row alignment', () => {
-  it('identical rows => unchanged, rowDiffs empty (unchanged rows filtered)', () => {
-    const table = makeFinancialTable({
-      headers: ['Metric', '2023'],
-      rows: [{ label: 'Revenue', values: ['$100'] }],
-    });
-    const result = diffTable(table, table);
-    expect(result.changeType).toBe('unchanged');
-    expect(result.rowDiffs).toEqual([]);
-  });
+  // "identical rows => unchanged" removed: subsumed by AC-2 acceptance test
+  // which verifies this invariant across 200 randomly generated table pairs.
 
   it('inserted row in the middle => RowDiff with changeType added, newRowIndex set', () => {
     const oldTable = makeTable([
