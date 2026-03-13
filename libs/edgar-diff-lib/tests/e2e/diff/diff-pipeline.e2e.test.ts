@@ -7,15 +7,15 @@ import { diffFilings } from '../../../src/diff/diff-engine.js';
 import { makeRawFiling } from '../../helpers/ground-truth.js';
 import type { Paragraph } from '../../../src/types.js';
 
-const SPIKE_FIXTURES = join(import.meta.dirname, '..', '..', '..', 'spikes', 'diff-algorithm', 'fixtures');
+const FIXTURES_DIR = join(import.meta.dirname, '..', '..', 'integration', 'fixtures');
 
-function loadSpikeFixture(filename: string): string {
-  return readFileSync(join(SPIKE_FIXTURES, filename), 'utf-8');
+function loadFixture(filename: string): string {
+  return readFileSync(join(FIXTURES_DIR, filename), 'utf-8');
 }
 
 describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
-  const appleOldHtml = loadSpikeFixture('apple-fy2023.htm');
-  const appleNewHtml = loadSpikeFixture('apple-fy2024.htm');
+  const appleOldHtml = loadFixture('10k-aapl-2023.html');
+  const appleNewHtml = loadFixture('10k-aapl-2024.html');
 
   const oldFiling = makeRawFiling(appleOldHtml, {
     accessionNumber: '0000320193-23-000106',
@@ -133,8 +133,8 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
 });
 
 describe('E2E: structured diff with tables', () => {
-  const appleOldHtml = loadSpikeFixture('apple-fy2023.htm');
-  const appleNewHtml = loadSpikeFixture('apple-fy2024.htm');
+  const appleOldHtml = loadFixture('10k-aapl-2023.html');
+  const appleNewHtml = loadFixture('10k-aapl-2024.html');
 
   const oldFiling = makeRawFiling(appleOldHtml, {
     accessionNumber: '0000320193-23-000106',
@@ -366,7 +366,7 @@ describe('E2E: structured diff with tables', () => {
 });
 
 describe('E2E: single word change produces minimal focused diff', () => {
-  const originalHtml = loadSpikeFixture('apple-fy2024.htm');
+  const originalHtml = loadFixture('10k-aapl-2024.html');
   // Replace the first occurrence of "revenue" with "XREVENUEX" (unmistakable marker)
   const modifiedHtml = originalHtml.replace(/\brevenue\b/i, 'XREVENUEX');
 

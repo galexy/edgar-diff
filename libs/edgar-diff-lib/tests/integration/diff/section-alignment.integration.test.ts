@@ -6,15 +6,10 @@ import { alignSections } from '../../../src/diff/section-aligner.js';
 import { diffFilings } from '../../../src/diff/diff-engine.js';
 import { makeRawFiling } from '../../helpers/ground-truth.js';
 
-const SPIKE_FIXTURES = join(import.meta.dirname, '..', '..', '..', 'spikes', 'diff-algorithm', 'fixtures');
-const INTEGRATION_FIXTURES = join(import.meta.dirname, '..', 'fixtures');
+const FIXTURES_DIR = join(import.meta.dirname, '..', 'fixtures');
 
-function loadSpikeFixture(filename: string): string {
-  return readFileSync(join(SPIKE_FIXTURES, filename), 'utf-8');
-}
-
-function loadIntegrationFixture(filename: string): string {
-  return readFileSync(join(INTEGRATION_FIXTURES, filename), 'utf-8');
+function loadFixture(filename: string): string {
+  return readFileSync(join(FIXTURES_DIR, filename), 'utf-8');
 }
 
 function parseFixture(html: string) {
@@ -24,13 +19,13 @@ function parseFixture(html: string) {
 
 describe('Integration: Section Alignment with Real Filings', () => {
   describe('Apple 10-K FY2023 vs FY2024', () => {
-    const appleFY2023 = parseFixture(loadSpikeFixture('apple-fy2023.htm'));
-    const appleFY2024 = parseFixture(loadSpikeFixture('apple-fy2024.htm'));
+    const appleFY2023 = parseFixture(loadFixture('10k-aapl-2023.html'));
+    const appleFY2024 = parseFixture(loadFixture('10k-aapl-2024.html'));
 
     it('I-1: all standard items are matched between consecutive filings', () => {
       const result = alignSections(appleFY2023.sections, appleFY2024.sections);
 
-      // Spike found 100% alignment for Apple consecutive filings
+      // Expect 100% alignment for Apple consecutive filings
       expect(result.matched.length).toBeGreaterThan(0);
       expect(result.matched.length).toBeGreaterThanOrEqual(
         Math.min(appleFY2023.sections.length, appleFY2024.sections.length),
@@ -59,22 +54,8 @@ describe('Integration: Section Alignment with Real Filings', () => {
 
   describe('Cross-company: Apple vs Microsoft', () => {
     it('I-4: detects structural differences between companies', () => {
-      // Use integration fixtures for AAPL and MSFT if available, else spike fixtures
-      let aapl2024Html: string;
-      let msft2024Html: string;
-      try {
-        aapl2024Html = loadIntegrationFixture('10k-aapl-2024.html');
-      } catch {
-        aapl2024Html = loadSpikeFixture('apple-fy2024.htm');
-      }
-      try {
-        msft2024Html = loadIntegrationFixture('10k-msft-2024.html');
-      } catch {
-        msft2024Html = loadSpikeFixture('microsoft-fy2024.htm');
-      }
-
-      const aapl = parseFixture(aapl2024Html);
-      const msft = parseFixture(msft2024Html);
+      const aapl = parseFixture(loadFixture('10k-aapl-2024.html'));
+      const msft = parseFixture(loadFixture('10k-msft-2024.html'));
       const result = alignSections(aapl.sections, msft.sections);
 
       // Cross-company should still have many standard items in common
@@ -87,8 +68,8 @@ describe('Integration: Section Alignment with Real Filings', () => {
   });
 
   describe('Structural differences (I-5, I-6)', () => {
-    const msft2023 = parseFixture(loadIntegrationFixture('10k-msft-2023.html'));
-    const msft2024 = parseFixture(loadIntegrationFixture('10k-msft-2024.html'));
+    const msft2023 = parseFixture(loadFixture('10k-msft-2023.html'));
+    const msft2024 = parseFixture(loadFixture('10k-msft-2024.html'));
 
     it('I-5: filings with different section counts have correct added/removed', () => {
       const result = alignSections(msft2023.sections, msft2024.sections);
@@ -116,8 +97,8 @@ describe('Integration: Section Alignment with Real Filings', () => {
   });
 
   describe('Source mapping validation (I-7, I-8)', () => {
-    const appleFY2023Html = loadSpikeFixture('apple-fy2023.htm');
-    const appleFY2024Html = loadSpikeFixture('apple-fy2024.htm');
+    const appleFY2023Html = loadFixture('10k-aapl-2023.html');
+    const appleFY2024Html = loadFixture('10k-aapl-2024.html');
     const appleFY2023 = parseFixture(appleFY2023Html);
     const appleFY2024 = parseFixture(appleFY2024Html);
     const diffResult = diffFilings(appleFY2023, appleFY2024);
