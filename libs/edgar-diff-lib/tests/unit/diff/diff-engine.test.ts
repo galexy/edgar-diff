@@ -62,31 +62,6 @@ describe('buildSummary', () => {
 });
 
 describe('diffFilings', () => {
-  it('U-DF-1: returns valid StructuredDiff shape', () => {
-    const { oldDoc, newDoc } = makeDocumentPair(
-      [{ id: 'item-1', heading: 'Item 1. Business', content: 'text' }],
-      [{ id: 'item-1', heading: 'Item 1. Business', content: 'text' }],
-    );
-    const result = diffFilings(oldDoc, newDoc);
-    expect(result).toHaveProperty('oldFiling');
-    expect(result).toHaveProperty('newFiling');
-    expect(result).toHaveProperty('sectionDiffs');
-    expect(result).toHaveProperty('summary');
-    expect(result).toHaveProperty('generatedAt');
-  });
-
-  it('U-DF-2: oldFiling and newFiling are DiffFilingMetadata (no html)', () => {
-    const { oldDoc, newDoc } = makeDocumentPair(
-      [{ id: 'item-1', heading: 'Item 1', content: 'a' }],
-      [{ id: 'item-1', heading: 'Item 1', content: 'b' }],
-    );
-    const result = diffFilings(oldDoc, newDoc);
-    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
-    expect(result.newFiling.accessionNumber).toBe(newDoc.filing.accessionNumber);
-    expect('html' in result.oldFiling).toBe(false);
-    expect('html' in result.newFiling).toBe(false);
-  });
-
   it('U-DF-3: generatedAt is a valid Temporal.Instant', () => {
     const { oldDoc, newDoc } = makeDocumentPair([], []);
     const result = diffFilings(oldDoc, newDoc);

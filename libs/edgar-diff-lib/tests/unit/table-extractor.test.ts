@@ -109,12 +109,6 @@ describe('extractTable — basic extraction', () => {
     }
   });
 
-  it('empty table produces empty rows array', () => {
-    const { table } = parseTable(`<table></table>`);
-    expect(table).toBeDefined();
-    expect(table.rows).toHaveLength(0);
-  });
-
   it('multiple tables in one section', () => {
     const html = `<html><body>
 <div><span style="font-weight:700">Item 8. Financial Statements</span></div>

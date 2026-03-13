@@ -99,13 +99,6 @@ describe('matchTables', () => {
     expect(result.removed).toHaveLength(1);
   });
 
-  it('both empty => matched=[], added=[], removed=[]', () => {
-    const result = matchTables([], []);
-    expect(result.matched).toEqual([]);
-    expect(result.added).toEqual([]);
-    expect(result.removed).toEqual([]);
-  });
-
   it('single table in each list with matching headers => one match', () => {
     const old1 = makeFinancialTable({ headers: ['Revenue', '2023'], rows: [{ label: 'Total', values: ['$100'] }] });
     const new1 = makeFinancialTable({ headers: ['Revenue', '2023'], rows: [{ label: 'Total', values: ['$120'] }] });

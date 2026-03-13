@@ -543,14 +543,15 @@ describe('error conditions', () => {
     expect(docXml.sections).toHaveLength(0);
   });
 
-  it('E3: truncated/malformed HTML', () => {
-    const htmlTruncated = '<html><body><div><span style="font-weight:700">Item 1. Bus';
-    expect(() => parseFiling(makeRawFiling(htmlTruncated))).not.toThrow();
-  });
-
-  it('E4: HTML with duplicate html tags', () => {
-    const htmlDuplicate = `<html><body><p>First doc</p></body></html>
-<html><body><div><span style="font-weight:700">Item 1. Business</span></div></body></html>`;
-    expect(() => parseFiling(makeRawFiling(htmlDuplicate))).not.toThrow();
+  it('E3: malformed input produces valid StructuredDocument shape without throwing', () => {
+    const inputs = [
+      '<html><body><div><span style="font-weight:700">Item 1. Bus',
+      `<html><body><p>First doc</p></body></html>\n<html><body><div><span style="font-weight:700">Item 1. Business</span></div></body></html>`,
+    ];
+    for (const input of inputs) {
+      const result = parseFiling(makeRawFiling(input));
+      expect(result).toHaveProperty('sections');
+      expect(Array.isArray(result.sections)).toBe(true);
+    }
   });
 });
