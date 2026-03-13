@@ -4,6 +4,14 @@
   "projectType": "application",
   "sourceRoot": "apps/web/src",
   "targets": {
+    "typecheck": {
+      "command": "tsc --noEmit -p tsconfig.json",
+      "options": {
+        "cwd": "apps/web"
+      },
+      "dependsOn": ["^build"],
+      "cache": true
+    },
     "dev": {
       "command": "vite dev",
       "options": {
