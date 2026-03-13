@@ -50,6 +50,9 @@ importers:
       '@edgar-diff/lib':
         specifier: workspace:*
         version: link:../../libs/edgar-diff-lib
+      '@js-temporal/polyfill':
+        specifier: ^0.5.1
+        version: 0.5.1
       react:
         specifier: ^19.1.0
         version: 19.2.4
