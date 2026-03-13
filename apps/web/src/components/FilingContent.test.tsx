@@ -133,6 +133,56 @@ describe('FilingContent', () => {
     expect(container.querySelectorAll('li')).toHaveLength(2);
   });
 
+  // --- Style block stripping ---
+
+  it('strips <style> blocks from rendered HTML', () => {
+    const html = '<style>body { font-family: Comic Sans; }</style><p>Content</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Content')).toBeInTheDocument();
+  });
+
+  it('strips multiple <style> blocks', () => {
+    const html = '<style>.a { color: red; }</style><p>Text</p><style>.b { color: blue; }</style>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Text')).toBeInTheDocument();
+  });
+
+  it('preserves inline styles while stripping <style> blocks', () => {
+    const html = '<style>p { margin: 0; }</style><p style="color: red;">Styled text</p>';
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    const p = container.querySelector('p[style]');
+    expect(p).not.toBeNull();
+    expect(p?.getAttribute('style')).toContain('color');
+    expect(screen.getByText('Styled text')).toBeInTheDocument();
+  });
+
+  it('strips <style> blocks from preamble content too', () => {
+    const html = '<style>body { margin: 0; }</style><p>Preamble</p><h2>Item 1</h2><p>Section</p>';
+    const item1Start = html.indexOf('<h2>');
+    const doc = makeDoc(html, [
+      makeSection('item-1', 'Item 1', item1Start, html.length),
+    ]);
+    const { container } = render(<FilingContent document={doc} />);
+
+    expect(container.querySelectorAll('style')).toHaveLength(0);
+    expect(screen.getByText('Preamble')).toBeInTheDocument();
+  });
+
   // --- CSS isolation structure ---
 
   it('wraps content in a .filing-content-root container', () => {
