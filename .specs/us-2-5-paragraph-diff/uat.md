@@ -2,6 +2,8 @@
 
 Manual acceptance tests executed by a tester agent via Chrome DevTools MCP at the end of the dev/test cycle. These are **not** automated Vitest tests — they are visual sanity checks that verify the rendered page matches the design intent.
 
+**Recording requirements:** Screenshots MUST be saved to `.specs/us-2-5-paragraph-diff/screenshots/` and committed alongside the implementation. UAT results (pass/fail for each step, with a brief summary) MUST be recorded in the implementation PR body or as a PR comment, with screenshots attached/embedded so reviewers can see the visual verification without running the app.
+
 ## Prerequisites
 
 - Dev server running: `NX_OUTPUT_STYLE=stream pnpm nx run web:dev`

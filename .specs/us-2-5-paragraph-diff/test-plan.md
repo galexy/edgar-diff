@@ -107,10 +107,10 @@ Scenario: Old panel shows only removed changes, new panel shows only added chang
   Then only <ins> elements appear (for type='added' changes)
 ```
 
-### AC-9: Backward compatibility
+### AC-9: No-op without diff data
 
 ```gherkin
-Scenario: FilingContent without sectionDiffs renders identically to before
+Scenario: FilingContent without sectionDiffs renders normally (no highlights)
   Given a FilingContent with document but no sectionDiffs prop
   When the filing content is rendered
   Then no <ins> or <del> elements appear
@@ -130,6 +130,8 @@ Scenario: Moved paragraphs without word changes render as unchanged
   When the filing content is rendered
   Then no highlights are applied
 ```
+
+> **Known gap:** Moved paragraphs without word changes have no visual indicator, so users cannot tell a paragraph was relocated. A distinct "moved" indicator (e.g., blue/purple border, arrow icon, or tooltip) should be added in a future story. Filed as a follow-up concern.
 
 ---
 
@@ -209,11 +211,11 @@ File: `apps/web/src/lib/highlight-injector.test.ts`
 
 File: `apps/web/src/components/FilingContent.test.tsx` (extends existing test file)
 
-### 3.1 Backward compatibility
+### 3.1 No-op without diff data
 
 | ID | Test | Rationale |
 |----|------|-----------|
-| FC-I1 | `FilingContent` without `sectionDiffs` renders identically to US-2.3 (no highlights) | Backward compat (AC-9) |
+| FC-I1 | `FilingContent` without `sectionDiffs` renders normally — no `<ins>`/`<del>` in DOM | No-op when no diff data provided (AC-9) |
 | FC-I2 | Existing section slicing still works when `sectionDiffs` is undefined | No regression |
 
 ### 3.2 Whole-paragraph changes
@@ -244,7 +246,7 @@ File: `apps/web/src/components/FilingContent.test.tsx` (extends existing test fi
 | ID | Test | Rationale |
 |----|------|-----------|
 | FC-I11 | Moved paragraph with wordChanges renders word-level highlights | Moved + modified (AC-10) |
-| FC-I12 | Moved paragraph without wordChanges renders as unchanged (no highlights) | Moved without edit (AC-10) |
+| FC-I12 | Moved paragraph without wordChanges renders as unchanged (no highlights) | Moved without edit (AC-10) — **known gap**: no visual move indicator |
 | FC-I13 | Reordered paragraph renders as unchanged (no highlights) | Reordered deferred to future story |
 
 ---
@@ -361,5 +363,5 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 - DOM-based splitting produces valid HTML (multiple wrappers at tag boundaries)
 - Normalization mapping correctness (via `injectWordHighlights` output)
 - Error resilience (bad offsets, missing data, mismatched text)
-- Backward compatibility (no sectionDiffs = no highlights)
+- No-op behavior (no sectionDiffs = no highlights)
 - Accessibility semantics (`<ins>` and `<del>` are meaningful to screen readers)
