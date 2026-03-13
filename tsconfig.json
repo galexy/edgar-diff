@@ -2,6 +2,8 @@
   "extends": "./tsconfig.base.json",
   "files": [],
   "references": [
-    { "path": "libs/edgar-diff-lib" }
+    {
+      "path": "./libs/edgar-diff-lib"
+    }
   ]
 }
