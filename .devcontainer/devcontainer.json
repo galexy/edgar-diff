@@ -24,7 +24,8 @@
     "VISUAL": "hx",
     "COLORTERM": "truecolor",
     "SSH_AUTH_SOCK": "/ssh-agent",  
-    "BEADS_DIR": "/workspace/.beads"
+    "BEADS_DIR": "/workspace/.beads",
+    "CHROME_PATH": "/usr/bin/chromium"
    },
 
   "postCreateCommand": "sudo chmod 777 /ssh-agent",
