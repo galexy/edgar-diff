@@ -1,6 +1,6 @@
 import { parseFiling } from '@edgar-diff/lib';
 import { Temporal } from '@js-temporal/polyfill';
-import aaplHtml from '../../../../libs/edgar-diff-lib/tests/integration/fixtures/10k-aapl-2024.html?raw';
+import aaplHtml from './10k-aapl-2024.html?raw';
 
 const rawFiling = {
   accessionNumber: '0000320193-24-000123',
