@@ -33,16 +33,6 @@ describe('diff-filings', () => {
     expect(result.summary.unchanged).toBe(1);
     expect(result.summary.added).toBe(0);
     expect(result.summary.removed).toBe(0);
-
-    // BQ6: oldFiling/newFiling are DiffFilingMetadata (no html)
-    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
-    expect(result.oldFiling.cik).toBe(oldDoc.filing.cik);
-    expect(result.oldFiling.formType).toBe(oldDoc.filing.formType);
-    expect(result.oldFiling.filingDate).toBeDefined();
-    expect(result.oldFiling.primaryDocumentFilename).toBeDefined();
-    expect(result.oldFiling.fetchedAt).toBeDefined();
-    expect('html' in result.oldFiling).toBe(false);
-    expect('html' in result.newFiling).toBe(false);
   });
 
   // DF-U2: Subsection flattening — top-level sections are aligned

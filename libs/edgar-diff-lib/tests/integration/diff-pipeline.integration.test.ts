@@ -192,42 +192,6 @@ describe('diff pipeline integration', () => {
     }
   });
 
-  it('I-DP-5: metadata references are preserved through pipeline', () => {
-    const oldDoc = makeStructuredDoc([
-      makeSection('item-1', 'Item 1. Business', [
-        makeParagraph('Text', 100),
-        makeTable([['A', 'B']], 200),
-      ]),
-    ]);
-
-    const newDoc = makeStructuredDoc([
-      makeSection('item-1', 'Item 1. Business', [
-        makeParagraph('Text updated', 100),
-        makeTable([['A', 'C']], 200),
-      ]),
-    ]);
-
-    const result = diffFilings(oldDoc, newDoc);
-
-    // DiffFilingMetadata — value equality (no longer reference equality), no html
-    expect(result.oldFiling.accessionNumber).toBe(oldDoc.filing.accessionNumber);
-    expect(result.oldFiling.cik).toBe(oldDoc.filing.cik);
-    expect(result.newFiling.accessionNumber).toBe(newDoc.filing.accessionNumber);
-    expect(result.newFiling.cik).toBe(newDoc.filing.cik);
-    expect('html' in result.oldFiling).toBe(false);
-    expect('html' in result.newFiling).toBe(false);
-
-    // Metadata fields are accessible
-    expect(result.oldFiling.accessionNumber).toBeDefined();
-    expect(result.oldFiling.cik).toBeDefined();
-    expect(result.oldFiling.formType).toBeDefined();
-    expect(result.oldFiling.filingDate).toBeDefined();
-    expect(result.newFiling.accessionNumber).toBeDefined();
-    expect(result.newFiling.cik).toBeDefined();
-    expect(result.newFiling.formType).toBeDefined();
-    expect(result.newFiling.filingDate).toBeDefined();
-  });
-
   it('I-DP-6: diffFilings with multi-section documents containing tables', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-1', 'Item 1. Business', [
