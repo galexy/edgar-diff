@@ -90,54 +90,42 @@ describe('normalizeHeading', () => {
 
 // --- Section extraction tests ---
 
-describe('section extraction - Pattern Family A (div>span bold)', () => {
-  it('U13: detects 2 sections from Workiva-style HTML', () => {
-    const htmlA = `<html><body>
+describe('section extraction - pattern families', () => {
+  it.each<{ name: string; testId: string; html: string }>([
+    {
+      name: 'A (div>span bold)',
+      testId: 'U13',
+      html: `<html><body>
 <div><span style="font-weight:700">Item 1. Business</span></div>
 <p>Apple designs iPhones.</p>
 <div><span style="font-weight:700">Item 1A. Risk Factors</span></div>
 <p>Risks include competition.</p>
-</body></html>`;
-    const docA = parseFiling(makeRawFiling(htmlA));
-    expect(docA.sections).toHaveLength(2);
-    expect(docA.sections[0]).toMatchObject({ id: 'item-1', heading: expect.stringContaining('Business') });
-    expect(docA.sections[1]).toMatchObject({ id: 'item-1a', heading: expect.stringContaining('Risk Factors') });
-  });
-});
-
-describe('section extraction - Pattern Family B (DFIN bold uppercase)', () => {
-  it('U14: detects sections from bold uppercase HTML', () => {
-    const htmlB = `<html><body>
+</body></html>`,
+    },
+    {
+      name: 'B (DFIN bold uppercase)',
+      testId: 'U14',
+      html: `<html><body>
 <p><span style="font-weight:bold;font-size:12pt">ITEM 1. BUSINESS</span></p>
 <p>Microsoft develops software.</p>
 <p><span style="font-weight:bold;font-size:12pt">ITEM 1A. RISK FACTORS</span></p>
 <p>Risks include regulation.</p>
-</body></html>`;
-    const doc = parseFiling(makeRawFiling(htmlB));
-    expect(doc.sections).toHaveLength(2);
-    expect(doc.sections[0].id).toBe('item-1');
-    expect(doc.sections[1].id).toBe('item-1a');
-  });
-});
-
-describe('section extraction - Pattern Family C (non-bold larger font)', () => {
-  it('U15: detects sections from non-bold larger font HTML', () => {
-    const htmlC = `<html><body>
+</body></html>`,
+    },
+    {
+      name: 'C (non-bold larger font)',
+      testId: 'U15',
+      html: `<html><body>
 <div><span style="font-size:12pt;font-weight:400">Item 1. Business.</span></div>
 <p style="font-size:10pt">JPMorgan provides financial services.</p>
 <div><span style="font-size:12pt;font-weight:400">Item 1A. Risk Factors</span></div>
 <p style="font-size:10pt">Banking risks exist.</p>
-</body></html>`;
-    const doc = parseFiling(makeRawFiling(htmlC));
-    expect(doc.sections).toHaveLength(2);
-    expect(doc.sections[0].id).toBe('item-1');
-    expect(doc.sections[1].id).toBe('item-1a');
-  });
-});
-
-describe('section extraction - Pattern Family D (table-based)', () => {
-  it('U16: detects sections from table-cell headings', () => {
-    const htmlD = `<html><body>
+</body></html>`,
+    },
+    {
+      name: 'D (table-based)',
+      testId: 'U16',
+      html: `<html><body>
 <table><tr>
   <td><span style="font-weight:700">ITEM 1.</span></td>
   <td><span style="font-weight:700">BUSINESS</span></td>
@@ -148,23 +136,20 @@ describe('section extraction - Pattern Family D (table-based)', () => {
   <td><span style="font-weight:700">RISK FACTORS</span></td>
 </tr></table>
 <p>Retail risks include competition.</p>
-</body></html>`;
-    const doc = parseFiling(makeRawFiling(htmlD));
-    expect(doc.sections).toHaveLength(2);
-    expect(doc.sections[0].id).toBe('item-1');
-    expect(doc.sections[1].id).toBe('item-1a');
-  });
-});
-
-describe('section extraction - Pattern Family E (legacy font tag)', () => {
-  it('U17: detects sections from legacy font-tag HTML', () => {
-    const htmlE = `<html><body>
+</body></html>`,
+    },
+    {
+      name: 'E (legacy font tag)',
+      testId: 'U17',
+      html: `<html><body>
 <p><b><font style="font-size:11pt;text-transform:uppercase">ITEM 1. BUSINESS</font></b></p>
 <p>ExxonMobil explores for oil.</p>
 <p><b><font style="font-size:11pt;text-transform:uppercase">ITEM 1A. RISK FACTORS</font></b></p>
 <p>Oil price volatility is a risk.</p>
-</body></html>`;
-    const doc = parseFiling(makeRawFiling(htmlE));
+</body></html>`,
+    },
+  ])('$testId: detects 2 sections from Pattern Family $name', ({ html }) => {
+    const doc = parseFiling(makeRawFiling(html));
     expect(doc.sections).toHaveLength(2);
     expect(doc.sections[0].id).toBe('item-1');
     expect(doc.sections[1].id).toBe('item-1a');

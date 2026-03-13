@@ -30,57 +30,35 @@ ${tableHtml}
 }
 
 describe('tryParseNumeric', () => {
-  it('currency values', () => {
-    expect(tryParseNumeric('$1,234.56')).toBe(1234.56);
-    expect(tryParseNumeric('$100')).toBe(100);
-    expect(tryParseNumeric('$ 42.00')).toBe(42);
-  });
-
-  it('percentages', () => {
-    expect(tryParseNumeric('12.5%')).toBe(12.5);
-    expect(tryParseNumeric('100%')).toBe(100);
-    expect(tryParseNumeric('0.5 %')).toBe(0.5);
-  });
-
-  it('parenthetical negatives', () => {
-    expect(tryParseNumeric('(1,234)')).toBe(-1234);
-    expect(tryParseNumeric('(42)')).toBe(-42);
-    expect(tryParseNumeric('$(500.50)')).toBe(-500.50);
-  });
-
-  it('plain numbers', () => {
-    expect(tryParseNumeric('42')).toBe(42);
-    expect(tryParseNumeric('1,000')).toBe(1000);
-    expect(tryParseNumeric('3.14')).toBe(3.14);
-  });
-
-  it('non-numeric text returns undefined', () => {
-    expect(tryParseNumeric('Revenue')).toBeUndefined();
-    expect(tryParseNumeric('Total operating expenses')).toBeUndefined();
-    expect(tryParseNumeric('N/A')).toBeUndefined();
-  });
-
-  it('mixed text with number returns undefined', () => {
-    expect(tryParseNumeric('$1,234 million')).toBeUndefined();
-    expect(tryParseNumeric('approximately 500')).toBeUndefined();
-  });
-
-  it('dash patterns as zero', () => {
-    expect(tryParseNumeric('\u2014')).toBe(0);  // em-dash
-    expect(tryParseNumeric('\u2013')).toBe(0);  // en-dash
-    expect(tryParseNumeric('--')).toBe(0);
-    expect(tryParseNumeric('---')).toBe(0);
-  });
-
-  it('negative numbers with dash prefix', () => {
-    expect(tryParseNumeric('-1,234')).toBe(-1234);
-    expect(tryParseNumeric('- 500')).toBe(-500);
-    expect(tryParseNumeric('-42.5')).toBe(-42.5);
-  });
-
-  it('empty/whitespace returns undefined', () => {
-    expect(tryParseNumeric('')).toBeUndefined();
-    expect(tryParseNumeric('   ')).toBeUndefined();
+  it.each<{ label: string; input: string; expected: number | undefined }>([
+    { label: 'currency: $1,234.56',       input: '$1,234.56',                expected: 1234.56 },
+    { label: 'currency: $100',            input: '$100',                     expected: 100 },
+    { label: 'currency: $ 42.00',         input: '$ 42.00',                 expected: 42 },
+    { label: 'percent: 12.5%',            input: '12.5%',                   expected: 12.5 },
+    { label: 'percent: 100%',             input: '100%',                    expected: 100 },
+    { label: 'percent: 0.5 %',            input: '0.5 %',                   expected: 0.5 },
+    { label: 'paren negative: (1,234)',    input: '(1,234)',                 expected: -1234 },
+    { label: 'paren negative: (42)',       input: '(42)',                    expected: -42 },
+    { label: 'paren negative: $(500.50)',  input: '$(500.50)',               expected: -500.50 },
+    { label: 'plain: 42',                 input: '42',                      expected: 42 },
+    { label: 'plain: 1,000',              input: '1,000',                   expected: 1000 },
+    { label: 'plain: 3.14',               input: '3.14',                    expected: 3.14 },
+    { label: 'non-numeric: Revenue',      input: 'Revenue',                 expected: undefined },
+    { label: 'non-numeric: Total…',       input: 'Total operating expenses', expected: undefined },
+    { label: 'non-numeric: N/A',          input: 'N/A',                     expected: undefined },
+    { label: 'mixed: $1,234 million',     input: '$1,234 million',          expected: undefined },
+    { label: 'mixed: approximately 500',  input: 'approximately 500',       expected: undefined },
+    { label: 'dash: em-dash',             input: '\u2014',                  expected: 0 },
+    { label: 'dash: en-dash',             input: '\u2013',                  expected: 0 },
+    { label: 'dash: --',                  input: '--',                      expected: 0 },
+    { label: 'dash: ---',                 input: '---',                     expected: 0 },
+    { label: 'negative: -1,234',          input: '-1,234',                  expected: -1234 },
+    { label: 'negative: - 500',           input: '- 500',                   expected: -500 },
+    { label: 'negative: -42.5',           input: '-42.5',                   expected: -42.5 },
+    { label: 'empty string',              input: '',                        expected: undefined },
+    { label: 'whitespace only',           input: '   ',                     expected: undefined },
+  ])('$label', ({ input, expected }) => {
+    expect(tryParseNumeric(input)).toBe(expected);
   });
 });
 
