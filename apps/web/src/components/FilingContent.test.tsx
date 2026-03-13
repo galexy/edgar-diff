@@ -316,7 +316,7 @@ describe('FilingContent', () => {
       const doc = makeDoc(html, [
         makeSection('item-1', 'Item 1', 0, html.length),
       ]);
-      const { container } = render(<FilingContent document={doc} />);
+      render(<FilingContent document={doc} />);
 
       expect(screen.getByText('Safe')).toBeInTheDocument();
       expect(screen.getByText('Also safe')).toBeInTheDocument();
