@@ -258,7 +258,8 @@ function wrapRange(
     // Wrap targetNode in the highlight element
     const wrapper = document.createElement(wrapperTag);
     wrapper.className = className;
-    targetNode.parentNode!.insertBefore(wrapper, targetNode);
+    if (!targetNode.parentNode) return;
+    targetNode.parentNode.insertBefore(wrapper, targetNode);
     wrapper.appendChild(targetNode);
   }
 }

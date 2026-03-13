@@ -1,5 +1,4 @@
-import type { SectionDiff, ParagraphDiff } from '@edgar-diff/lib';
-import type { StructuredDocument } from '@edgar-diff/lib';
+import type { SectionDiff, ParagraphDiff, StructuredDocument } from '@edgar-diff/lib';
 
 /**
  * Build a synthetic SectionDiff[] from a StructuredDocument.

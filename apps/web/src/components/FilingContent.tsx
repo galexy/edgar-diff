@@ -1,6 +1,5 @@
 import type { StructuredDocument, SectionDiff, Paragraph } from '@edgar-diff/lib';
-import { applyHighlightsToSection } from '../lib/highlight-injector';
-import type { Side } from '../lib/highlight-injector';
+import { applyHighlightsToSection, type Side } from '../lib/highlight-injector';
 import './filing-content.css';
 import './highlight.css';
 
