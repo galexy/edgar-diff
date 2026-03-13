@@ -44,7 +44,7 @@ Manual acceptance tests executed by a tester agent via Chrome DevTools MCP at th
 **Action:** Inspect the DOM of a filing panel with a loaded document (DevTools Elements panel)
 
 **Verify:**
-- Each section is wrapped in a container element with an `id` attribute (e.g., `section-item-1`, `section-item-1a`)
+- Each section is wrapped in a container element with an `id` attribute (e.g., `item-1`, `item-1a`)
 - Containers appear in document order matching the filing's section sequence
 - Content between containers represents the sliced HTML at the correct boundaries
 
