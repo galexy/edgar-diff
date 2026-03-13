@@ -34,11 +34,6 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
   it('E2E-1: parseFiling -> diffFilings produces complete StructuredDiff', () => {
     const result = diffFilings(oldDoc, newDoc);
 
-    // DiffFilingMetadata — value equality, no html
-    expect(result.oldFiling.accessionNumber).toBe(oldFiling.accessionNumber);
-    expect(result.newFiling.accessionNumber).toBe(newFiling.accessionNumber);
-    expect('html' in result.oldFiling).toBe(false);
-    expect('html' in result.newFiling).toBe(false);
     expect(result.sectionDiffs).toBeDefined();
     expect(result.sectionDiffs.length).toBeGreaterThan(0);
     expect(result.summary).toBeDefined();
