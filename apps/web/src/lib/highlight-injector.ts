@@ -1,4 +1,4 @@
-import type { WordChange, SectionDiff, Paragraph } from '@edgar-diff/lib';
+import type { WordChange, SectionDiff, Paragraph, CellDiff } from '@edgar-diff/lib';
 
 export type Side = 'old' | 'new';
 
@@ -24,6 +24,99 @@ export function wrapParagraph(
     return `<ins class="diff-paragraph-added">${paragraphHtml}</ins>`;
   }
   return `<del class="diff-paragraph-removed">${paragraphHtml}</del>`;
+}
+
+// ─── Table Diff Helpers ──────────────────────────────────────────
+
+/**
+ * Inject a CSS class into an HTML opening tag string.
+ * Handles double-quoted, single-quoted, and missing class attributes.
+ */
+export function injectClass(openingTag: string, className: string): string {
+  if (!openingTag.includes('>')) return openingTag;
+
+  // Append to existing double-quoted class
+  const doubleQuoteMatch = openingTag.match(/\bclass\s*=\s*"([^"]*)"/);
+  if (doubleQuoteMatch) {
+    return openingTag.replace(
+      doubleQuoteMatch[0],
+      `class="${doubleQuoteMatch[1]} ${className}"`,
+    );
+  }
+
+  // Append to existing single-quoted class
+  const singleQuoteMatch = openingTag.match(/\bclass\s*=\s*'([^']*)'/);
+  if (singleQuoteMatch) {
+    return openingTag.replace(
+      singleQuoteMatch[0],
+      `class='${singleQuoteMatch[1]} ${className}'`,
+    );
+  }
+
+  // No class attribute — insert after tag name
+  return openingTag.replace(
+    /^(<(?:tr|td|th)\b)/i,
+    `$1 class="${className}"`,
+  );
+}
+
+/**
+ * Escape HTML special characters for safe injection into annotations.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Highlight a single table cell: inject CSS class and optionally replace
+ * inner content with old→new annotation for modified cells.
+ */
+export function highlightCell(
+  cellHtml: string,
+  cellDiff: CellDiff,
+  side: Side,
+): string {
+  const classMap: Record<string, string> = {
+    added: 'diff-cell-added',
+    removed: 'diff-cell-removed',
+    modified: 'diff-cell-modified',
+  };
+
+  const cssClass = classMap[cellDiff.changeType];
+  if (!cssClass) return cellHtml; // unchanged or unknown
+
+  // Find end of opening tag
+  const openTagEnd = cellHtml.indexOf('>');
+  if (openTagEnd === -1) return cellHtml;
+
+  // Find closing tag from END of string
+  const closingMatch = cellHtml.match(/<\/(td|th)>\s*$/i);
+  if (!closingMatch) return cellHtml;
+
+  const closingStart = cellHtml.lastIndexOf(closingMatch[0]);
+  const openingTag = cellHtml.slice(0, openTagEnd + 1);
+  const innerContent = cellHtml.slice(openTagEnd + 1, closingStart);
+  const closingTag = cellHtml.slice(closingStart);
+
+  const modifiedOpeningTag = injectClass(openingTag, cssClass);
+
+  if (cellDiff.changeType === 'modified') {
+    const oldVal = escapeHtml(cellDiff.oldValue ?? '');
+    const newVal = escapeHtml(cellDiff.newValue ?? '');
+    const annotation =
+      `<del class="diff-removed">${oldVal}</del>` +
+      ` <span class="diff-arrow">\u2192</span> ` +
+      `<ins class="diff-added">${newVal}</ins>`;
+    return modifiedOpeningTag + annotation + closingTag;
+  }
+
+  // added/removed: keep original inner content
+  return modifiedOpeningTag + innerContent + closingTag;
 }
 
 // ─── DOM walking helpers ─────────────────────────────────────────

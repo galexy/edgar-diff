@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { WordChange, ParagraphDiff, SectionDiff, Paragraph } from '@edgar-diff/lib';
-import { wrapParagraph, injectWordHighlights, applyHighlightsToSection } from './highlight-injector';
+import { wrapParagraph, injectWordHighlights, applyHighlightsToSection, injectClass, escapeHtml, highlightCell } from './highlight-injector';
 
 // ─── 2.7 wrapParagraph ──────────────────────────────────────────
 
@@ -373,5 +373,55 @@ describe('applyHighlightsToSection', () => {
     const resultNew = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
     expect(resultNew).toContain('<ins class="diff-added">');
     expect(resultNew).not.toContain('<del');
+  });
+});
+
+// ─── 3.1 injectClass — CSS class injection ──────────────────────
+
+describe('injectClass', () => {
+  it('IC-U1: injects class into <tr> without existing class attribute', () => {
+    expect(injectClass('<tr>', 'diff-row-added')).toBe('<tr class="diff-row-added">');
+  });
+
+  it('IC-U2: appends class to <td class="existing">', () => {
+    expect(injectClass('<td class="existing">', 'diff-cell-modified')).toBe(
+      '<td class="existing diff-cell-modified">',
+    );
+  });
+
+  it('IC-U3: injects class into <th> tag correctly', () => {
+    expect(injectClass('<th>', 'diff-cell-added')).toBe('<th class="diff-cell-added">');
+  });
+
+  it('IC-U4: preserves other attributes (style, colspan, rowspan, id)', () => {
+    const tag = '<td style="color:red" colspan="2" rowspan="3" id="c1">';
+    const result = injectClass(tag, 'diff-cell-modified');
+    expect(result).toContain('class="diff-cell-modified"');
+    expect(result).toContain('style="color:red"');
+    expect(result).toContain('colspan="2"');
+    expect(result).toContain('rowspan="3"');
+    expect(result).toContain('id="c1"');
+  });
+
+  it("IC-U5: handles single-quoted class attribute: <td class='num'>", () => {
+    expect(injectClass("<td class='num'>", 'diff-cell-added')).toBe(
+      "<td class='num diff-cell-added'>",
+    );
+  });
+
+  it('IC-U6: handles tag with no attributes: <td>', () => {
+    expect(injectClass('<td>', 'diff-cell-removed')).toBe('<td class="diff-cell-removed">');
+  });
+
+  it('IC-U7: handles tag with only style attribute', () => {
+    const result = injectClass('<td style="color:red">', 'diff-cell-modified');
+    expect(result).toContain('class="diff-cell-modified"');
+    expect(result).toContain('style="color:red"');
+  });
+
+  it('IC-U8: case-insensitive tag matching: <TR>, <TD>, <TH>', () => {
+    expect(injectClass('<TR>', 'diff-row-added')).toBe('<TR class="diff-row-added">');
+    expect(injectClass('<TD>', 'diff-cell-added')).toBe('<TD class="diff-cell-added">');
+    expect(injectClass('<TH>', 'diff-cell-added')).toBe('<TH class="diff-cell-added">');
   });
 });
