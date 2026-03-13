@@ -54,10 +54,6 @@
       }
     ]
    },
-  "statusLine": {
-    "type": "command",
-    "command": "python3 /workspace/.claude/scripts/claude-context-bar.py"
-  },
   "enabledPlugins": {
     "metapowers@metapowers": true
   },
