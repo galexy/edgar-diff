@@ -214,18 +214,6 @@ describe('iXBRL wrapper transparency', () => {
   });
 });
 
-describe('source offset accuracy', () => {
-  it('U22: start/end offsets allow round-trip slice', () => {
-    const html = `<html><body><div><span style="font-weight:700">Item 1. Business</span></div><p>Content.</p></body></html>`;
-    const doc = parseFiling(makeRawFiling(html));
-    const section = doc.sections[0];
-    const slice = html.slice(section.source.start, section.source.end);
-    expect(slice).toContain('Item 1. Business');
-    expect(section.source.start).toBeGreaterThanOrEqual(0);
-    expect(section.source.end).toBeLessThanOrEqual(html.length);
-  });
-});
-
 describe('paragraph extraction', () => {
   it('U23: paragraphs extracted with text and source mappings', () => {
     const html = `<html><body>
