@@ -25,36 +25,39 @@ function makeSectionDiffStub(changeType: SectionDiff['changeType']): SectionDiff
 }
 
 describe('buildSummary', () => {
-  it('U-BS-1: all unchanged => unchanged: N, others 0', () => {
-    const diffs = [makeSectionDiffStub('unchanged'), makeSectionDiffStub('unchanged')];
-    const summary = buildSummary(diffs);
-    expect(summary).toEqual({ added: 0, removed: 0, modified: 0, unchanged: 2, reordered: 0 });
-  });
-
-  it('U-BS-2: mixed changes => counts match each changeType', () => {
-    const diffs = [
-      makeSectionDiffStub('added'),
-      makeSectionDiffStub('removed'),
-      makeSectionDiffStub('modified'),
-      makeSectionDiffStub('unchanged'),
-      makeSectionDiffStub('reordered'),
-    ];
-    const summary = buildSummary(diffs);
-    expect(summary).toEqual({ added: 1, removed: 1, modified: 1, unchanged: 1, reordered: 1 });
-  });
-
-  it('U-BS-3: empty sectionDiffs => all zeros', () => {
-    expect(buildSummary([])).toEqual({ added: 0, removed: 0, modified: 0, unchanged: 0, reordered: 0 });
-  });
-
-  it('U-BS-4: only added => added: N, all others 0', () => {
-    const diffs = [makeSectionDiffStub('added'), makeSectionDiffStub('added')];
-    expect(buildSummary(diffs)).toEqual({ added: 2, removed: 0, modified: 0, unchanged: 0, reordered: 0 });
-  });
-
-  it('U-BS-5: only removed => removed: N, all others 0', () => {
-    const diffs = [makeSectionDiffStub('removed'), makeSectionDiffStub('removed'), makeSectionDiffStub('removed')];
-    expect(buildSummary(diffs)).toEqual({ added: 0, removed: 3, modified: 0, unchanged: 0, reordered: 0 });
+  it.each<{
+    name: string;
+    changeTypes: SectionDiff['changeType'][];
+    expected: { added: number; removed: number; modified: number; unchanged: number; reordered: number };
+  }>([
+    {
+      name: 'U-BS-1: all unchanged => unchanged: N, others 0',
+      changeTypes: ['unchanged', 'unchanged'],
+      expected: { added: 0, removed: 0, modified: 0, unchanged: 2, reordered: 0 },
+    },
+    {
+      name: 'U-BS-2: mixed changes => counts match each changeType',
+      changeTypes: ['added', 'removed', 'modified', 'unchanged', 'reordered'],
+      expected: { added: 1, removed: 1, modified: 1, unchanged: 1, reordered: 1 },
+    },
+    {
+      name: 'U-BS-3: empty sectionDiffs => all zeros',
+      changeTypes: [],
+      expected: { added: 0, removed: 0, modified: 0, unchanged: 0, reordered: 0 },
+    },
+    {
+      name: 'U-BS-4: only added => added: N, all others 0',
+      changeTypes: ['added', 'added'],
+      expected: { added: 2, removed: 0, modified: 0, unchanged: 0, reordered: 0 },
+    },
+    {
+      name: 'U-BS-5: only removed => removed: N, all others 0',
+      changeTypes: ['removed', 'removed', 'removed'],
+      expected: { added: 0, removed: 3, modified: 0, unchanged: 0, reordered: 0 },
+    },
+  ])('$name', ({ changeTypes, expected }) => {
+    const diffs = changeTypes.map(makeSectionDiffStub);
+    expect(buildSummary(diffs)).toEqual(expected);
   });
 });
 
