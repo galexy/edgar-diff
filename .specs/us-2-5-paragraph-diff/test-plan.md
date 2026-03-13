@@ -6,16 +6,16 @@ US-2.5 injects `<ins>`/`<del>` highlight markup into original filing HTML at `So
 
 The test strategy splits into two tiers:
 1. **Programmatic tests** (Vitest + Testing Library) — verify DOM structure, semantic markup, offset mapping, and accessibility
-2. **Visual validation** (Chrome DevTools MCP screenshots) — verify highlight colors, strikethrough rendering, and complex HTML edge cases
+2. **Visual validation** (Chrome DevTools MCP) — verify highlight colors, strikethrough rendering, and complex HTML edge cases (see `uat.md`)
 
 ### Architecture (aligned with implementation design)
 
 The implementation extends `FilingContent` with optional `sectionDiffs` and `side` props (no new component). The highlight injection pipeline lives in `apps/web/src/lib/highlight-injector.ts` as pure functions that use browser DOM APIs:
 
-1. **`buildNormalizedMapping(container)`** — walks a DOM fragment, collects text pieces, simulates parser normalization, and builds a `charMap[normalizedPos] → (pieceIndex, charOffset)` mapping
-2. **`injectWordHighlights(paragraphHtml, wordChanges, paragraphText)`** — parses paragraph HTML into DOM, maps `WordChange` text offsets to DOM text node positions via the charMap, splits text nodes, wraps in `<ins>`/`<del>`, serializes back to HTML
-3. **`wrapParagraph(paragraphHtml, changeType)`** — wraps entire paragraph HTML in a block-level `<ins>` or `<del>`
-4. **`applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, side)`** — orchestrates per-paragraph highlight application within a section
+- **`buildNormalizedMapping(container)`** — walks a DOM fragment, collects text pieces, simulates parser normalization, builds `charMap[normalizedPos] → (pieceIndex, charOffset)`
+- **`injectWordHighlights(paragraphHtml, wordChanges, paragraphText)`** — parses paragraph HTML into DOM, maps WordChange text offsets to DOM text node positions, splits text nodes, wraps in `<ins>`/`<del>`, serializes back
+- **`wrapParagraph(paragraphHtml, changeType)`** — wraps entire paragraph HTML in a block-level `<ins>` or `<del>`
+- **`applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, side)`** — orchestrates per-paragraph highlight application within a section
 
 These live in the web app (not the diff library) because they depend on browser DOM APIs. They are pure over HTML strings and testable in jsdom.
 
@@ -23,17 +23,15 @@ These live in the web app (not the diff library) because they depend on browser 
 
 ## 1. BDD Acceptance Criteria
 
-The Gherkin scenarios below drive the actual Vitest test code in Sections 2–4. "Given" translates to fixture setup; "Then" assertions use Testing Library queries and jest-dom matchers.
-
 ### AC-1: Word-level added highlights (green)
 
 ```gherkin
 Scenario: Added words in a modified paragraph are highlighted green
   Given a FilingContent with sectionDiffs containing a modified paragraph
-  And the paragraph has WordChanges of type 'added' at offsets [10, 15]
+  And the paragraph has WordChanges of type 'added'
   And side is "new"
   When the filing content is rendered
-  Then the added text is wrapped in an <ins> element with class "diff-added"
+  Then the added text is wrapped in <ins class="diff-added">
 ```
 
 ### AC-2: Word-level removed highlights (red + strikethrough)
@@ -41,10 +39,10 @@ Scenario: Added words in a modified paragraph are highlighted green
 ```gherkin
 Scenario: Removed words in a modified paragraph are highlighted red with strikethrough
   Given a FilingContent with sectionDiffs containing a modified paragraph
-  And the paragraph has WordChanges of type 'removed' at offsets [5, 12]
+  And the paragraph has WordChanges of type 'removed'
   And side is "old"
   When the filing content is rendered
-  Then the removed text is wrapped in a <del> element with class "diff-removed"
+  Then the removed text is wrapped in <del class="diff-removed">
 ```
 
 ### AC-3: Whole paragraph added (green background + border)
@@ -80,18 +78,18 @@ Scenario: Unchanged paragraphs render as original HTML
 
 ```gherkin
 Scenario: Highlight spanning across HTML tags produces valid markup via DOM splitting
-  Given original HTML: "<p>The <b>quick brown</b> fox</p>"
-  And a WordChange marking "quick brown" as removed (text offsets 4–15)
+  Given original HTML with inline tags (e.g., "<p>The <b>quick brown</b> fox</p>")
+  And a WordChange marking text that spans across tag boundaries
   When injectWordHighlights processes the paragraph
-  Then each text node within the range gets its own <del> wrapper
-  And the output is valid HTML (e.g., "<p>The <b><del>quick brown</del></b><del> fox</del></p>")
+  Then each text node within the range gets its own <ins>/<del> wrapper
+  And the output is valid HTML with no broken nesting
 ```
 
 ### AC-7: Multiple word changes in one paragraph
 
 ```gherkin
 Scenario: Multiple non-contiguous changes in a single paragraph
-  Given a paragraph with WordChanges: removed at [0,3], removed at [8,11]
+  Given a paragraph with multiple WordChanges at different offsets
   And side is "old"
   When the filing content is rendered
   Then each change has its own <del> wrapper
@@ -135,1265 +133,224 @@ Scenario: Moved paragraphs without word changes render as unchanged
 
 ---
 
-## 2. Unit Tests — highlight-injector.ts
+## 2. Unit Tests — `highlight-injector.ts`
 
-All unit tests live in `apps/web/src/lib/highlight-injector.test.ts`, testing the exported pure functions.
+File: `apps/web/src/lib/highlight-injector.test.ts`
 
-### `injectWordHighlights` — basic cases
+### 2.1 `injectWordHighlights` — basic cases
 
-```typescript
-describe('injectWordHighlights', () => {
-  it('wraps a removed word in <del> with diff-removed class', () => {
-    const html = '<p>Hello world</p>';
-    const text = 'Hello world';
-    const changes: WordChange[] = [{ type: 'removed', start: 6, end: 11 }]; // "world"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    expect(result).toContain('class="diff-removed"');
-    expect(result).toContain('world');
-    expect(result).toContain('</del>');
-  });
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U1 | Wraps a removed word in `<del class="diff-removed">` | Happy path — single removal |
+| IW-U2 | Wraps an added word in `<ins class="diff-added">` | Happy path — single addition |
+| IW-U3 | Preserves surrounding HTML unchanged (no wrapper on non-changed text) | Precision — only changed text highlighted |
+| IW-U4 | Returns original HTML when wordChanges array is empty | No-op boundary |
 
-  it('wraps an added word in <ins> with diff-added class', () => {
-    const html = '<p>Hello world</p>';
-    const text = 'Hello world';
-    const changes: WordChange[] = [{ type: 'added', start: 0, end: 5 }]; // "Hello"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<ins');
-    expect(result).toContain('class="diff-added"');
-    expect(result).toContain('Hello');
-  });
+### 2.2 `injectWordHighlights` — multiple changes
 
-  it('preserves surrounding HTML unchanged', () => {
-    const html = '<p>Hello world</p>';
-    const text = 'Hello world';
-    const changes: WordChange[] = [{ type: 'removed', start: 6, end: 11 }];
-    const result = injectWordHighlights(html, changes, text);
-    // "Hello " should not be wrapped
-    expect(result).toMatch(/Hello\s/); // Hello followed by space, no <del>
-  });
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U5 | Multiple non-contiguous changes produce separate `<del>`/`<ins>` elements | Multiple changes in one paragraph |
+| IW-U6 | Adjacent changes (no gap) produce separate wrappers | Boundary — no unchanged text between changes |
 
-  it('returns original HTML when wordChanges is empty', () => {
-    const html = '<p>Hello world</p>';
-    const result = injectWordHighlights(html, [], 'Hello world');
-    expect(result).toBe(html);
-  });
-});
-```
+### 2.3 `injectWordHighlights` — nested HTML tags (DOM-based)
 
-### `injectWordHighlights` — multiple changes
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U7 | Change spanning `<b>...</b>` boundary produces multiple `<del>` elements (split at tag boundary) | Core DOM-splitting behavior (AC-6) |
+| IW-U8 | Change entirely within a nested tag produces single `<del>` inside that tag | No unnecessary splitting |
+| IW-U9 | Deeply nested tags (`span > b > i`) — change spanning across `<i>` boundary | Multi-level nesting |
+| IW-U10 | All original tags preserved in output after highlight injection | Non-destructive injection |
 
-```typescript
-describe('injectWordHighlights — multiple changes', () => {
-  it('handles multiple non-contiguous changes', () => {
-    const html = '<p>AAA BBB CCC DDD</p>';
-    const text = 'AAA BBB CCC DDD';
-    const changes: WordChange[] = [
-      { type: 'removed', start: 0, end: 3 },    // "AAA"
-      { type: 'removed', start: 8, end: 11 },   // "CCC"
-    ];
-    const result = injectWordHighlights(html, changes, text);
-    const delCount = (result.match(/<del/g) || []).length;
-    expect(delCount).toBe(2);
-  });
+### 2.4 `injectWordHighlights` — HTML entities
 
-  it('handles adjacent changes (no gap between them)', () => {
-    const html = '<p>AABBCC</p>';
-    const text = 'AABBCC';
-    const changes: WordChange[] = [
-      { type: 'removed', start: 0, end: 2 },  // "AA"
-      { type: 'added', start: 2, end: 4 },     // "BB"
-    ];
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    expect(result).toContain('<ins');
-  });
-});
-```
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U11 | `&amp;` entity (1 char in text, decoded by DOM parser) — highlight wraps correctly | Entity handling |
+| IW-U12 | `&lt;`/`&gt;` entities — highlight on entity character works | Entity edge case |
+| IW-U13 | `&#160;` (NBSP) normalized to space by parser — offsets still align | NBSP normalization |
 
-### `injectWordHighlights` — HTML tag handling (DOM-based)
+### 2.5 `injectWordHighlights` — `<br>` handling
 
-```typescript
-describe('injectWordHighlights — nested HTML tags', () => {
-  it('splits highlight at tag boundary (change spanning <b>...</b>)', () => {
-    const html = '<p>The <b>quick brown</b> fox</p>';
-    const text = 'The quick brown fox';
-    // "quick brown fox" spans across </b> boundary
-    const changes: WordChange[] = [{ type: 'removed', start: 4, end: 19 }];
-    const result = injectWordHighlights(html, changes, text);
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U14 | Change spanning across `<br>` — text wraps correctly, `<br>` preserved in output | `<br>` maps to space in normalized text |
 
-    // DOM-based approach: each text node gets its own <del>
-    // Expected: <b><del>quick brown</del></b><del> fox</del>
-    const delCount = (result.match(/<del/g) || []).length;
-    expect(delCount).toBeGreaterThanOrEqual(2); // split across tag boundary
-    expect(result).toContain('<b>');  // bold tag preserved
-  });
+### 2.6 `injectWordHighlights` — normalization sanity
 
-  it('wraps highlight entirely within a nested tag', () => {
-    const html = '<p>The <b>quick</b> brown fox</p>';
-    const text = 'The quick brown fox';
-    const changes: WordChange[] = [{ type: 'removed', start: 4, end: 9 }]; // "quick"
-    const result = injectWordHighlights(html, changes, text);
+| ID | Test | Rationale |
+|----|------|-----------|
+| IW-U15 | NBSP (`\u00a0`) in HTML is normalized to space — word change at correct offset | Parser normalization fidelity |
+| IW-U16 | Multiple consecutive spaces collapsed to one — offset mapping accounts for collapse | Whitespace normalization |
+| IW-U17 | Leading/trailing whitespace trimmed — offsets relative to trimmed text | Trim normalization |
+| IW-U18 | Normalized text mismatch with paragraphText — returns original HTML as safety fallback | Data corruption resilience |
 
-    // "quick" is entirely within <b>, so single <del> inside <b>
-    expect(result).toContain('<b><del');
-    expect(result).toContain('quick');
-  });
+### 2.7 `wrapParagraph`
 
-  it('handles deeply nested tags (span > b > i)', () => {
-    const html = '<p>A <span><b>bold <i>italic</i></b></span> end</p>';
-    const text = 'A bold italic end';
-    // highlight "bold italic" — spans across <i> boundary
-    const changes: WordChange[] = [{ type: 'removed', start: 2, end: 13 }];
-    const result = injectWordHighlights(html, changes, text);
+| ID | Test | Rationale |
+|----|------|-----------|
+| WP-U1 | Wraps HTML in `<ins class="diff-paragraph-added">` for added | Whole-paragraph addition |
+| WP-U2 | Wraps HTML in `<del class="diff-paragraph-removed">` for removed | Whole-paragraph removal |
+| WP-U3 | Wraps empty paragraph HTML without error | Empty paragraph boundary |
 
-    const delCount = (result.match(/<del/g) || []).length;
-    expect(delCount).toBeGreaterThanOrEqual(1);
-    // All original tags still present
-    expect(result).toContain('<span>');
-    expect(result).toContain('<b>');
-    expect(result).toContain('<i>');
-  });
-});
-```
+### 2.8 `applyHighlightsToSection`
 
-### `injectWordHighlights` — HTML entities
-
-```typescript
-describe('injectWordHighlights — HTML entities', () => {
-  it('handles &amp; entity (1 char in text, decoded by DOM parser)', () => {
-    const html = '<p>A &amp; B</p>';
-    const text = 'A & B';
-    // highlight "A & B" — entire text
-    const changes: WordChange[] = [{ type: 'removed', start: 0, end: 5 }];
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    // DOM serialization may re-encode & as &amp;
-    expect(result).toContain('</del>');
-  });
-
-  it('handles &lt; and &gt; entities', () => {
-    const html = '<p>3 &lt; 5</p>';
-    const text = '3 < 5';
-    const changes: WordChange[] = [{ type: 'removed', start: 2, end: 3 }]; // "<"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-  });
-
-  it('handles &#160; (NBSP) entity — normalized to space by parser', () => {
-    const html = '<p>A&#160;B</p>';
-    // Parser normalizes NBSP to space: text = "A B"
-    const text = 'A B';
-    const changes: WordChange[] = [{ type: 'removed', start: 0, end: 1 }]; // "A"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    expect(result).toContain('A');
-  });
-});
-```
-
-### `injectWordHighlights` — <br> handling
-
-```typescript
-describe('injectWordHighlights — <br> elements', () => {
-  it('handles text across <br> (br maps to space in normalized text)', () => {
-    const html = '<p>Line one<br/>Line two</p>';
-    const text = 'Line one Line two';
-    // highlight "one Line" — spans across <br>
-    const changes: WordChange[] = [{ type: 'removed', start: 5, end: 13 }];
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    // <br> should remain in the output
-    expect(result).toMatch(/<br\s*\/?>/);
-  });
-});
-```
-
-### `wrapParagraph`
-
-```typescript
-describe('wrapParagraph', () => {
-  it('wraps HTML in <ins class="diff-paragraph-added"> for added', () => {
-    const html = '<p>New paragraph</p>';
-    const result = wrapParagraph(html, 'added');
-    expect(result).toContain('<ins');
-    expect(result).toContain('class="diff-paragraph-added"');
-    expect(result).toContain('New paragraph');
-    expect(result).toContain('</ins>');
-  });
-
-  it('wraps HTML in <del class="diff-paragraph-removed"> for removed', () => {
-    const html = '<p>Old paragraph</p>';
-    const result = wrapParagraph(html, 'removed');
-    expect(result).toContain('<del');
-    expect(result).toContain('class="diff-paragraph-removed"');
-    expect(result).toContain('Old paragraph');
-    expect(result).toContain('</del>');
-  });
-
-  it('wraps empty paragraph HTML without error', () => {
-    expect(() => wrapParagraph('<p></p>', 'added')).not.toThrow();
-    expect(wrapParagraph('<p></p>', 'added')).toContain('<ins');
-  });
-});
-```
-
-### `applyHighlightsToSection`
-
-```typescript
-describe('applyHighlightsToSection', () => {
-  it('applies whole-paragraph wrapping for added paragraph on new side', () => {
-    const sectionHtml = '<p>New paragraph here</p>';
-    const sectionDiff = makeSectionDiff('s1', 'S1', [
-      makeParagraphDiff('added', undefined, { start: 0, end: sectionHtml.length }),
-    ]);
-    const paragraphIndex = new Map(); // no paragraph text lookup needed for whole-paragraph wrap
-
-    const result = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'new');
-    expect(result).toContain('<ins');
-    expect(result).toContain('diff-paragraph-added');
-  });
-
-  it('leaves unchanged paragraphs unmodified', () => {
-    const sectionHtml = '<p>Same old content</p>';
-    const sectionDiff = makeSectionDiff('s1', 'S1', [
-      makeParagraphDiff('unchanged', { start: 0, end: sectionHtml.length }, { start: 0, end: sectionHtml.length }),
-    ], 'unchanged');
-    const paragraphIndex = new Map();
-
-    const result = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'old');
-    expect(result).not.toContain('<ins');
-    expect(result).not.toContain('<del');
-  });
-
-  it('processes multiple paragraphs in a section (reverse offset order)', () => {
-    const sectionHtml = '<p>First</p><p>Second</p><p>Third</p>';
-    const sectionDiff = makeSectionDiff('s1', 'S1', [
-      makeParagraphDiff('removed', { start: 0, end: 14 }),                    // <p>First</p>
-      makeParagraphDiff('unchanged', { start: 14, end: 29 }, { start: 14, end: 29 }),  // <p>Second</p>
-      makeParagraphDiff('added', undefined, { start: 29, end: sectionHtml.length }),     // <p>Third</p>
-    ]);
-    const paragraphIndex = new Map();
-
-    const resultOld = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'old');
-    expect(resultOld).toContain('<del');         // First paragraph removed
-    expect(resultOld).not.toContain('<ins');     // No added on old side
-    expect(resultOld).toContain('Second');       // Unchanged preserved
-
-    const resultNew = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'new');
-    expect(resultNew).toContain('<ins');         // Third paragraph added
-    expect(resultNew).not.toContain('<del');     // No removed on new side
-  });
-
-  it('handles sectionOffset > 0 (section not at start of document)', () => {
-    // Section starts at offset 100 in the document
-    const sectionHtml = '<p>Content</p>';
-    const sectionDiff = makeSectionDiff('s1', 'S1', [
-      makeParagraphDiff('removed', { start: 100, end: 114 }), // absolute offset
-    ]);
-    const paragraphIndex = new Map();
-
-    const result = applyHighlightsToSection(sectionHtml, 100, sectionDiff, paragraphIndex, 'old');
-    expect(result).toContain('<del');
-  });
-
-  it('filters wordChanges by side (old shows removed, new shows added)', () => {
-    const sectionHtml = '<p>Hello world</p>';
-    const paragraph: Paragraph = {
-      type: 'paragraph',
-      text: 'Hello world',
-      source: { start: 0, end: sectionHtml.length },
-    };
-    const paragraphIndex = new Map([['0:' + sectionHtml.length, paragraph]]);
-    const sectionDiff = makeSectionDiff('s1', 'S1', [
-      makeParagraphDiff(
-        'modified',
-        { start: 0, end: sectionHtml.length },
-        { start: 0, end: sectionHtml.length },
-        [
-          { type: 'removed', start: 0, end: 5 },  // "Hello"
-          { type: 'added', start: 0, end: 3 },     // "Hey" (in new text)
-        ],
-      ),
-    ]);
-
-    const resultOld = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'old');
-    expect(resultOld).toContain('<del');          // removed word shown
-    expect(resultOld).not.toContain('<ins');      // added word NOT shown on old side
-
-    const resultNew = applyHighlightsToSection(sectionHtml, 0, sectionDiff, paragraphIndex, 'new');
-    expect(resultNew).toContain('<ins');          // added word shown
-    expect(resultNew).not.toContain('<del');      // removed word NOT shown on new side
-  });
-});
-```
-
-### Normalization sanity check
-
-```typescript
-describe('buildNormalizedMapping — normalization', () => {
-  it('NBSP (\\u00a0) is normalized to space', () => {
-    // Verified indirectly: if mapping produces correct normalized text
-    const html = '<p>A\u00a0B</p>';
-    const text = 'A B'; // parser normalizes NBSP to space
-    const changes: WordChange[] = [{ type: 'removed', start: 2, end: 3 }]; // "B"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-  });
-
-  it('collapses multiple spaces to one', () => {
-    const html = '<p>Hello    world</p>';
-    const text = 'Hello world'; // collapsed
-    const changes: WordChange[] = [{ type: 'removed', start: 6, end: 11 }]; // "world"
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    expect(result).toContain('world');
-  });
-
-  it('trims leading and trailing whitespace', () => {
-    const html = '<p>  Hello  </p>';
-    const text = 'Hello'; // trimmed
-    const changes: WordChange[] = [{ type: 'removed', start: 0, end: 5 }];
-    const result = injectWordHighlights(html, changes, text);
-    expect(result).toContain('<del');
-    expect(result).toContain('Hello');
-  });
-
-  it('falls back to original HTML when normalized text does not match paragraphText', () => {
-    const html = '<p>Hello world</p>';
-    const mismatchedText = 'COMPLETELY DIFFERENT TEXT';
-    const changes: WordChange[] = [{ type: 'removed', start: 0, end: 5 }];
-    // Should return original HTML unchanged (safety fallback)
-    const result = injectWordHighlights(html, changes, mismatchedText);
-    expect(result).toBe(html);
-  });
-});
-```
+| ID | Test | Rationale |
+|----|------|-----------|
+| AS-U1 | Added paragraph on new side gets `<ins class="diff-paragraph-added">` wrapping | Section-level orchestration |
+| AS-U2 | Unchanged paragraphs pass through unmodified | No false positives |
+| AS-U3 | Multiple paragraphs in section processed correctly (reverse offset order) | Multi-paragraph section |
+| AS-U4 | `sectionOffset > 0` — absolute SourceLocation offsets converted to relative correctly | Non-zero section start |
+| AS-U5 | WordChanges filtered by side: old shows only `removed`, new shows only `added` | Side-specific filtering (AC-8) |
 
 ---
 
-## 3. Integration Tests — FilingContent with Highlights
+## 3. Integration Tests — `FilingContent` with Highlights
 
-These tests verify the full component rendering pipeline. They extend the existing `FilingContent.test.tsx` with new `describe` blocks for highlight behavior.
+File: `apps/web/src/components/FilingContent.test.tsx` (extends existing test file)
 
-### Fixture helpers (shared with existing tests)
+### 3.1 Backward compatibility
 
-```typescript
-// Reuse existing makeDoc() and makeSection() from FilingContent.test.tsx
+| ID | Test | Rationale |
+|----|------|-----------|
+| FC-I1 | `FilingContent` without `sectionDiffs` renders identically to US-2.3 (no highlights) | Backward compat (AC-9) |
+| FC-I2 | Existing section slicing still works when `sectionDiffs` is undefined | No regression |
 
-function makeParagraphDiff(
-  changeType: ChangeType,
-  oldRange?: SourceLocation,
-  newRange?: SourceLocation,
-  wordChanges?: WordChange[],
-): ParagraphDiff {
-  return { changeType, wordChanges, sourceMapping: { old: oldRange, new: newRange } };
-}
+### 3.2 Whole-paragraph changes
 
-function makeSectionDiff(
-  id: string,
-  heading: string,
-  paragraphDiffs: ParagraphDiff[],
-  changeType: ChangeType = 'modified',
-): SectionDiff {
-  return {
-    id, heading, changeType,
-    paragraphDiffs, tableDiffs: [], subsectionDiffs: [],
-    sourceMapping: { old: { start: 0, end: 100 }, new: { start: 0, end: 100 } },
-  };
-}
-```
+| ID | Test | Rationale |
+|----|------|-----------|
+| FC-I3 | Added paragraph renders `<ins class="diff-paragraph-added">` with correct text content | Whole-paragraph add (AC-3) |
+| FC-I4 | Removed paragraph renders `<del class="diff-paragraph-removed">` with correct text content | Whole-paragraph remove (AC-4) |
+| FC-I5 | Unchanged paragraph has no `<ins>` or `<del>` elements | Unchanged passthrough (AC-5) |
 
-### Backward compatibility
+### 3.3 Word-level changes
 
-```typescript
-describe('FilingContent — backward compatibility', () => {
-  it('renders without sectionDiffs identically to US-2.3 (no highlights)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-    const { container } = render(<FilingContent document={doc} />);
+| ID | Test | Rationale |
+|----|------|-----------|
+| FC-I6 | Modified paragraph: only changed word wrapped in `<del>`, rest unwrapped | Word-level precision (AC-2) |
+| FC-I7 | Word change spanning HTML tag boundary: multiple `<del>` elements, original tags preserved | Cross-tag DOM splitting (AC-6) |
 
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-    expect(container.textContent).toContain('Content');
-  });
+### 3.4 Side filtering
 
-  it('preserves existing section slicing when sectionDiffs is undefined', () => {
-    const html = '<p>Preamble</p><h2>Item 1</h2><p>Section content</p>';
-    const item1Start = html.indexOf('<h2>');
-    const doc = makeDoc(html, [makeSection('item-1', 'Item 1', item1Start, html.length)]);
-    const { container } = render(<FilingContent document={doc} />);
+| ID | Test | Rationale |
+|----|------|-----------|
+| FC-I8 | `side="old"` shows `<del>` for removed paragraphs, no `<ins>` | Old-side filtering |
+| FC-I9 | `side="new"` shows `<ins>` for added paragraphs, no `<del>` | New-side filtering |
+| FC-I10 | Added paragraph ignored on old side (no source location for old) | Side-specific sourceMapping |
 
-    expect(container.querySelector('#preamble')).not.toBeNull();
-    expect(container.querySelector('#item-1')).not.toBeNull();
-  });
-});
-```
+### 3.5 Moved and reordered paragraphs
 
-### Whole-paragraph change types
-
-```typescript
-describe('FilingContent — whole paragraph changes', () => {
-  it('renders added paragraph with <ins class="diff-paragraph-added">', () => {
-    const html = '<p>New paragraph content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section 1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section 1', [
-          makeParagraphDiff('added', undefined, { start: 0, end: html.length }),
-        ])]}
-        side="new"
-      />
-    );
-
-    const ins = container.querySelector('ins');
-    expect(ins).not.toBeNull();
-    expect(ins?.textContent).toContain('New paragraph content');
-    expect(ins?.className).toContain('diff-paragraph-added');
-  });
-
-  it('renders removed paragraph with <del class="diff-paragraph-removed">', () => {
-    const html = '<p>Old paragraph content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section 1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section 1', [
-          makeParagraphDiff('removed', { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del).not.toBeNull();
-    expect(del?.textContent).toContain('Old paragraph content');
-    expect(del?.className).toContain('diff-paragraph-removed');
-  });
-
-  it('renders unchanged paragraph without any highlight markup', () => {
-    const html = '<p>Same content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section 1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section 1', [
-          makeParagraphDiff('unchanged', { start: 0, end: html.length }, { start: 0, end: html.length }),
-        ], 'unchanged')]}
-        side="old"
-      />
-    );
-
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-    expect(container.textContent).toContain('Same content');
-  });
-});
-```
-
-### Word-level changes in modified paragraphs
-
-```typescript
-describe('FilingContent — word-level changes', () => {
-  it('highlights only changed words in a modified paragraph', () => {
-    const html = '<p>The quick brown fox jumps</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section 1', 0, html.length)]);
-
-    // Note: for word-level tests, the paragraph must exist in doc.sections[].blocks
-    // so that paragraphIndex can look up the text. The makeDoc helper needs to include
-    // paragraph blocks for this to work end-to-end.
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section 1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 4, end: 9 }], // "quick"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del).not.toBeNull();
-    expect(del?.textContent).toBe('quick');
-    expect(container.querySelectorAll('ins')).toHaveLength(0);
-  });
-
-  it('handles word change that spans across an HTML tag (DOM splitting)', () => {
-    const html = '<p>The <b>quick brown</b> fox</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section 1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section 1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 4, end: 19 }], // "quick brown fox"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    // DOM splitting produces multiple <del> elements at tag boundaries
-    expect(container.querySelectorAll('del').length).toBeGreaterThanOrEqual(2);
-    expect(container.querySelector('b')).not.toBeNull(); // bold tag preserved
-  });
-});
-```
-
-### Side-by-side filtering
-
-```typescript
-describe('FilingContent — side prop filtering', () => {
-  it('old side shows only <del> for removed changes', () => {
-    const html = '<p>Old content here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('removed', { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-    expect(container.querySelector('del')).not.toBeNull();
-    expect(container.querySelector('ins')).toBeNull();
-  });
-
-  it('new side shows only <ins> for added changes', () => {
-    const html = '<p>New content here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('added', undefined, { start: 0, end: html.length }),
-        ])]}
-        side="new"
-      />
-    );
-    expect(container.querySelector('ins')).not.toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-  });
-
-  it('added paragraph is ignored on old side (no source location)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('added', undefined, { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-    // added paragraph has no old sourceMapping, so nothing happens on old side
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-  });
-});
-```
-
-### Moved/reordered paragraphs
-
-```typescript
-describe('FilingContent — moved and reordered paragraphs', () => {
-  it('moved paragraph with wordChanges renders word-level highlights', () => {
-    const html = '<p>Moved text here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'moved',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 0, end: 5 }], // "Moved"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    expect(container.querySelector('del')).not.toBeNull();
-  });
-
-  it('moved paragraph without wordChanges renders as unchanged', () => {
-    const html = '<p>Moved text here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('moved', { start: 0, end: html.length }, { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-  });
-
-  it('reordered paragraph renders as unchanged', () => {
-    const html = '<p>Reordered text</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('reordered', { start: 0, end: html.length }, { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-  });
-});
-```
+| ID | Test | Rationale |
+|----|------|-----------|
+| FC-I11 | Moved paragraph with wordChanges renders word-level highlights | Moved + modified (AC-10) |
+| FC-I12 | Moved paragraph without wordChanges renders as unchanged (no highlights) | Moved without edit (AC-10) |
+| FC-I13 | Reordered paragraph renders as unchanged (no highlights) | Reordered deferred to future story |
 
 ---
 
 ## 4. Boundary Conditions
 
-```typescript
-describe('Boundary conditions', () => {
-  it('handles empty paragraph (0-length text content)', () => {
-    const html = '<p></p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff('unchanged', { start: 0, end: html.length }, { start: 0, end: html.length }),
-          ], 'unchanged')]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles modified paragraph with empty wordChanges array', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('modified', { start: 0, end: html.length }, { start: 0, end: html.length }, []),
-        ])]}
-        side="old"
-      />
-    );
-    // Empty wordChanges → no word-level highlights injected
-    // May fall back to modified paragraph style or render unchanged
-    expect(container.textContent).toContain('Content');
-  });
-
-  it('handles single-character word change', () => {
-    const html = '<p>ABCDE</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 2, end: 3 }], // just "C"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del).not.toBeNull();
-    expect(del?.textContent).toBe('C');
-  });
-
-  it('handles change at the very start of paragraph text', () => {
-    const html = '<p>Hello world</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 0, end: 5 }], // "Hello"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del?.textContent).toBe('Hello');
-  });
-
-  it('handles change at the very end of paragraph text', () => {
-    const html = '<p>Hello world</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 6, end: 11 }], // "world"
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del?.textContent).toBe('world');
-  });
-
-  it('handles HTML entities in changed text', () => {
-    const html = '<p>A &amp; B changed</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff(
-              'modified',
-              { start: 0, end: html.length },
-              { start: 0, end: html.length },
-              [{ type: 'removed', start: 0, end: 5 }], // "A & B"
-            ),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles deeply nested tags (div > p > span > b > text)', () => {
-    const html = '<div><p><span><b>Important</b></span></p></div>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('removed', { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-
-    expect(container.querySelector('del')).not.toBeNull();
-  });
-
-  it('handles paragraph with only whitespace', () => {
-    const html = '<p>   </p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff('unchanged', { start: 0, end: html.length }, { start: 0, end: html.length }),
-          ], 'unchanged')]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles section with many paragraphs (50+)', () => {
-    let html = '';
-    const paragraphDiffs: ParagraphDiff[] = [];
-    for (let i = 0; i < 50; i++) {
-      const start = html.length;
-      html += `<p>Paragraph ${i}</p>`;
-      paragraphDiffs.push(
-        makeParagraphDiff('unchanged', { start, end: html.length }, { start, end: html.length })
-      );
-    }
-
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', paragraphDiffs, 'unchanged')]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-});
-```
+| ID | Condition | Expected behavior |
+|----|-----------|-------------------|
+| BC-1 | Empty paragraph (`<p></p>`, 0-length text content) | Does not crash |
+| BC-2 | Modified paragraph with empty wordChanges array `[]` | No word-level highlights injected; content still renders |
+| BC-3 | Single-character word change (start=2, end=3) | Single character wrapped in `<del>`/`<ins>` |
+| BC-4 | Change at very start of paragraph text (offset 0) | First word correctly wrapped |
+| BC-5 | Change at very end of paragraph text (end = text.length) | Last word correctly wrapped |
+| BC-6 | HTML entities in changed text (`&amp;`, `&lt;`) | Does not crash; entity text included in highlight |
+| BC-7 | Deeply nested tags (`div > p > span > b > text`) with whole-paragraph removal | `<del>` present in output |
+| BC-8 | Paragraph with only whitespace (`<p>   </p>`) | Does not crash |
+| BC-9 | Section with 50+ paragraphs (all unchanged) | Does not crash; renders all paragraphs |
 
 ---
 
 ## 5. Error Conditions
 
-```typescript
-describe('Error conditions', () => {
-  it('handles misaligned offsets gracefully (wordChange beyond paragraph text length)', () => {
-    const html = '<p>Short</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff(
-              'modified',
-              { start: 0, end: html.length },
-              { start: 0, end: html.length },
-              [{ type: 'removed', start: 0, end: 999 }],
-            ),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles out-of-range sourceMapping (start > HTML length)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff('added', undefined, { start: 9999, end: 10000 }),
-          ])]}
-          side="new"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles missing wordChanges for modified paragraph (falls back to whole-paragraph neutral style)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    // Should not crash; falls back to whole-paragraph highlight with neutral "modified" style
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff(
-              'modified',
-              { start: 0, end: html.length },
-              { start: 0, end: html.length },
-              undefined,
-            ),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles inverted wordChange range (start > end) — skipped after clamping', () => {
-    const html = '<p>Hello world</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff(
-              'modified',
-              { start: 0, end: html.length },
-              { start: 0, end: html.length },
-              [{ type: 'removed', start: 10, end: 5 }],
-            ),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles diff with section ID that does not match any document section', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    // Unmatched sectionDiff is ignored; section renders unmodified
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('nonexistent', 'Ghost', [
-          makeParagraphDiff('added', undefined, { start: 0, end: 10 }),
-        ])]}
-        side="new"
-      />
-    );
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.textContent).toContain('Content');
-  });
-
-  it('handles empty sectionDiffs array (no highlights applied)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent document={doc} sectionDiffs={[]} side="old" />
-    );
-
-    expect(container.textContent).toContain('Content');
-    expect(container.querySelector('ins')).toBeNull();
-    expect(container.querySelector('del')).toBeNull();
-  });
-
-  it('handles negative wordChange offsets (clamped to 0)', () => {
-    const html = '<p>Hello</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff(
-              'modified',
-              { start: 0, end: html.length },
-              { start: 0, end: html.length },
-              [{ type: 'removed', start: -5, end: 3 }],
-            ),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles paragraph sourceLocation outside section range (skipped)', () => {
-    const html = '<p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    // Paragraph source at 500-510 is outside section range 0-14
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff('removed', { start: 500, end: 510 }),
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-  });
-
-  it('handles stripStyleBlocks offset shift (style block mid-section shifts paragraph offsets)', () => {
-    // A <style> block within a section shifts downstream offsets after stripping.
-    // SourceLocation offsets are from the ORIGINAL HTML (before stripping), but
-    // applyHighlightsToSection receives the STRIPPED HTML. If a style block appears
-    // mid-section, paragraph offsets would be misaligned.
-    // This is extremely rare in real SEC filings (style blocks are in <head>), but
-    // the implementation should not crash if it happens.
-    const html = '<p>Before</p><style>.x{color:red}</style><p>After</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    // Paragraph "After" has offset 41 in original HTML, but after stripStyleBlocks
-    // the style block is removed and "After" shifts earlier. The SourceLocation
-    // still references the original offset, so there's a mismatch.
-    expect(() =>
-      render(
-        <FilingContent
-          document={doc}
-          sectionDiffs={[makeSectionDiff('s1', 'S1', [
-            makeParagraphDiff('removed', { start: 0, end: 14 }),                // <p>Before</p>
-            makeParagraphDiff('added', undefined, { start: 41, end: html.length }), // <p>After</p> original offset
-          ])]}
-          side="old"
-        />
-      )
-    ).not.toThrow();
-    // At minimum: does not crash. Ideal: content still renders, even if highlight misaligns.
-  });
-});
-```
+| ID | Condition | Expected behavior |
+|----|-----------|-------------------|
+| EC-1 | WordChange end beyond paragraph text length (offset 999 on 5-char text) | Does not crash; clamped to valid range |
+| EC-2 | SourceMapping start > HTML length (offset 9999) | Does not crash; paragraph skipped |
+| EC-3 | Modified paragraph with `undefined` wordChanges | Does not crash; falls back to whole-paragraph neutral style |
+| EC-4 | Inverted wordChange range (start > end) | Does not crash; change skipped after clamping |
+| EC-5 | SectionDiff ID does not match any document section | Section renders unmodified (no highlights) |
+| EC-6 | Empty sectionDiffs array | No highlights applied; content renders normally |
+| EC-7 | Negative wordChange offsets (start = -5) | Does not crash; clamped to 0 |
+| EC-8 | Paragraph sourceLocation outside section range | Does not crash; paragraph diff skipped |
+| EC-9 | Style block mid-section shifts paragraph offsets after `stripStyleBlocks` | Does not crash; content still renders (highlight may misalign but no error) |
 
 ---
 
 ## 6. Accessibility Tests
 
-```typescript
-describe('Accessibility', () => {
-  it('uses semantic <ins> element for additions', () => {
-    const html = '<p>Added text here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('added', undefined, { start: 0, end: html.length }),
-        ])]}
-        side="new"
-      />
-    );
-
-    const ins = container.querySelector('ins');
-    expect(ins).not.toBeNull();
-    expect(ins?.tagName.toLowerCase()).toBe('ins');
-  });
-
-  it('uses semantic <del> element for removals', () => {
-    const html = '<p>Removed text here</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('removed', { start: 0, end: html.length }),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del).not.toBeNull();
-    expect(del?.tagName.toLowerCase()).toBe('del');
-  });
-
-  it('word-level <ins> has diff-added class (enables non-color differentiation via CSS underline)', () => {
-    const html = '<p>Added word</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'added', start: 0, end: 5 }],
-          ),
-        ])]}
-        side="new"
-      />
-    );
-
-    const ins = container.querySelector('ins');
-    expect(ins?.className).toContain('diff-added');
-  });
-
-  it('word-level <del> has diff-removed class (enables strikethrough via CSS)', () => {
-    const html = '<p>Removed word</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff(
-            'modified',
-            { start: 0, end: html.length },
-            { start: 0, end: html.length },
-            [{ type: 'removed', start: 0, end: 7 }],
-          ),
-        ])]}
-        side="old"
-      />
-    );
-
-    const del = container.querySelector('del');
-    expect(del?.className).toContain('diff-removed');
-  });
-
-  it('paragraph-level <ins> has diff-paragraph-added class (block styling)', () => {
-    const html = '<p>New paragraph</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('added', undefined, { start: 0, end: html.length }),
-        ])]}
-        side="new"
-      />
-    );
-
-    const ins = container.querySelector('ins');
-    expect(ins?.className).toContain('diff-paragraph-added');
-  });
-
-  it('highlight elements do not break heading hierarchy', () => {
-    const html = '<h2>Section Title</h2><p>Content</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'Section Title', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'Section Title', [
-          makeParagraphDiff('added', undefined, { start: 26, end: html.length }),
-        ])]}
-        side="new"
-      />
-    );
-
-    expect(screen.getByText('Section Title')).toBeInTheDocument();
-  });
-
-  it('screen readers can distinguish additions from removals via <ins>/<del> semantics', () => {
-    const html = '<p>Old</p><p>New</p>';
-    const doc = makeDoc(html, [makeSection('s1', 'S1', 0, html.length)]);
-
-    const { container } = render(
-      <FilingContent
-        document={doc}
-        sectionDiffs={[makeSectionDiff('s1', 'S1', [
-          makeParagraphDiff('removed', { start: 0, end: 10 }),
-          makeParagraphDiff('added', undefined, { start: 10, end: 20 }),
-        ])]}
-        side="old"
-      />
-    );
-
-    const delElements = container.querySelectorAll('del');
-    expect(delElements.length).toBeGreaterThan(0);
-  });
-});
-```
+| ID | Test | Rationale |
+|----|------|-----------|
+| A11Y-1 | Added content uses semantic `<ins>` element (not just a styled `<span>`) | Screen readers announce insertions |
+| A11Y-2 | Removed content uses semantic `<del>` element (not just a styled `<span>`) | Screen readers announce deletions |
+| A11Y-3 | Word-level `<ins>` has `diff-added` class (enables underline via CSS — non-color differentiation) | WCAG: not color-only |
+| A11Y-4 | Word-level `<del>` has `diff-removed` class (enables strikethrough via CSS — non-color differentiation) | WCAG: not color-only |
+| A11Y-5 | Paragraph-level `<ins>` has `diff-paragraph-added` class (block-level styling distinct from word-level) | Visual distinction between word and paragraph highlights |
+| A11Y-6 | Highlight elements do not break heading hierarchy (section headings still queryable) | Structural integrity |
+| A11Y-7 | Screen readers can distinguish additions from removals via `<ins>`/`<del>` semantics | Semantic differentiation |
 
 ---
 
-## 7. Test Data / Fixtures
+## 7. Test Data Strategy
 
-### Fixture helpers to create
+### Fixture helpers needed
 
-| Helper | Purpose | Location |
-|--------|---------|----------|
-| `makeDoc(html, sections)` | Reuse from `FilingContent.test.tsx` — creates `StructuredDocument` | `FilingContent.test.tsx` |
-| `makeSection(id, heading, start, end)` | Reuse from `FilingContent.test.tsx` — creates `FilingSection` | `FilingContent.test.tsx` |
-| `makeParagraphDiff(changeType, old?, new?, wordChanges?)` | Creates `ParagraphDiff` with specified change type and offsets | `FilingContent.test.tsx` (new) |
-| `makeSectionDiff(id, heading, paragraphDiffs, changeType?)` | Creates `SectionDiff` wrapping paragraph diffs | `FilingContent.test.tsx` (new) |
+| Helper | Purpose |
+|--------|---------|
+| `makeDoc(html, sections)` | Reuse from existing `FilingContent.test.tsx` — creates `StructuredDocument` |
+| `makeSection(id, heading, start, end, blocks?)` | Extended to optionally include `Paragraph` blocks for word-level tests |
+| `makeParagraph(text, start, end)` | New — creates `Paragraph` with valid source mapping |
+| `makeParagraphDiff(changeType, old?, new?, wordChanges?)` | New — creates `ParagraphDiff` |
+| `makeSectionDiff(id, heading, paragraphDiffs, changeType?)` | New — creates `SectionDiff` wrapping paragraph diffs |
 
-### Shared HTML snippets for unit tests
+### Sample HTML snippets for testing
 
-```typescript
-const FIXTURES = {
-  plainText: 'Hello world',
-  simpleParagraph: '<p>The quick brown fox jumps over the lazy dog</p>',
-  boldParagraph: '<p>The <b>quick brown</b> fox</p>',
-  nestedTags: '<p>A <span class="x"><b>bold <i>italic</i></b></span> end</p>',
-  entities: '<p>Revenue was $1.2B &amp; growing &gt; 10% year-over-year</p>',
-  multiParagraph: '<p>First paragraph.</p><p>Second paragraph.</p><p>Third paragraph.</p>',
-  lineBreaks: '<p>Line one<br/>Line two<br/>Line three</p>',
-  withTable: '<p>Before</p><table><tr><td>Cell</td></tr></table><p>After</p>',
-  emptyParagraph: '<p></p>',
-  whitespaceParagraph: '<p>   </p>',
-};
-```
+| Name | HTML | Use case |
+|------|------|----------|
+| Plain text | `Hello world` | No-tag baseline |
+| Simple paragraph | `<p>The quick brown fox jumps over the lazy dog</p>` | Basic paragraph |
+| Bold paragraph | `<p>The <b>quick brown</b> fox</p>` | Cross-tag boundary |
+| Nested tags | `<p>A <span><b>bold <i>italic</i></b></span> end</p>` | Deep nesting |
+| Entities | `<p>Revenue &amp; growth &gt; 10%</p>` | Entity handling |
+| Line breaks | `<p>Line one<br/>Line two</p>` | `<br>` as space in normalized text |
+| Multi-paragraph | `<p>First.</p><p>Second.</p><p>Third.</p>` | Section with multiple paragraphs |
+| Empty paragraph | `<p></p>` | Empty content boundary |
 
 ---
 
-## 8. Visual Validation Strategy (Chrome DevTools MCP)
-
-### UAT Checks
-
-| Checkpoint | What to verify |
-|-----------|---------------|
-| Added paragraph (whole) | Green-50 background, green-600 left border, no underline/strikethrough |
-| Removed paragraph (whole) | Red-50 background, red-600 left border, no strikethrough at block level |
-| Word-level added | Green-100 background, green-600 underline |
-| Word-level removed | Red-100 background, red-600 strikethrough |
-| Unchanged content | No background, no decoration |
-| Nested HTML preserved | Bold, italic, span formatting preserved within highlighted text |
-| Cross-tag highlight | Highlight splits at tag boundaries, no broken nesting |
-| Multiple sections | Highlights render correctly across different document sections |
-| Side-by-side view | Filing A shows `<del>` highlights, Filing B shows `<ins>` highlights |
-| Color contrast | Text readable on both green and red backgrounds (WCAG AA) |
-
-### Process
-
-1. Start dev server: `NX_OUTPUT_STYLE=stream pnpm nx run web:dev`
-2. Navigate MCP browser to `http://localhost:5173`
-3. Load test filings with hardcoded diff fixture
-4. Take screenshots at each checkpoint
-5. Verify color contrast meets WCAG AA minimum (4.5:1 for text on colored background)
-
----
-
-## 9. Test File Organization
+## 8. Test File Organization
 
 ```
 apps/web/src/
   lib/
     highlight-injector.ts          # Pure functions: buildNormalizedMapping, injectWordHighlights,
                                    #   wrapParagraph, applyHighlightsToSection
-    highlight-injector.test.ts     # Unit tests for all pure functions
+    highlight-injector.test.ts     # Unit tests (IW-*, WP-*, AS-*)
   components/
     FilingContent.tsx              # Extended with sectionDiffs + side props
-    FilingContent.test.tsx         # Integration tests: existing + new highlight tests
+    FilingContent.test.tsx         # Integration tests (FC-I*) + existing US-2.3 tests
     highlight.css                  # Highlight CSS styles
 
 .specs/us-2-5-paragraph-diff/
   test-plan.md                    # This file
-  uat.md                          # UAT doc (created during implementation)
+  uat.md                          # Visual validation scenarios
 ```
 
 All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 
 ---
 
-## 10. Testing Limitations (jsdom)
+## 9. Testing Limitations (jsdom)
 
 | Limitation | Impact | Mitigation |
 |-----------|--------|-----------|
 | No CSS computed styles | Cannot verify green/red background colors | Verify CSS class presence; UAT for visual check |
 | No text-decoration rendering | Cannot verify strikethrough/underline is visible | Verify CSS class; `<del>`/`<ins>` have browser defaults |
-| No color contrast checking | Cannot verify WCAG AA compliance | UAT visual check + manual contrast ratio verification |
+| No color contrast checking | Cannot verify WCAG AA compliance | UAT visual check + manual contrast ratio |
 | No scroll behavior | Cannot verify highlights work with scrolled content | UAT scroll testing |
 
 ### What jsdom CAN verify (and we test thoroughly)
@@ -1401,8 +358,8 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 - `<ins>`/`<del>` elements exist in the DOM
 - Correct CSS classes applied (`diff-added`, `diff-removed`, `diff-paragraph-added`, `diff-paragraph-removed`)
 - Correct text content within highlight elements
-- DOM-based splitting produces valid HTML (multiple `<del>`/`<ins>` at tag boundaries)
-- Normalization mapping correctness (via indirect testing through `injectWordHighlights`)
+- DOM-based splitting produces valid HTML (multiple wrappers at tag boundaries)
+- Normalization mapping correctness (via `injectWordHighlights` output)
 - Error resilience (bad offsets, missing data, mismatched text)
 - Backward compatibility (no sectionDiffs = no highlights)
 - Accessibility semantics (`<ins>` and `<del>` are meaningful to screen readers)
