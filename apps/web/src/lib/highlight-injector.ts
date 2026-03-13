@@ -1,4 +1,4 @@
-import type { WordChange, SectionDiff, Paragraph, CellDiff } from '@edgar-diff/lib';
+import type { WordChange, SectionDiff, Paragraph, CellDiff, Table } from '@edgar-diff/lib';
 
 export type Side = 'old' | 'new';
 
@@ -247,10 +247,12 @@ export function applyHighlightsToSection(
   sectionDiff: SectionDiff,
   paragraphIndex: Map<string, Paragraph>,
   side: Side,
+  tableIndex: Map<string, Table> = new Map(),
 ): string {
   // Collect replacements: { relStart, relEnd, html }
   const replacements: { relStart: number; relEnd: number; html: string }[] = [];
 
+  // ─── Paragraph processing (existing US-2.5 logic) ─────────────
   for (const pd of sectionDiff.paragraphDiffs) {
     // Get the source location for this side
     const sourceLoc = pd.sourceMapping[side];
@@ -291,6 +293,54 @@ export function applyHighlightsToSection(
     }
 
     replacements.push({ relStart, relEnd, html: replacedHtml });
+  }
+
+  // ─── Table processing (US-2.6) ────────────────────────────────
+  for (const tableDiff of sectionDiff.tableDiffs) {
+    const tableSourceLoc = tableDiff.sourceMapping[side];
+    if (!tableSourceLoc) continue; // table doesn't exist on this side
+
+    const tableKey = `${tableSourceLoc.start}:${tableSourceLoc.end}`;
+    const table = tableIndex.get(tableKey);
+    if (!table) continue; // safety fallback
+
+    for (const rowDiff of tableDiff.rowDiffs) {
+      const rowIndex = side === 'old' ? rowDiff.oldRowIndex : rowDiff.newRowIndex;
+      if (rowIndex === undefined) continue; // row doesn't exist on this side
+
+      // Bounds check on row index
+      if (rowIndex >= table.rows.length) continue;
+
+      if (rowDiff.changeType === 'added' && side === 'new') {
+        const row = table.rows[rowIndex];
+        const relStart = row.source.start - sectionOffset;
+        const relEnd = row.source.end - sectionOffset;
+        if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+        const rowHtml = sectionHtml.slice(relStart, relEnd);
+        replacements.push({ relStart, relEnd, html: injectClass(rowHtml, 'diff-row-added') });
+      } else if (rowDiff.changeType === 'removed' && side === 'old') {
+        const row = table.rows[rowIndex];
+        const relStart = row.source.start - sectionOffset;
+        const relEnd = row.source.end - sectionOffset;
+        if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+        const rowHtml = sectionHtml.slice(relStart, relEnd);
+        replacements.push({ relStart, relEnd, html: injectClass(rowHtml, 'diff-row-removed') });
+      } else if (rowDiff.changeType === 'modified') {
+        for (const cellDiff of rowDiff.cellDiffs) {
+          if (cellDiff.changeType === 'unchanged') continue;
+
+          const cellSourceLoc = cellDiff.sourceMapping[side];
+          if (!cellSourceLoc) continue;
+
+          const relStart = cellSourceLoc.start - sectionOffset;
+          const relEnd = cellSourceLoc.end - sectionOffset;
+          if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+
+          const cellHtml = sectionHtml.slice(relStart, relEnd);
+          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff, side) });
+        }
+      }
+    }
   }
 
   // Apply replacements in reverse offset order to preserve positions

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { WordChange, ParagraphDiff, SectionDiff, Paragraph, CellDiff } from '@edgar-diff/lib';
+import type { WordChange, ParagraphDiff, SectionDiff, Paragraph, CellDiff, RowDiff, TableDiff, Table, TableRow, TableCell } from '@edgar-diff/lib';
 import { wrapParagraph, injectWordHighlights, applyHighlightsToSection, injectClass, escapeHtml, highlightCell } from './highlight-injector';
 
 // ─── 2.7 wrapParagraph ──────────────────────────────────────────
@@ -555,5 +555,328 @@ describe('highlightCell', () => {
     const html = '<td class="num">$1,234</td>';
     const result = highlightCell(html, makeCellDiff('added'), 'new');
     expect(result).toBe('<td class="num diff-cell-added">$1,234</td>');
+  });
+});
+
+// ─── 3.4 Backward Compatibility — MX-U tests ────────────────────
+
+describe('applyHighlightsToSection — backward compatibility (MX-U)', () => {
+  it('MX-U4: existing paragraph highlight tests still pass without tableIndex parameter', () => {
+    // Verify that the 5-argument signature still works (tableIndex defaults to empty Map)
+    const sectionHtml = '<p>Hello world</p>';
+    const sectionOffset = 0;
+
+    const paragraphDiff = makeParagraphDiff(
+      'added',
+      undefined,
+      { start: 0, end: 18 },
+    );
+
+    const sectionDiff = makeSectionDiff('item-1', [paragraphDiff]);
+
+    const paragraphIndex = new Map<string, Paragraph>();
+    paragraphIndex.set('0:18', makeParagraph('Hello world', 0, 18));
+
+    // Call with 5 args (no tableIndex) — should still work
+    const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
+    expect(result).toContain('<ins class="diff-paragraph-added">');
+    expect(result).toContain('Hello world');
+  });
+});
+
+// ─── 3.5 applyHighlightsToSection — table processing (AT-U) ────
+
+function makeTableRow(cells: TableCell[], start: number, end: number, isHeader = false): TableRow {
+  return { cells, isHeader, source: { start, end } };
+}
+
+function makeTableCell(text: string, start: number, end: number): TableCell {
+  return { text, colspan: 1, rowspan: 1, source: { start, end } };
+}
+
+function makeTable(rows: TableRow[], start: number, end: number): Table {
+  return { type: 'table', rows, source: { start, end } };
+}
+
+function makeRowDiff(
+  changeType: RowDiff['changeType'],
+  cellDiffs: CellDiff[],
+  oldRowIndex?: number,
+  newRowIndex?: number,
+): RowDiff {
+  return { changeType, cellDiffs, oldRowIndex, newRowIndex };
+}
+
+function makeTableDiff(
+  changeType: TableDiff['changeType'],
+  rowDiffs: RowDiff[],
+  oldSource?: { start: number; end: number },
+  newSource?: { start: number; end: number },
+): TableDiff {
+  return {
+    changeType,
+    rowDiffs,
+    cellDiffs: rowDiffs.flatMap((rd) => rd.cellDiffs),
+    sourceMapping: { old: oldSource, new: newSource },
+    summary: { rowsAdded: 0, rowsRemoved: 0, rowsModified: 0, rowsUnchanged: 0, cellsChanged: 0 },
+  };
+}
+
+function makeSectionDiffWithTables(
+  id: string,
+  paragraphDiffs: ParagraphDiff[],
+  tableDiffs: TableDiff[],
+  changeType: SectionDiff['changeType'] = 'modified',
+): SectionDiff {
+  return {
+    id,
+    heading: id,
+    changeType,
+    paragraphDiffs,
+    tableDiffs,
+    subsectionDiffs: [],
+    sourceMapping: { old: { start: 0, end: 1000 }, new: { start: 0, end: 1000 } },
+  };
+}
+
+describe('applyHighlightsToSection — table processing', () => {
+  it('AT-U1: single modified cell gets diff-cell-modified class', () => {
+    const html = '<table><tr><td>$1,000</td><td>$2,000</td></tr></table>';
+    const tdStart = html.indexOf('<td>$1,000');
+    const tdEnd = html.indexOf('</td>') + 5;
+
+    const cd = makeCellDiff('modified', {
+      oldValue: '$900',
+      newValue: '$1,000',
+      newSource: { start: tdStart, end: tdEnd },
+    });
+    const rd = makeRowDiff('modified', [cd], 0, 0);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+
+    const table = makeTable(
+      [makeTableRow(
+        [makeTableCell('$1,000', tdStart, tdEnd), makeTableCell('$2,000', tdEnd, html.indexOf('</tr>'))],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5,
+      )],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toContain('diff-cell-modified');
+    expect(result).toContain('<del class="diff-removed">$900</del>');
+    expect(result).toContain('<ins class="diff-added">$1,000</ins>');
+  });
+
+  it('AT-U2: multiple modified cells each get class + annotation', () => {
+    const html = '<table><tr><td>A</td><td>B</td></tr></table>';
+    const td1Start = html.indexOf('<td>A');
+    const td1End = html.indexOf('</td>') + 5;
+    const td2Start = html.indexOf('<td>B');
+    const td2End = html.indexOf('</td>', td2Start) + 5;
+
+    const cd1 = makeCellDiff('modified', {
+      oldValue: 'X', newValue: 'A',
+      newSource: { start: td1Start, end: td1End },
+    });
+    const cd2 = makeCellDiff('modified', {
+      oldValue: 'Y', newValue: 'B',
+      newSource: { start: td2Start, end: td2End },
+    });
+    const rd = makeRowDiff('modified', [cd1, cd2], 0, 0);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow(
+        [makeTableCell('A', td1Start, td1End), makeTableCell('B', td2Start, td2End)],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5,
+      )],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toContain('<del class="diff-removed">X</del>');
+    expect(result).toContain('<ins class="diff-added">A</ins>');
+    expect(result).toContain('<del class="diff-removed">Y</del>');
+    expect(result).toContain('<ins class="diff-added">B</ins>');
+  });
+
+  it('AT-U3: added row on new side gets diff-row-added class', () => {
+    const html = '<table><tr><td>Row1</td></tr></table>';
+    const trStart = html.indexOf('<tr>');
+    const trEnd = html.indexOf('</tr>') + 5;
+
+    const rd = makeRowDiff('added', [], undefined, 0);
+    const td = makeTableDiff('modified', [rd],
+      undefined,
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('Row1', html.indexOf('<td>'), html.indexOf('</td>') + 5)], trStart, trEnd)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toContain('diff-row-added');
+  });
+
+  it('AT-U4: removed row on old side gets diff-row-removed class', () => {
+    const html = '<table><tr><td>OldRow</td></tr></table>';
+    const trStart = html.indexOf('<tr>');
+    const trEnd = html.indexOf('</tr>') + 5;
+
+    const rd = makeRowDiff('removed', [], 0, undefined);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      undefined,
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('OldRow', html.indexOf('<td>'), html.indexOf('</td>') + 5)], trStart, trEnd)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'old', tableIndex);
+    expect(result).toContain('diff-row-removed');
+  });
+
+  it('AT-U6: sectionOffset > 0 — absolute offsets converted to relative', () => {
+    const html = '<table><tr><td>Val</td></tr></table>';
+    const sectionOffset = 500;
+    const tdStart = html.indexOf('<td>') + sectionOffset;
+    const tdEnd = html.indexOf('</td>') + 5 + sectionOffset;
+
+    const cd = makeCellDiff('added', {
+      newSource: { start: tdStart, end: tdEnd },
+    });
+    const rd = makeRowDiff('modified', [cd], 0, 0);
+    const td = makeTableDiff('modified', [rd],
+      { start: sectionOffset, end: sectionOffset + html.length },
+      { start: sectionOffset, end: sectionOffset + html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow(
+        [makeTableCell('Val', tdStart, tdEnd)],
+        html.indexOf('<tr>') + sectionOffset,
+        html.indexOf('</tr>') + 5 + sectionOffset,
+      )],
+      sectionOffset, sectionOffset + html.length,
+    );
+    const tableIndex = new Map<string, Table>([
+      [`${sectionOffset}:${sectionOffset + html.length}`, table],
+    ]);
+
+    const result = applyHighlightsToSection(html, sectionOffset, sd, new Map(), 'new', tableIndex);
+    expect(result).toContain('diff-cell-added');
+  });
+
+  it('AT-U8: added row ignored on old side', () => {
+    const html = '<table><tr><td>Row1</td></tr></table>';
+    const rd = makeRowDiff('added', [], undefined, 0);
+    const td = makeTableDiff('modified', [rd],
+      undefined,
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('Row1', html.indexOf('<td>'), html.indexOf('</td>') + 5)],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    // old side — no old source on TableDiff, should skip entirely
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'old', tableIndex);
+    expect(result).not.toContain('diff-row-added');
+    expect(result).not.toContain('diff-cell');
+  });
+
+  it('AT-U9: removed row ignored on new side', () => {
+    const html = '<table><tr><td>Row1</td></tr></table>';
+    const rd = makeRowDiff('removed', [], 0, undefined);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      undefined,
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('Row1', html.indexOf('<td>'), html.indexOf('</td>') + 5)],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    // new side — no new source on TableDiff, should skip entirely
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).not.toContain('diff-row-removed');
+  });
+
+  it('AT-U10: unchanged TableDiff — no classes injected', () => {
+    const html = '<table><tr><td>Val</td></tr></table>';
+    const rd = makeRowDiff('unchanged', [], 0, 0);
+    const td = makeTableDiff('unchanged', [rd],
+      { start: 0, end: html.length },
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('Val', html.indexOf('<td>'), html.indexOf('</td>') + 5)],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toBe(html);
+  });
+
+  it('AT-U11: tableIndex lookup failure — table diff skipped gracefully', () => {
+    const html = '<table><tr><td>Val</td></tr></table>';
+    const cd = makeCellDiff('modified', {
+      oldValue: 'X', newValue: 'Val',
+      newSource: { start: html.indexOf('<td>'), end: html.indexOf('</td>') + 5 },
+    });
+    const rd = makeRowDiff('modified', [cd], 0, 0);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+
+    // Empty tableIndex — lookup will fail
+    const tableIndex = new Map<string, Table>();
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toBe(html);
+  });
+
+  it('AT-U12: rowIndex out of bounds — row diff skipped gracefully', () => {
+    const html = '<table><tr><td>Val</td></tr></table>';
+    const rd = makeRowDiff('added', [], undefined, 99);
+    const td = makeTableDiff('modified', [rd],
+      { start: 0, end: html.length },
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([makeTableCell('Val', html.indexOf('<td>'), html.indexOf('</td>') + 5)],
+        html.indexOf('<tr>'), html.indexOf('</tr>') + 5)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    expect(result).toBe(html);
   });
 });
