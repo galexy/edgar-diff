@@ -1,8 +1,9 @@
 import { createRef } from 'react';
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
 import type { StructuredDocument, FilingSection } from '@edgar-diff/lib';
+import type { AvailableFiling } from '../services/types';
 import { FilingPanel } from './FilingPanel';
 
 // --- Test Fixture Helpers ---
@@ -245,5 +246,126 @@ describe('FilingPanel', () => {
     expect(ref.current).not.toBeNull();
     expect(ref.current!.className).toContain('overflow-y-auto');
     expect(screen.getByText('Content')).toBeInTheDocument();
+  });
+
+  // --- US-2.9: FilingSelector integration ---
+
+  const SAMPLE_FILINGS: AvailableFiling[] = [
+    { accessionNumber: 'acc-001', formType: '10-K', filingDate: '2023-11-03' },
+    { accessionNumber: 'acc-002', formType: '10-Q', filingDate: '2023-08-04' },
+  ];
+
+  it('renders FilingSelector when filing props provided', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={SAMPLE_FILINGS}
+        selectedFiling={null}
+        onFilingSelect={vi.fn()}
+        filingListStatus="loaded"
+      />,
+    );
+    const select = screen.getByRole('combobox');
+    expect(select).toBeEnabled();
+    expect(screen.getByText('10-K | 2023-11-03')).toBeInTheDocument();
+    expect(screen.getByText('10-Q | 2023-08-04')).toBeInTheDocument();
+  });
+
+  it('shows disabled placeholder when no filing props (backward compat)', () => {
+    render(<FilingPanel label="Filing A" />);
+    const select = screen.getByRole('combobox');
+    expect(select).toBeDisabled();
+    expect(select).toHaveTextContent(/select a filing/i);
+  });
+
+  it('passes aria-label based on label prop', () => {
+    render(
+      <FilingPanel
+        label="Filing B"
+        filings={SAMPLE_FILINGS}
+        selectedFiling={null}
+        onFilingSelect={vi.fn()}
+        filingListStatus="loaded"
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveAttribute('aria-label', 'Select Filing B');
+  });
+
+  it('disabled during loading state', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={[]}
+        selectedFiling={null}
+        onFilingSelect={vi.fn()}
+        filingListStatus="loading"
+      />,
+    );
+    expect(screen.getByRole('combobox')).toBeDisabled();
+  });
+
+  // --- US-2.9: Tester integration additions ---
+
+  it('empty filings array shows disabled selector', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={[]}
+        selectedFiling={null}
+        onFilingSelect={vi.fn()}
+        filingListStatus="loaded"
+      />,
+    );
+    const select = screen.getByRole('combobox');
+    expect(select).toBeDisabled();
+    // Only the placeholder option, no filing options
+    const options = select.querySelectorAll('option');
+    expect(options).toHaveLength(1);
+    expect(options[0]).toHaveTextContent(/select a filing/i);
+  });
+
+  it('onFilingSelect callback fires when a filing is selected', () => {
+    const onFilingSelect = vi.fn();
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={SAMPLE_FILINGS}
+        selectedFiling={null}
+        onFilingSelect={onFilingSelect}
+        filingListStatus="loaded"
+      />,
+    );
+
+    fireEvent.change(screen.getByRole('combobox'), {
+      target: { value: 'acc-002' },
+    });
+
+    expect(onFilingSelect).toHaveBeenCalledWith(SAMPLE_FILINGS[1]);
+  });
+
+  it('reflects selected filing in the selector value', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={SAMPLE_FILINGS}
+        selectedFiling="acc-001"
+        onFilingSelect={vi.fn()}
+        filingListStatus="loaded"
+      />,
+    );
+    expect(screen.getByRole('combobox')).toHaveValue('acc-001');
+  });
+
+  it('error status disables the selector', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        filings={[]}
+        selectedFiling={null}
+        onFilingSelect={vi.fn()}
+        filingListStatus="error"
+      />,
+    );
+    expect(screen.getByRole('combobox')).toBeDisabled();
   });
 });

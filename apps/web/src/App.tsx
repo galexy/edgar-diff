@@ -1,13 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { SectionNav } from './components/SectionNav';
 import { FilingPanel } from './components/FilingPanel';
 import { useActiveSection } from './hooks/useActiveSection';
+import { useFilingList } from './hooks/useFilingList';
 import { sampleDocument } from './fixtures/sample-filing';
 import { buildSampleDiffs } from './fixtures/sample-diff';
 import type { SectionDiff } from '@edgar-diff/lib';
-import type { Company } from './services/types';
+import type { Company, AvailableFiling } from './services/types';
 
 export function countChanges(section: SectionDiff): number {
   const paragraphChanges = section.paragraphDiffs.filter(
@@ -20,8 +21,16 @@ export function countChanges(section: SectionDiff): number {
 }
 
 export function App() {
-  // selectedCompany will be consumed by US-2.9 Filing Selectors
-  const [, setSelectedCompany] = useState<Company | null>(null);
+  const [selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const { filings, status: filingListStatus } = useFilingList(selectedCompany);
+  const [selectedFilingA, setSelectedFilingA] = useState<AvailableFiling | null>(null);
+  const [selectedFilingB, setSelectedFilingB] = useState<AvailableFiling | null>(null);
+
+  useEffect(() => {
+    setSelectedFilingA(null);
+    setSelectedFilingB(null);
+  }, [selectedCompany]);
+
   const sampleDiffs = useMemo(() => buildSampleDiffs(sampleDocument), []);
 
   const sections = useMemo(
@@ -78,6 +87,10 @@ export function App() {
           document={sampleDocument}
           sectionDiffs={sampleDiffs}
           side="old"
+          filings={filings}
+          selectedFiling={selectedFilingA?.accessionNumber ?? null}
+          onFilingSelect={setSelectedFilingA}
+          filingListStatus={filingListStatus}
         />
         <div className="w-px bg-gray-200" aria-hidden="true" />
         <FilingPanel
@@ -86,6 +99,10 @@ export function App() {
           document={sampleDocument}
           sectionDiffs={sampleDiffs}
           side="new"
+          filings={filings}
+          selectedFiling={selectedFilingB?.accessionNumber ?? null}
+          onFilingSelect={setSelectedFilingB}
+          filingListStatus={filingListStatus}
         />
       </main>
     </div>

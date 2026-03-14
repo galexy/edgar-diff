@@ -5,7 +5,7 @@ import type { SectionDiff, ParagraphDiff, TableDiff, ChangeType } from '@edgar-d
 // --- Mock the heavy AAPL fixture with a tiny inline document ---
 // The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
 
-const { tinyDocument, tinySectionDiffs } = vi.hoisted(() => {
+const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock } = vi.hoisted(() => {
   const tinyHtml = [
     '<div>Preamble content</div>',
     '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
@@ -109,7 +109,19 @@ const { tinyDocument, tinySectionDiffs } = vi.hoisted(() => {
     },
   ];
 
-  return { tinyDocument: doc, tinySectionDiffs: diffs };
+  const mockFilingListState = {
+    filings: [] as Array<{ accessionNumber: string; formType: string; filingDate: string }>,
+    status: 'idle' as string,
+    error: null as string | null,
+  };
+
+  function resetFilingListMock() {
+    mockFilingListState.filings = [];
+    mockFilingListState.status = 'idle';
+    mockFilingListState.error = null;
+  }
+
+  return { tinyDocument: doc, tinySectionDiffs: diffs, mockFilingListState, resetFilingListMock };
 });
 
 vi.mock('./fixtures/sample-filing', () => ({
@@ -133,6 +145,10 @@ vi.mock('./hooks/useCompanySearch', () => ({
   }),
 }));
 
+vi.mock('./hooks/useFilingList', () => ({
+  useFilingList: () => mockFilingListState,
+}));
+
 import { App, countChanges } from './App';
 
 // --- Mock IntersectionObserver for integration tests ---
@@ -144,6 +160,7 @@ let mockIOObserve: ReturnType<typeof vi.fn>;
 let mockIODisconnect: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  resetFilingListMock();
   mockIOObserve = vi.fn();
   mockIODisconnect = vi.fn();
 
@@ -505,6 +522,147 @@ describe('US-2.8: Company Search Integration', () => {
   });
 });
 
+// --- US-2.9: Filing Selectors Integration ---
+
+const SAMPLE_FILINGS = [
+  { accessionNumber: '0000320193-23-000106', formType: '10-K', filingDate: '2023-11-03' },
+  { accessionNumber: '0000320193-23-000077', formType: '10-Q', filingDate: '2023-08-04' },
+  { accessionNumber: '0000320193-23-000064', formType: '10-Q', filingDate: '2023-05-05' },
+];
+
+describe('US-2.9: Filing Selectors Integration', () => {
+  it('filing selectors are disabled on initial load (no company)', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => expect(select).toBeDisabled());
+  });
+
+  it('both panels have filing selector aria-labels', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    const labels = selects.map((s) => s.getAttribute('aria-label'));
+    expect(labels).toContain('Select Filing A');
+    expect(labels).toContain('Select Filing B');
+  });
+
+  it('filing selectors show placeholder text when idle', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => {
+      expect(select).toHaveTextContent(/select a filing/i);
+    });
+  });
+
+  it('filing selectors are disabled during loading', () => {
+    mockFilingListState.status = 'loading';
+    mockFilingListState.filings = [];
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => expect(select).toBeDisabled());
+  });
+
+  it('filing selectors are enabled and populated when loaded', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => {
+      expect(select).toBeEnabled();
+      // Each selector should have the filing options
+      expect(select).toHaveTextContent('10-K | 2023-11-03');
+      expect(select).toHaveTextContent('10-Q | 2023-08-04');
+      expect(select).toHaveTextContent('10-Q | 2023-05-05');
+    });
+  });
+
+  it('both selectors show the same filing options', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const optionsA = selects[0].querySelectorAll('option');
+    const optionsB = selects[1].querySelectorAll('option');
+    // Same number of options (filings + placeholder)
+    expect(optionsA.length).toBe(optionsB.length);
+    expect(optionsA.length).toBe(SAMPLE_FILINGS.length + 1);
+  });
+
+  it('selecting a filing in Filing A does not affect Filing B', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const [filingA, filingB] = selects;
+
+    // Select a filing in Filing A
+    fireEvent.change(filingA, { target: { value: '0000320193-23-000106' } });
+
+    // Filing A has a selection, Filing B still shows placeholder
+    expect(filingA).toHaveValue('0000320193-23-000106');
+    expect(filingB).toHaveValue('');
+  });
+
+  it('selecting different filings in A and B independently', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const [filingA, filingB] = selects;
+
+    fireEvent.change(filingA, { target: { value: '0000320193-23-000106' } });
+    fireEvent.change(filingB, { target: { value: '0000320193-23-000077' } });
+
+    expect(filingA).toHaveValue('0000320193-23-000106');
+    expect(filingB).toHaveValue('0000320193-23-000077');
+  });
+
+  it('filing selectors are disabled on error status', () => {
+    mockFilingListState.status = 'error';
+    mockFilingListState.error = 'Unable to load filings';
+    mockFilingListState.filings = [];
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => expect(select).toBeDisabled());
+  });
+
+  it('company clear resets filing selectors to disabled', () => {
+    // Start with loaded filings (company selected)
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    const { rerender } = render(<App />);
+    const getFilingSelects = () =>
+      screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+
+    // Verify selectors are enabled with filings
+    getFilingSelects().forEach((select) => expect(select).toBeEnabled());
+
+    // Simulate company cleared → hook returns idle with empty filings
+    mockFilingListState.status = 'idle';
+    mockFilingListState.filings = [];
+    mockFilingListState.error = null;
+
+    rerender(<App />);
+
+    // Both selectors should be disabled again
+    const selects = getFilingSelects();
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => {
+      expect(select).toBeDisabled();
+      expect(select).toHaveTextContent(/select a filing/i);
+    });
+  });
+});
+
 // --- US-2.7: Integration Tests (Tester-Owned) ---
 
 // --- Fixture helpers for countChanges ---
@@ -558,16 +716,14 @@ function makeSectionDiff(
 }
 
 describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
-  // CC-U1: Returns count of non-unchanged paragraphDiffs + non-unchanged tableDiffs
   it('CC-U1: returns count of non-unchanged paragraphDiffs + non-unchanged tableDiffs', () => {
     const section = makeSectionDiff(
       [makeParagraphDiff('modified'), makeParagraphDiff('unchanged'), makeParagraphDiff('added')],
       [makeTableDiff('removed'), makeTableDiff('unchanged')],
     );
-    expect(countChanges(section)).toBe(3); // 2 paragraphs + 1 table
+    expect(countChanges(section)).toBe(3);
   });
 
-  // CC-U2: Paragraph-only section (3 modified paragraphs, empty tableDiffs) → 3
   it('CC-U2: paragraph-only section with 3 non-unchanged paragraphs returns 3', () => {
     const section = makeSectionDiff(
       [makeParagraphDiff('modified'), makeParagraphDiff('added'), makeParagraphDiff('removed')],
@@ -576,7 +732,6 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(3);
   });
 
-  // CC-U3: Table-only section (empty paragraphDiffs, 2 modified tableDiffs) → 2
   it('CC-U3: table-only section with 2 non-unchanged tableDiffs returns 2', () => {
     const section = makeSectionDiff(
       [],
@@ -585,7 +740,6 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(2);
   });
 
-  // CC-U4: Mixed content (2 modified paragraphs + 1 added table) → 3
   it('CC-U4: mixed content with 2 paragraphs + 1 table returns 3', () => {
     const section = makeSectionDiff(
       [makeParagraphDiff('modified'), makeParagraphDiff('added')],
@@ -594,7 +748,6 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(3);
   });
 
-  // CC-U5: All unchanged → 0
   it('CC-U5: all unchanged paragraphs and tables returns 0', () => {
     const section = makeSectionDiff(
       [makeParagraphDiff('unchanged'), makeParagraphDiff('unchanged')],
@@ -603,13 +756,11 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(0);
   });
 
-  // CC-U6: Empty arrays → 0
   it('CC-U6: empty paragraphDiffs and tableDiffs returns 0', () => {
     const section = makeSectionDiff([], []);
     expect(countChanges(section)).toBe(0);
   });
 
-  // CC-U7: 5 paragraphs, 2 unchanged → 3
   it('CC-U7: 5 paragraphs with 2 unchanged returns 3', () => {
     const section = makeSectionDiff(
       [
@@ -624,7 +775,6 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(3);
   });
 
-  // CC-U8: All non-unchanged changeTypes counted (added, removed, modified, reordered, moved)
   it('CC-U8: all non-unchanged changeTypes are counted', () => {
     const section = makeSectionDiff(
       [
@@ -639,7 +789,6 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
     expect(countChanges(section)).toBe(5);
   });
 
-  // CC-U9: Subsection diffs NOT recursively counted
   it('CC-U9: subsection diffs are not recursively counted', () => {
     const section = makeSectionDiff(
       [makeParagraphDiff('modified')],
@@ -653,16 +802,12 @@ describe('US-2.7: countChanges helper (CC-U1–U9)', () => {
         ],
       },
     );
-    // Only the 1 direct paragraph should be counted, not the 3 in the subsection
     expect(countChanges(section)).toBe(1);
   });
 });
 
 describe('US-2.7: Diff summary computation (DS-I1–I2)', () => {
-  // DS-I1: diffSummary counts sections by changeType
   it('DS-I1: diffSummary counts sections by changeType', () => {
-    // The diffSummary computation in App.tsx counts section-level changeTypes
-    // Test the same logic pattern with explicit fixture data
     const sections: Array<{ changeType: ChangeType }> = [
       { changeType: 'added' },
       { changeType: 'added' },
@@ -688,7 +833,6 @@ describe('US-2.7: Diff summary computation (DS-I1–I2)', () => {
     expect(summary).toEqual({ added: 2, removed: 1, modified: 3, unchanged: 4 });
   });
 
-  // DS-I2: Reordered/moved sections bucketed under "modified"
   it('DS-I2: reordered and moved sections are bucketed under modified', () => {
     const sections: Array<{ changeType: ChangeType }> = [
       { changeType: 'modified' },
@@ -708,47 +852,35 @@ describe('US-2.7: Diff summary computation (DS-I1–I2)', () => {
       else summary.unchanged++;
     }
 
-    // modified + reordered + moved = 3 total in the "modified" bucket
     expect(summary).toEqual({ added: 1, removed: 1, modified: 3, unchanged: 1 });
   });
 });
 
 describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
-  // E2E-I1: App.tsx maps SectionDiff[] → SectionNavItem[] with computed changeCount
   it('E2E-I1: App renders section nav items with change count badges', () => {
     render(<App />);
 
-    // tinySectionDiffs has:
-    //   item-1: 2 non-unchanged paragraphs (modified + added) → changeCount=2 → badge shows "2"
-    //   item-1a: 1 modified paragraph + 1 modified table → changeCount=2 → badge shows "2"
-    //   item-2: 1 unchanged paragraph → changeCount=0 → no badge
     const badges = screen.getAllByLabelText(/\d+ changes?/);
-    expect(badges.length).toBe(2); // item-1 and item-1a
+    expect(badges.length).toBe(2);
 
-    // Each badge should have amber styling
     for (const badge of badges) {
       expect(badge.className).toContain('bg-amber-100');
       expect(badge.className).toContain('text-amber-700');
     }
 
-    // Both item-1 and item-1a have changeCount=2
     const twoChangesBadges = screen.getAllByLabelText('2 changes');
     expect(twoChangesBadges).toHaveLength(2);
   });
 
-  // E2E-I2: App.tsx computes diffSummary and passes to SectionNav
   it('E2E-I2: App renders diff summary bar with section-level counts', () => {
     render(<App />);
 
-    // The diff summary bar should be present with role="status"
     const summaryBar = screen.getByRole('status', { name: /diff summary/i });
     expect(summaryBar).toBeInTheDocument();
 
-    // tinySectionDiffs has 2 modified + 1 unchanged sections
     expect(summaryBar).toHaveTextContent('2 modified');
     expect(summaryBar).toHaveTextContent('1 unchanged');
 
-    // No added or removed in our mock data
     expect(summaryBar).not.toHaveTextContent(/\d+ added/);
     expect(summaryBar).not.toHaveTextContent(/\d+ removed/);
   });

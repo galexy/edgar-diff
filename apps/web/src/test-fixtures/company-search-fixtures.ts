@@ -34,9 +34,27 @@ export const MOCK_AAPL_SUBMISSIONS = {
   category: 'Large accelerated filer',
   filings: {
     recent: {
-      accessionNumber: ['0000320193-23-000106'],
-      filingDate: ['2023-11-03'],
-      form: ['10-K'],
+      accessionNumber: [
+        '0000320193-23-000106',
+        '0000320193-23-000077',
+        '0000320193-23-000064',
+        '0000320193-22-000108',
+        '0000320193-23-000050',
+      ],
+      filingDate: [
+        '2023-11-03',
+        '2023-08-04',
+        '2023-05-05',
+        '2022-10-28',
+        '2023-09-15',
+      ],
+      form: [
+        '10-K',
+        '10-Q',
+        '10-Q',
+        '10-K',
+        '8-K',
+      ],
     },
   },
 };
@@ -52,6 +70,21 @@ export const MOCK_MSFT_SUBMISSIONS = {
       accessionNumber: ['0000789019-23-000001'],
       filingDate: ['2023-07-27'],
       form: ['10-K'],
+    },
+  },
+};
+
+/** Company with no supported filings (only 8-K) */
+export const MOCK_NO_SUPPORTED_FILINGS = {
+  cik: '999999',
+  name: 'Only 8K Corp',
+  tickers: ['ONLY8K'],
+  exchanges: ['NYSE'],
+  filings: {
+    recent: {
+      accessionNumber: ['0000999999-23-000001'],
+      filingDate: ['2023-06-15'],
+      form: ['8-K'],
     },
   },
 };
