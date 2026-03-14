@@ -368,4 +368,72 @@ describe('FilingPanel', () => {
     );
     expect(screen.getByRole('combobox')).toBeDisabled();
   });
+
+  // --- US-2.10: Pipeline loading/error states ---
+
+  it('FP-P1: pipelineStatus=fetching → spinner + "Fetching filings..." text', () => {
+    render(<FilingPanel label="Filing A" pipelineStatus="fetching" />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText(/fetching filings/i)).toBeInTheDocument();
+  });
+
+  it('FP-P2: pipelineStatus=parsing → spinner + "Parsing filings..." text', () => {
+    render(<FilingPanel label="Filing A" pipelineStatus="parsing" />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText(/parsing filings/i)).toBeInTheDocument();
+  });
+
+  it('FP-P3: pipelineStatus=diffing → spinner + "Computing diff..." text', () => {
+    render(<FilingPanel label="Filing A" pipelineStatus="diffing" />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+    expect(screen.getByText(/computing diff/i)).toBeInTheDocument();
+  });
+
+  it('FP-P4: pipelineStatus=done + document → FilingContent rendered', () => {
+    const html = '<p>Content</p>';
+    const doc = makeDocument(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    const { container } = render(
+      <FilingPanel label="Filing A" document={doc} pipelineStatus="done" />,
+    );
+    expect(container.querySelector('.filing-content-root')).not.toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('FP-P5: pipelineStatus=error + pipelineError → error message rendered', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        pipelineStatus="error"
+        pipelineError="Filing not available"
+      />,
+    );
+    expect(screen.getByText('Filing not available')).toBeInTheDocument();
+  });
+
+  it('FP-P6: loading indicator has role=status', () => {
+    render(<FilingPanel label="Filing A" pipelineStatus="fetching" />);
+    const status = screen.getByRole('status');
+    expect(status).toBeInTheDocument();
+  });
+
+  it('FP-P7: error message has role=alert', () => {
+    render(
+      <FilingPanel
+        label="Filing A"
+        pipelineStatus="error"
+        pipelineError="Some error"
+      />,
+    );
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+  });
+
+  it('FP-P8: pipelineStatus=idle + no document → placeholder text', () => {
+    render(<FilingPanel label="Filing A" pipelineStatus="idle" />);
+    expect(
+      screen.getByText(/filing content will appear here/i),
+    ).toBeInTheDocument();
+  });
 });
