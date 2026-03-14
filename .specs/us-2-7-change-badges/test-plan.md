@@ -8,6 +8,15 @@ This test plan covers two tiers:
 1. **Programmatic tests** (Vitest + Testing Library) — DOM structure, badge content, accessibility, data flow
 2. **Visual validation** (Chrome DevTools MCP) — badge colors, positioning, summary layout (see `uat.md`)
 
+### Test Ownership
+
+| Owner | Tests | Scope |
+|-------|-------|-------|
+| **Coder** (TDD) | SN-U24–U52 | SectionNav unit tests: badges, summary bar, accessibility, backward compat |
+| **Coder** (TDD) | CC-U1–U9 | `countChanges()` helper unit tests |
+| **Tester** | DS-I1–I2, E2E-I1–I2 | Integration tests: summary computation, App.tsx data flow |
+| **Tester** | UAT (`uat.md`) | Visual validation via Chrome DevTools MCP |
+
 ### Test-Relevant Design Decisions
 
 - `changeCount: number` is **required** on `SectionNavItem`; test helper defaults to `0`
@@ -110,6 +119,8 @@ Scenario: A section with exactly 1 change shows singular text
 
 ## 2. Unit Tests — `SectionNav` Component
 
+**Owner: Coder** (written during TDD implementation)
+
 File: `apps/web/src/components/SectionNav.test.tsx` (extends existing test file)
 
 Continue SN-U numbering from SN-U24.
@@ -177,6 +188,8 @@ Continue SN-U numbering from SN-U24.
 
 ## 3. Unit Tests — `countChanges` Helper
 
+**Owner: Coder** (written during TDD implementation)
+
 File: co-located with `countChanges` (likely `apps/web/src/App.test.tsx` or extracted utility test file)
 
 | ID | Test | Rationale |
@@ -194,6 +207,8 @@ File: co-located with `countChanges` (likely `apps/web/src/App.test.tsx` or extr
 ---
 
 ## 4. Integration Tests — App-Level Data Flow
+
+**Owner: Tester** (written after implementation)
 
 File: `apps/web/src/App.test.tsx` (extends existing test file)
 

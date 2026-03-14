@@ -209,13 +209,21 @@ Pass to SectionNav:
 />
 ```
 
-### 3. `apps/web/src/components/SectionNav.test.tsx`
+### 3. Tests
 
-**Changes:**
+**See [test-plan.md](./test-plan.md) for the full test matrix** — it is the single source of truth for test IDs, fixtures, and expected behavior.
 
-#### a) Update fixture helpers
+#### Test ownership
 
-Add `changeCount` to `makeSectionNavItem` with default `0`:
+| Owner | Tests | Scope |
+|---|---|---|
+| **Coder** (TDD) | SN-U24–U52, CC-U1–U9 | Unit tests for SectionNav badges, DiffSummary bar, and `countChanges()` helper |
+| **Tester** | DS-I1–I2, E2E-I1–I2 | Integration tests for App-level data flow and summary computation |
+| **Tester** | UAT (uat.md) | Visual validation via Chrome DevTools MCP |
+
+#### Key fixture changes (coder implements)
+
+Update `makeSectionNavItem` to accept `changeCount` with default `0`:
 
 ```typescript
 function makeSectionNavItem(
@@ -228,74 +236,7 @@ function makeSectionNavItem(
 }
 ```
 
-#### b) New test cases (section 2.6: Change count badges)
-
-| Test ID | Description |
-|---|---|
-| SN-U24 | Modified section with changeCount=5 renders amber badge with "5 changes" |
-| SN-U25 | Modified section with changeCount=1 renders "1 change" (singular) |
-| SN-U26 | Modified section with changeCount=0 renders no badge |
-| SN-U27 | Unchanged section renders no badge regardless of changeCount |
-| SN-U28 | Added section renders "Added" text badge (ignores changeCount) |
-| SN-U29 | Removed section renders "Removed" text badge (ignores changeCount) |
-| SN-U30 | Amber badge has correct styling classes (`text-amber-700 bg-amber-100`) |
-
-#### c) New test cases (section 2.7: Badge colors and changeTypes)
-
-| Test ID | Description |
-|---|---|
-| SN-U31 | Added badge has green styling classes (`bg-green-100 text-green-700`) |
-| SN-U32 | Removed badge has red styling classes (`bg-red-100 text-red-700`) |
-| SN-U33 | Reordered section with changeCount > 0 renders amber badge |
-| SN-U34 | Moved section with changeCount > 0 renders amber badge |
-
-#### d) New test cases (section 2.8: Badge interaction with existing features)
-
-| Test ID | Description |
-|---|---|
-| SN-U35 | Active section with a badge still shows active styling (bg-blue-100) |
-| SN-U36 | Section with badge still triggers onSectionClick with correct id |
-| SN-U37 | Long heading with badge: heading text still has truncate class |
-
-#### e) New test cases (section 2.9: Badge accessibility)
-
-| Test ID | Description |
-|---|---|
-| SN-U38 | Modified badge has aria-label "5 changes" |
-| SN-U39 | Added badge has aria-label "Section added" |
-| SN-U40 | Removed badge has aria-label "Section removed" |
-
-#### f) New test cases (section 2.10: Backward compatibility)
-
-| Test ID | Description |
-|---|---|
-| SN-U41 | Section with changeCount=0 (default) renders no badge |
-| SN-U42 | Existing test fixtures with default changeCount=0 continue to pass |
-
-#### g) New test cases (section 2.11: Diff summary bar)
-
-| Test ID | Description |
-|---|---|
-| SN-U43 | DiffSummary bar renders when `diffSummary` prop is provided |
-| SN-U44 | DiffSummary bar shows correct counts for each change type |
-| SN-U45 | DiffSummary bar omits zero-count categories |
-| SN-U46 | DiffSummary bar has `role="status"` and `aria-label="Diff summary"` |
-| SN-U47 | DiffSummary bar is not rendered when `diffSummary` prop is omitted |
-| SN-U48 | DiffSummary bar renders before section list in DOM order |
-| SN-U49 | DiffSummary bar is not rendered when all counts are 0 (BC-10) |
-
-#### h) Integration test cases (section 2.12: Change count computation)
-
-These test `countChanges()` as an exported helper or via App-level integration:
-
-| Test ID | Description |
-|---|---|
-| CC-I1 | SectionDiff with 3 non-unchanged paragraphs + 2 non-unchanged tables → changeCount=5 |
-| CC-I2 | SectionDiff with only paragraph changes (0 tables) → counts paragraphs only |
-| CC-I3 | SectionDiff with only table changes (0 paragraphs) → counts tables only |
-| CC-I4 | SectionDiff with all unchanged diffs → changeCount=0 |
-| CC-I5 | SectionDiff with empty paragraphDiffs and tableDiffs → changeCount=0 |
-| CC-I6 | All non-unchanged changeTypes counted: added, removed, modified, reordered, moved |
+Existing fixtures (`standardSections`, `mixedChangeTypes`) continue to work unchanged since `changeCount` defaults to `0`.
 
 ### 4. `apps/web/src/fixtures/sample-diff.ts`
 
