@@ -27,7 +27,12 @@ export async function fetchCompanySubmissions(
     throw new Error('SEC service unavailable. Try again shortly.');
   }
 
-  const data: SubmissionsResponse = await response.json();
+  let data: SubmissionsResponse;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error('Unexpected response from SEC. Try again shortly.');
+  }
 
   return {
     cik: paddedCik,

@@ -86,6 +86,18 @@ async function handleSubmissionsProxy(
   url: URL,
 ): Promise<Response> {
   const secPath = url.pathname.replace('/api/sec/submissions/', '');
+
+  // Validate path to prevent traversal attacks
+  if (!/^CIK\d{10}\.json$/.test(secPath)) {
+    return addCorsHeaders(
+      new Response(JSON.stringify({ error: 'Invalid CIK format' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      request,
+    );
+  }
+
   const secUrl = `https://data.sec.gov/submissions/${secPath}`;
 
   const secResponse = await fetch(secUrl, {

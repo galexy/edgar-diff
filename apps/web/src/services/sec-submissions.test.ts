@@ -81,7 +81,7 @@ describe('fetchCompanySubmissions', () => {
       vi.fn(() => Promise.resolve(new Response('not json', { status: 200 }))),
     );
 
-    await expect(fetchCompanySubmissions('320193')).rejects.toThrow();
+    await expect(fetchCompanySubmissions('320193')).rejects.toThrow(/unexpected response/i);
   });
 
   it('handles network error', async () => {

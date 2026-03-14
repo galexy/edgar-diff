@@ -82,7 +82,7 @@ vi.mock('./fixtures/sample-diff', () => ({
   buildSampleDiffs: () => tinySectionDiffs,
 }));
 
-vi.mock('./hooks/use-company-search', () => ({
+vi.mock('./hooks/useCompanySearch', () => ({
   useCompanySearch: () => ({
     query: '',
     setQuery: vi.fn(),

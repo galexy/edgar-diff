@@ -18,13 +18,5 @@ export interface CompanyMatch {
   exchange: string;
 }
 
-/** Result of a company search operation. */
-export interface CompanySearchResult {
-  /** Matching companies (may be multiple for name search) */
-  matches: CompanyMatch[];
-  /** The resolved company (set after user selects or unique match) */
-  selected: Company | null;
-}
-
 /** States the search can be in. */
 export type SearchStatus = 'idle' | 'searching' | 'resolved' | 'error';

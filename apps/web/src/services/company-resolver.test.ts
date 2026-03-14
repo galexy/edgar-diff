@@ -120,6 +120,35 @@ describe('searchCompanies', () => {
 
 // ─── Lazy Loading ─────────────────────────────────────────────────────────────
 
+describe('Error handling', () => {
+  it('throws when /api/tickers returns non-ok response', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 502 }))),
+    );
+    await expect(searchCompanies('AAPL')).rejects.toThrow(/unable to load/i);
+  });
+
+  it('allows retry after failed load (cache not poisoned)', async () => {
+    // First call fails
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(new Response('', { status: 502 }))),
+    );
+    await expect(searchCompanies('AAPL')).rejects.toThrow();
+
+    // Second call succeeds
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() =>
+        Promise.resolve(new Response(JSON.stringify(MOCK_COMPANY_TICKERS), { status: 200 })),
+      ),
+    );
+    const results = await searchCompanies('AAPL');
+    expect(results.some((r) => r.ticker === 'AAPL')).toBe(true);
+  });
+});
+
 describe('Lazy loading', () => {
   it('fetches /api/tickers on first search', async () => {
     await searchCompanies('AAPL');

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useId } from 'react';
-import { useCompanySearch } from '../hooks/use-company-search';
+import { useCompanySearch } from '../hooks/useCompanySearch';
 import type { Company, CompanyMatch } from '../services/types';
 
 interface SearchBarProps {

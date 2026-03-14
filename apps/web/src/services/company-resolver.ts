@@ -19,11 +19,16 @@ async function loadTickers(): Promise<void> {
   if (tickerMap) return;
 
   const response = await fetch('/api/tickers');
+  if (!response.ok) {
+    throw new Error('Unable to load company data. Ticker and name search unavailable.');
+  }
+
   const data: TickersResponse = await response.json();
 
-  tickerMap = new Map();
-  cikMap = new Map();
-  allEntries = [];
+  // Build into local vars first — only assign to module-level on success
+  const localTickerMap = new Map<string, CompanyMatch>();
+  const localCikMap = new Map<string, CompanyMatch>();
+  const localEntries: CompanyMatch[] = [];
 
   for (const entry of Object.values(data)) {
     const match: CompanyMatch = {
@@ -32,13 +37,16 @@ async function loadTickers(): Promise<void> {
       name: entry.title,
       exchange: entry.exchange,
     };
-    tickerMap.set(entry.ticker.toUpperCase(), match);
-    // Only set cikMap for first occurrence (avoids overwrite for multi-ticker companies)
-    if (!cikMap.has(String(entry.cik_str))) {
-      cikMap.set(String(entry.cik_str), match);
+    localTickerMap.set(entry.ticker.toUpperCase(), match);
+    if (!localCikMap.has(String(entry.cik_str))) {
+      localCikMap.set(String(entry.cik_str), match);
     }
-    allEntries.push(match);
+    localEntries.push(match);
   }
+
+  tickerMap = localTickerMap;
+  cikMap = localCikMap;
+  allEntries = localEntries;
 }
 
 /** Find exact match by ticker (case-insensitive). */

@@ -2,7 +2,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SearchBar } from './SearchBar';
-import type { UseCompanySearchReturn } from '../hooks/use-company-search';
+import type { UseCompanySearchReturn } from '../hooks/useCompanySearch';
 import type { CompanyMatch } from '../services/types';
 
 // --- Mock useCompanySearch ---
@@ -19,7 +19,7 @@ const defaultHookReturn: UseCompanySearchReturn = {
 
 let mockHookReturn: UseCompanySearchReturn;
 
-vi.mock('../hooks/use-company-search', () => ({
+vi.mock('../hooks/useCompanySearch', () => ({
   useCompanySearch: () => mockHookReturn,
 }));
 

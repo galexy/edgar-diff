@@ -16,7 +16,7 @@ vi.mock('../services/sec-submissions', () => ({
   fetchCompanySubmissions: (...args: unknown[]) => mockFetchCompanySubmissions(...args),
 }));
 
-import { useCompanySearch } from './use-company-search';
+import { useCompanySearch } from './useCompanySearch';
 
 const appleMatch: CompanyMatch = {
   cik: '320193',

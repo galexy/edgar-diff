@@ -344,4 +344,24 @@ describe('Worker: Submissions Proxy', () => {
     );
     expect(response.status).toBe(500);
   });
+
+  it('rejects invalid path format with 400', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/submissions/notacik.json'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body).toHaveProperty('error');
+  });
+
+  it('rejects non-CIK paths with 400', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/submissions/arbitrary.json'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+  });
 });

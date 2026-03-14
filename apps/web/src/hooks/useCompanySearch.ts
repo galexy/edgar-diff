@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import type { Company, CompanyMatch, SearchStatus } from '../services/types';
 import { searchCompanies } from '../services/company-resolver';
 import { fetchCompanySubmissions } from '../services/sec-submissions';
-import { useDebouncedValue } from './use-debounced-value';
+import { useDebouncedValue } from './useDebouncedValue';
 
 export interface UseCompanySearchReturn {
   query: string;
@@ -51,10 +51,11 @@ export function useCompanySearch(): UseCompanySearchReturn {
           setStatus('idle');
         }
       },
-      () => {
+      (err: unknown) => {
         if (!cancelled) {
           setMatches([]);
-          setStatus('idle');
+          setStatus('error');
+          setError(err instanceof Error ? err.message : 'Unable to load company data');
         }
       },
     );
