@@ -12,10 +12,9 @@ This test plan covers two tiers:
 
 | Area | Owner | Where specified |
 |------|-------|-----------------|
-| Unit tests (SN-U24–U49, CC-I1–I6) | **Coder** — written during TDD | [implementation-design.md](./implementation-design.md) §2.6–2.12 |
-| Integration tests (DS-I1–I2, E2E-I1–I2) | **Tester** | This file, §3 |
+| Unit tests (SN-U24–U52) | **Coder** — written during TDD | [implementation-design.md](./implementation-design.md) §3 |
+| Integration tests (CC-U1–U9, DS-I1–I2, E2E-I1–I2) | **Tester** | This file, §3 |
 | Boundary & error conditions | **Tester** — verified during integration | This file, §4–5 |
-| Test data & fixtures | **Shared** — both agents use | This file, §6 |
 | BDD acceptance criteria | **Tester** — defines "done" | This file, §1 |
 | UAT (visual validation) | **Tester** | `uat.md` (future) |
 
@@ -121,24 +120,36 @@ Scenario: A section with exactly 1 change shows singular text
 
 ## 2. Unit Tests (Coder-Owned)
 
-Unit tests for SectionNav (SN-U24–U49) and `countChanges()` (CC-I1–I6) are specified in [implementation-design.md](./implementation-design.md) §2.6–2.12. The coder writes these during TDD implementation. They are not repeated here.
+Unit tests for SectionNav (SN-U24–U52) are specified in [implementation-design.md](./implementation-design.md) §3. The coder writes these during TDD implementation. They are not repeated here.
 
 ---
 
-## 3. Integration Tests — App-Level Data Flow
-
-**Owner: Tester.**
+## 3. Integration Tests (Tester-Owned)
 
 File: `apps/web/src/App.test.tsx` (extends existing test file)
 
-### 3.1 Diff summary computation
+### 3.1 `countChanges` helper
+
+| ID | Test | Rationale |
+|----|------|-----------|
+| CC-U1 | `countChanges(sectionDiff)` returns count of non-unchanged paragraphDiffs + non-unchanged tableDiffs | Core computation (AC-8) |
+| CC-U2 | SectionDiff with 3 modified paragraphs and empty `tableDiffs` → returns 3 | Paragraph-only section |
+| CC-U3 | SectionDiff with empty `paragraphDiffs` and 2 modified tableDiffs → returns 2 | Table-only section |
+| CC-U4 | SectionDiff with 2 modified paragraphs and 1 added table → returns 3 | Mixed content |
+| CC-U5 | SectionDiff with all unchanged paragraphs and tables → returns 0 | All unchanged = zero |
+| CC-U6 | SectionDiff with empty `paragraphDiffs: []` and empty `tableDiffs: []` → returns 0 | Empty arrays |
+| CC-U7 | 5 paragraphs total, 2 unchanged → returns 3 | Unchanged filtered out correctly |
+| CC-U8 | All non-unchanged changeTypes counted: added, removed, modified, reordered, moved all contribute | Filter correctness |
+| CC-U9 | Subsection diffs are NOT recursively counted (section with subsectionDiffs returns count of direct children only) | Documents design constraint |
+
+### 3.2 Diff summary computation
 
 | ID | Test | Rationale |
 |----|------|-----------|
 | DS-I1 | `diffSummary` counts sections by changeType: added, removed, modified (including reordered/moved), unchanged | Aggregation logic |
 | DS-I2 | Reordered/moved sections are bucketed under "modified" in summary | Design decision verified |
 
-### 3.2 End-to-end data flow
+### 3.3 End-to-end data flow
 
 | ID | Test | Rationale |
 |----|------|-----------|
@@ -182,6 +193,17 @@ Unit test fixtures (SectionNav and `countChanges`) are specified in [implementat
 
 ### Integration test fixtures (tester-owned)
 
+**SectionDiff fixtures for `countChanges` tests:**
+
+| Fixture | Contents | Use case |
+|---------|----------|----------|
+| `sectionDiffParagraphsOnly` | SectionDiff with 3 modified paragraphDiffs, empty tableDiffs | Paragraph-only count |
+| `sectionDiffTablesOnly` | SectionDiff with empty paragraphDiffs, 2 modified tableDiffs | Table-only count |
+| `sectionDiffMixed` | SectionDiff with 2 modified paragraphs + 1 added table | Mixed count |
+| `sectionDiffAllUnchanged` | SectionDiff with all unchanged paragraphs and tables | Zero count |
+| `sectionDiffPartiallyChanged` | SectionDiff with 5 paragraphs (2 unchanged, 3 modified) | Filter verification |
+| `sectionDiffWithSubsections` | SectionDiff with subsectionDiffs containing changes | Verifies no recursion |
+
 **DiffSummary test data:**
 
 | Fixture | Values | Use case |
@@ -198,9 +220,9 @@ Unit test fixtures (SectionNav and `countChanges`) are specified in [implementat
 apps/web/src/
   components/
     SectionNav.tsx           # Extended: changeCount prop, badge rendering, DiffSummary bar (inline)
-    SectionNav.test.tsx      # Coder-owned: SN-U24–U49 (badges, summary, a11y, compat)
+    SectionNav.test.tsx      # Coder-owned: SN-U24–U52 (badges, summary, a11y, compat)
   App.tsx                    # Extended: countChanges() helper, diffSummary computation
-  App.test.tsx               # Tester-owned: DS-I1–I2, E2E-I1–I2 (integration tests)
+  App.test.tsx               # Tester-owned: CC-U1–U9, DS-I1–I2, E2E-I1–I2 (integration tests)
 
 .specs/us-2-7-change-badges/
   implementation-design.md  # Coder-owned: architecture + unit test specs
