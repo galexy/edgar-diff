@@ -38,7 +38,7 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 
 **Verify:**
 - Text input with placeholder mentioning company name, ticker, or CIK
-- Input is disabled/grayed out
+- Input is enabled (not disabled)
 - Spans full width with bottom border
 
 ---
@@ -64,6 +64,13 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 - "Sections" heading visible
 - At least 6 section items listed (Item 1. Business, Item 1A. Risk Factors, etc.)
 - Items appear as clickable buttons
+- Diff summary bar appears between "Sections" heading and section list (role="status", aria-label="Diff summary")
+- Modified sections display amber change count badges (e.g., "2 changes", "1 change")
+- Badges use singular "change" for count=1, plural "changes" for count>1
+- Added sections show green "Added" text badge
+- Removed sections show red "Removed" text badge
+- Unchanged sections show no badge
+- Badges remain visible when nav is scrolled
 
 ---
 
@@ -105,3 +112,4 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 | Story | Changes |
 |-------|---------|
 | US-2.2 | Initial suite: page load, header, search, 3-column layout, section nav, filing panels, scroll, responsive |
+| US-2.7 | Added: diff summary bar, change count badges, badge singular/plural, badge visibility on scroll. Updated: search input is enabled (was disabled) |
