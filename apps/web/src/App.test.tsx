@@ -1,6 +1,123 @@
-import { render, screen } from '@testing-library/react';
-import { describe, it, expect } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// --- Mock the heavy AAPL fixture with a tiny inline document ---
+// The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
+
+const { tinyDocument, tinySectionDiffs } = vi.hoisted(() => {
+  const tinyHtml = [
+    '<div>Preamble content</div>',
+    '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
+    '<h2>Item 1A. Risk Factors</h2><p>Risk factors paragraph.</p><p>Another risk.</p>',
+    '<h2>Item 2. Properties</h2><p>Properties paragraph.</p>',
+  ].join('');
+
+  const sections = [
+    {
+      id: 'item-1',
+      heading: 'Item 1. Business',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Business paragraph one.', source: { start: 31, end: 80 } },
+        { type: 'paragraph' as const, text: 'Second paragraph.', source: { start: 80, end: 109 } },
+      ],
+      subsections: [],
+      source: { start: 31, end: 109 },
+    },
+    {
+      id: 'item-1a',
+      heading: 'Item 1A. Risk Factors',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Risk factors paragraph.', source: { start: 109, end: 163 } },
+        { type: 'paragraph' as const, text: 'Another risk.', source: { start: 163, end: 189 } },
+      ],
+      subsections: [],
+      source: { start: 109, end: 189 },
+    },
+    {
+      id: 'item-2',
+      heading: 'Item 2. Properties',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Properties paragraph.', source: { start: 189, end: 237 } },
+      ],
+      subsections: [],
+      source: { start: 189, end: 237 },
+    },
+  ];
+
+  const doc = {
+    filing: {
+      accessionNumber: '0000000000-00-000000',
+      cik: '0000000000',
+      formType: '10-K',
+      filingDate: { toString: () => '2024-01-01' },
+      primaryDocumentFilename: 'test.htm',
+      html: tinyHtml,
+      fetchedAt: { toString: () => '2024-01-01T00:00:00Z' },
+    },
+    sections,
+    parseWarnings: [],
+  };
+
+  const diffs = sections.map((s) => ({
+    id: s.id,
+    heading: s.heading,
+    changeType: 'modified' as const,
+    paragraphDiffs: [],
+    tableDiffs: [],
+    subsectionDiffs: [],
+    sourceMapping: { old: s.source, new: s.source },
+  }));
+
+  return { tinyDocument: doc, tinySectionDiffs: diffs };
+});
+
+vi.mock('./fixtures/sample-filing', () => ({
+  sampleDocument: tinyDocument,
+}));
+
+vi.mock('./fixtures/sample-diff', () => ({
+  buildSampleDiffs: () => tinySectionDiffs,
+}));
+
 import { App } from './App';
+
+// --- Mock IntersectionObserver for integration tests ---
+
+type IntersectionCallback = (entries: IntersectionObserverEntry[]) => void;
+
+let mockIOCallback: IntersectionCallback;
+let mockIOObserve: ReturnType<typeof vi.fn>;
+let mockIODisconnect: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+  mockIOObserve = vi.fn();
+  mockIODisconnect = vi.fn();
+
+  class MockIntersectionObserver {
+    constructor(callback: IntersectionCallback) {
+      mockIOCallback = callback;
+    }
+    observe = mockIOObserve;
+    unobserve = vi.fn();
+    disconnect = mockIODisconnect;
+    root = null;
+    rootMargin = '';
+    thresholds = [] as number[];
+    takeRecords = vi.fn(() => [] as IntersectionObserverEntry[]);
+  }
+
+  vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
+
+  // Mock scrollIntoView since jsdom doesn't implement it
+  Element.prototype.scrollIntoView = vi.fn();
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe('App', () => {
   it('renders the title in a header', () => {
@@ -148,5 +265,173 @@ describe('Accessibility', () => {
       h => h.textContent === 'Filing A' || h.textContent === 'Filing B'
     );
     expect(filingHeadings).toHaveLength(2);
+  });
+});
+
+// --- US-2.4: Integration Tests ---
+
+describe('US-2.4: Section Navigation Integration', () => {
+  // APP-I1: SectionNav receives section headings derived from sampleDiffs
+  it('SectionNav buttons match section headings from sampleDiffs', () => {
+    const { container } = render(<App />);
+    // The nav should contain buttons for each section in the diff data
+    const nav = screen.getByRole('navigation');
+    const buttons = nav.querySelectorAll('button');
+    expect(buttons.length).toBeGreaterThan(0);
+
+    // Count unique section IDs (sections appear in both panels)
+    const sectionElements = container.querySelectorAll('section[id]');
+    const uniqueIds = new Set(
+      Array.from(sectionElements).map((el) => el.id).filter((id) => id !== 'preamble'),
+    );
+    // The nav should have one button per unique section
+    expect(buttons.length).toBe(uniqueIds.size);
+  });
+
+  // APP-I2: SectionNav is rendered inside the <main> element
+  it('SectionNav is rendered inside the <main> element', () => {
+    render(<App />);
+    const main = screen.getByRole('main');
+    const nav = screen.getByRole('navigation');
+    expect(main.contains(nav)).toBe(true);
+  });
+
+  // APP-I3: Clicking a section button calls scrollIntoView on the matching section in Filing A
+  it('clicking a section button calls scrollIntoView on the section in Filing A panel', () => {
+    const { container } = render(<App />);
+    // Get the first nav button
+    const nav = screen.getByRole('navigation');
+    const firstButton = nav.querySelector('button')!;
+    expect(firstButton).not.toBeNull();
+
+    fireEvent.click(firstButton);
+
+    // scrollIntoView should have been called on section elements
+    // Find all section elements with matching id across both panels
+    const sectionId = container.querySelector('section[id]:not(#preamble)')?.id;
+    if (sectionId) {
+      const matchingSections = container.querySelectorAll(`#${CSS.escape(sectionId)}`);
+      // At least one should have had scrollIntoView called
+      const scrollCalls = Array.from(matchingSections).filter(
+        (el) => (el.scrollIntoView as ReturnType<typeof vi.fn>).mock?.calls.length > 0,
+      );
+      expect(scrollCalls.length).toBeGreaterThan(0);
+    }
+  });
+
+  // APP-I4: Clicking a section button calls scrollIntoView on both panels
+  it('clicking a section button calls scrollIntoView on sections in both panels', () => {
+    const { container } = render(<App />);
+    const nav = screen.getByRole('navigation');
+    const firstButton = nav.querySelector('button')!;
+
+    fireEvent.click(firstButton);
+
+    // The section id appears in both panels (Filing A and Filing B render same document)
+    const sectionId = container.querySelector('section[id]:not(#preamble)')?.id;
+    if (sectionId) {
+      const matchingSections = container.querySelectorAll(`#${CSS.escape(sectionId)}`);
+      // Both panels should have the section, both should have been scrolled
+      expect(matchingSections.length).toBe(2);
+      for (const section of matchingSections) {
+        expect(section.scrollIntoView).toHaveBeenCalled();
+      }
+    }
+  });
+
+  // APP-I5: If target section doesn't exist in DOM, no error
+  it('clicking a section does not throw if target element is missing', () => {
+    render(<App />);
+    const nav = screen.getByRole('navigation');
+    const buttons = nav.querySelectorAll('button');
+    // Click all buttons — none should throw
+    expect(() => {
+      for (const button of buttons) {
+        fireEvent.click(button);
+      }
+    }).not.toThrow();
+  });
+
+  // APP-I6: scrollIntoView called with smooth scroll options
+  it('scrollIntoView is called with { behavior: "smooth", block: "start" }', () => {
+    const { container } = render(<App />);
+    const nav = screen.getByRole('navigation');
+    const firstButton = nav.querySelector('button')!;
+
+    fireEvent.click(firstButton);
+
+    const sectionId = container.querySelector('section[id]:not(#preamble)')?.id;
+    if (sectionId) {
+      const section = container.querySelector(`#${CSS.escape(sectionId)}`)!;
+      expect(section.scrollIntoView).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+      });
+    }
+  });
+
+  // APP-I7: Initial render has no active section
+  it('initial render has no active section (no button with aria-current)', () => {
+    render(<App />);
+    const nav = screen.getByRole('navigation');
+    const activeButtons = nav.querySelectorAll('[aria-current="true"]');
+    expect(activeButtons.length).toBe(0);
+  });
+
+  // APP-I8: When mock IntersectionObserver fires, the corresponding nav button becomes active
+  it('when observer fires with a section entry, the nav button becomes active', () => {
+    const { container } = render(<App />);
+
+    // Get the first section element in the scroll container
+    const firstSection = container.querySelector('section[id]:not(#preamble)');
+    expect(firstSection).not.toBeNull();
+
+    // Simulate observer firing with this section visible
+    act(() => {
+      mockIOCallback([
+        {
+          target: firstSection!,
+          intersectionRatio: 0.8,
+        } as unknown as IntersectionObserverEntry,
+      ]);
+    });
+
+    // The corresponding nav button should now be active
+    const nav = screen.getByRole('navigation');
+    const activeButtons = nav.querySelectorAll('[aria-current="true"]');
+    expect(activeButtons.length).toBe(1);
+  });
+
+  // APP-I9: When observer fires with all ratios 0, no nav button is active
+  it('when observer fires with all ratios 0, no nav button is active', () => {
+    const { container } = render(<App />);
+
+    const firstSection = container.querySelector('section[id]:not(#preamble)');
+    expect(firstSection).not.toBeNull();
+
+    // First make a section active
+    act(() => {
+      mockIOCallback([
+        {
+          target: firstSection!,
+          intersectionRatio: 0.5,
+        } as unknown as IntersectionObserverEntry,
+      ]);
+    });
+
+    const nav = screen.getByRole('navigation');
+    expect(nav.querySelectorAll('[aria-current="true"]').length).toBe(1);
+
+    // Now all ratios go to 0
+    act(() => {
+      mockIOCallback([
+        {
+          target: firstSection!,
+          intersectionRatio: 0,
+        } as unknown as IntersectionObserverEntry,
+      ]);
+    });
+
+    expect(nav.querySelectorAll('[aria-current="true"]').length).toBe(0);
   });
 });
