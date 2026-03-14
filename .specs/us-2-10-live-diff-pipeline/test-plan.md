@@ -749,3 +749,24 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 | A11Y-2 | Error message has `role="alert"` | Screen readers announce errors immediately |
 | A11Y-3 | Loading indicator includes descriptive text (not just a spinner icon) | WCAG: information not conveyed by visual alone |
 | A11Y-4 | Error message includes actionable guidance (not just "Error") | Usability for all users |
+
+---
+
+## 14. UAT — Visual Acceptance Tests (Tier 2)
+
+Manual visual checks executed by a tester agent via Chrome DevTools MCP at the end of the dev/test cycle. These complement the automated Tier 1 tests above by verifying visual layout, animations, and browser-rendered behavior that jsdom cannot test.
+
+Full UAT steps are in the companion document: `.specs/us-2-10-live-diff-pipeline/uat.md`
+
+### UAT Coverage Summary
+
+| Area | Steps | What's Verified |
+|------|-------|-----------------|
+| Loading indicators | UAT-1 through UAT-3 | Spinner + stage-specific text visible during fetching/parsing/diffing |
+| Diff rendering | UAT-4, UAT-5 | Both panels show parsed content; section nav updates with change badges |
+| Error display | UAT-6, UAT-7 | 404 error, parse error → user-friendly message in alert region |
+| Cache behavior | UAT-8 | Re-selecting same pair → instant result, no spinner |
+| Section nav integration | UAT-9 | Buttons, badges, scroll-to-section, diff summary bar |
+| Responsive layout | UAT-10, UAT-11 | Loading/error/diff states at 768px and 375px viewports |
+| Console cleanliness | UAT-12 | No JS errors, React warnings, or CORS failures |
+| Worker proxy | UAT-13 | Network requests route through /api/sec/ proxy, no direct SEC calls |
