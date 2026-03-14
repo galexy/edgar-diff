@@ -595,4 +595,32 @@ describe('US-2.9: Filing Selectors Integration', () => {
     const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
     selects.forEach((select) => expect(select).toBeDisabled());
   });
+
+  it('company clear resets filing selectors to disabled', () => {
+    // Start with loaded filings (company selected)
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    const { rerender } = render(<App />);
+    const getFilingSelects = () =>
+      screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+
+    // Verify selectors are enabled with filings
+    getFilingSelects().forEach((select) => expect(select).toBeEnabled());
+
+    // Simulate company cleared → hook returns idle with empty filings
+    mockFilingListState.status = 'idle';
+    mockFilingListState.filings = [];
+    mockFilingListState.error = null;
+
+    rerender(<App />);
+
+    // Both selectors should be disabled again
+    const selects = getFilingSelects();
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => {
+      expect(select).toBeDisabled();
+      expect(select).toHaveTextContent(/select a filing/i);
+    });
+  });
 });

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mockResponse } from '../test-fixtures/company-search-fixtures';
-import { createLargeFilingsSubmissions } from '../test-fixtures/filing-list-fixtures';
+import {
+  MOCK_MIXED_FILINGS_SUBMISSIONS,
+  MOCK_ALL_SUPPORTED_SUBMISSIONS,
+  MOCK_EMPTY_FILINGS_SUBMISSIONS,
+  createLargeFilingsSubmissions,
+} from '../test-fixtures/filing-list-fixtures';
 import { fetchFilingList, SUPPORTED_FORM_TYPES } from './filing-list';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -241,6 +246,39 @@ describe('fetchFilingList', () => {
     for (let i = 1; i < filings.length; i++) {
       expect(filings[i - 1].filingDate >= filings[i].filingDate).toBe(true);
     }
+  });
+
+  it('mixed fixture: keeps only supported types from mixed submissions', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse(200, MOCK_MIXED_FILINGS_SUBMISSIONS));
+
+    const filings = await fetchFilingList('888888');
+    const formTypes = filings.map((f) => f.formType);
+
+    // MOCK_MIXED has: 10-K, 8-K, 10-Q, S-1, 10-K/A → keep 10-K, 10-Q, 10-K/A
+    expect(filings).toHaveLength(3);
+    expect(formTypes).toContain('10-K');
+    expect(formTypes).toContain('10-Q');
+    expect(formTypes).toContain('10-K/A');
+    expect(formTypes).not.toContain('8-K');
+    expect(formTypes).not.toContain('S-1');
+  });
+
+  it('all-supported fixture: keeps all 4 supported form types', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse(200, MOCK_ALL_SUPPORTED_SUBMISSIONS));
+
+    const filings = await fetchFilingList('777777');
+
+    expect(filings).toHaveLength(4);
+    const formTypes = filings.map((f) => f.formType);
+    expect(formTypes).toEqual(['10-K', '10-K/A', '10-Q', '10-Q/A']);
+  });
+
+  it('empty fixture: returns empty array for company with no filings', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse(200, MOCK_EMPTY_FILINGS_SUBMISSIONS));
+
+    const filings = await fetchFilingList('666666');
+
+    expect(filings).toEqual([]);
   });
 
   it('preserves stable order for filings with same date', async () => {
