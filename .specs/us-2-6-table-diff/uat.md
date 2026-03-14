@@ -3,23 +3,23 @@
 **Date**: 2026-03-13
 **Tester**: tester agent
 **Branch**: `us-2.6-table-diff/impl`
-**Dev server**: `http://localhost:5177` (Vite)
+**Dev server**: `http://localhost:5173` (Vite)
 **Browser**: Chrome via DevTools MCP
 
 ## Summary
 
-All UAT checks pass. Table diff highlighting renders correctly on both sides with proper side filtering, CSS class injection, and structure preservation.
+All UAT checks pass. Table diff highlighting renders correctly on both sides with proper side filtering, CSS class injection, and structure preservation. Modified cells use side-specific coloring (red on old, green on new) with original content preserved.
 
 ## UAT Checks
 
-### UAT-1: Modified cell with old→new annotation
+### UAT-1: Modified cell with side-specific highlighting
 
 **Status**: PASS
 
-Both panels show yellow-highlighted cell (`diff-cell-modified`) with annotation:
-`<del class="diff-removed">178,353</del> → <ins class="diff-added">183353</ins>`
-
-Background color verified: `rgb(254, 252, 232)` (yellow-50).
+Modified cells get side-specific CSS classes with original content preserved:
+- Old side: `diff-cell-removed` (red background) — shows the old value as-is
+- New side: `diff-cell-added` (green background) — shows the new value as-is
+- No `<del>`/`<ins>` annotation, no arrow — just the CSS class on the `<td>`/`<th>` tag
 
 ![Side-by-side table diffs](screenshots/08-table-highlights-all-types.png)
 
@@ -27,7 +27,7 @@ Background color verified: `rgb(254, 252, 232)` (yellow-50).
 
 **Status**: PASS
 
-Filing B (new side) shows green-bordered row (`diff-row-added`) for "Total net sales".
+Filing B (new side) shows green background row (`diff-row-added`) for "Total net sales".
 Filing A (old side) correctly does NOT show the added-row highlight — side filtering works.
 
 Verified via DOM:
@@ -40,7 +40,7 @@ Verified via DOM:
 
 **Status**: PASS
 
-Filing A (old side) shows red-bordered row (`diff-row-removed`) for "Rest of Asia Pacific".
+Filing A (old side) shows red background row (`diff-row-removed`) for "Rest of Asia Pacific".
 Filing B (new side) correctly does NOT show the removed-row highlight — side filtering works.
 
 Verified via DOM:
@@ -66,9 +66,9 @@ Item 7 (MD&A) shows both:
 - Word-level paragraph highlights (existing US-2.5)
 - Table cell/row highlights (new US-2.6)
 
-Both coexist without interference.
+Both coexist without interference in the same section.
 
-![Mixed paragraph and table diffs](screenshots/07-mixed-paragraph-table-diffs.png)
+![Mixed paragraph and table diffs](screenshots/08-table-highlights-all-types.png)
 
 ### UAT-6: Multiple tables processed independently
 
@@ -81,33 +81,21 @@ Item 8 (Financial Statements) contains 34 tables, each highlighted independently
 
 ![Financial statements with table diffs](screenshots/11-financial-data-table-diffs.png)
 
-### UAT-7: CSS classes render with correct colors
+### UAT-7: Backward compatibility — existing paragraph diffs unaffected
 
 **Status**: PASS
 
-Verified CSS rendering:
-- `diff-cell-modified`: yellow-50 background (`#fefce8`)
-- `diff-row-added > td`: green-50 background + green-600 left border
-- `diff-row-removed > td`: red-50 background + red-600 left border
-- `diff-removed` (del): red-800 text with strikethrough
-- `diff-added` (ins): green-800 text, bold, no underline
-- `diff-arrow`: gray-500, smaller font
-
-### UAT-8: Backward compatibility — existing paragraph diffs unaffected
-
-**Status**: PASS
-
-All 188 automated tests pass, including all existing US-2.5 paragraph diff tests.
+All 186 automated tests pass, including all existing US-2.5 paragraph diff tests.
 The `applyHighlightsToSection` function's 5-argument signature (without `tableIndex`) continues to work (MX-U4 test).
 
 ## Automated Test Results
 
 ```
 Test Files  7 passed (7)
-     Tests  188 passed (188)
+     Tests  186 passed (186)
 ```
 
-- `highlight-injector.test.ts`: 62 tests (IC-U, escapeHtml, HC-U, AT-U, MX-U)
+- `highlight-injector.test.ts`: 60 tests (IC-U, escapeHtml, HC-U, AT-U, MX-U)
 - `FilingContent.test.tsx`: 86 tests (existing US-2.3/2.5 + TFC-I1-I22)
 
 ## Screenshots
@@ -119,5 +107,4 @@ Test Files  7 passed (7)
 | `07-mixed-paragraph-table-diffs.png` | Mixed paragraph + table diffs in Item 7 |
 | `08-table-highlights-all-types.png` | All three highlight types: modified cell, added row, removed row |
 | `09-item8-financial-table-diffs.png` | Item 8 Financial Statements — multiple tables |
-| `10-item8-consolidated-statements.png` | Consolidated Statements with table diffs |
 | `11-financial-data-table-diffs.png` | Financial data table — modified header, removed/added rows |
