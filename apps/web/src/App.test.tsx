@@ -1,5 +1,87 @@
 import { render, screen, fireEvent, act } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// --- Mock the heavy AAPL fixture with a tiny inline document ---
+// The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
+
+const { tinyDocument, tinySectionDiffs } = vi.hoisted(() => {
+  const tinyHtml = [
+    '<div>Preamble content</div>',
+    '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
+    '<h2>Item 1A. Risk Factors</h2><p>Risk factors paragraph.</p><p>Another risk.</p>',
+    '<h2>Item 2. Properties</h2><p>Properties paragraph.</p>',
+  ].join('');
+
+  const sections = [
+    {
+      id: 'item-1',
+      heading: 'Item 1. Business',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Business paragraph one.', source: { start: 31, end: 80 } },
+        { type: 'paragraph' as const, text: 'Second paragraph.', source: { start: 80, end: 109 } },
+      ],
+      subsections: [],
+      source: { start: 31, end: 109 },
+    },
+    {
+      id: 'item-1a',
+      heading: 'Item 1A. Risk Factors',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Risk factors paragraph.', source: { start: 109, end: 163 } },
+        { type: 'paragraph' as const, text: 'Another risk.', source: { start: 163, end: 189 } },
+      ],
+      subsections: [],
+      source: { start: 109, end: 189 },
+    },
+    {
+      id: 'item-2',
+      heading: 'Item 2. Properties',
+      level: 1,
+      blocks: [
+        { type: 'paragraph' as const, text: 'Properties paragraph.', source: { start: 189, end: 237 } },
+      ],
+      subsections: [],
+      source: { start: 189, end: 237 },
+    },
+  ];
+
+  const doc = {
+    filing: {
+      accessionNumber: '0000000000-00-000000',
+      cik: '0000000000',
+      formType: '10-K',
+      filingDate: { toString: () => '2024-01-01' },
+      primaryDocumentFilename: 'test.htm',
+      html: tinyHtml,
+      fetchedAt: { toString: () => '2024-01-01T00:00:00Z' },
+    },
+    sections,
+    parseWarnings: [],
+  };
+
+  const diffs = sections.map((s) => ({
+    id: s.id,
+    heading: s.heading,
+    changeType: 'modified' as const,
+    paragraphDiffs: [],
+    tableDiffs: [],
+    subsectionDiffs: [],
+    sourceMapping: { old: s.source, new: s.source },
+  }));
+
+  return { tinyDocument: doc, tinySectionDiffs: diffs };
+});
+
+vi.mock('./fixtures/sample-filing', () => ({
+  sampleDocument: tinyDocument,
+}));
+
+vi.mock('./fixtures/sample-diff', () => ({
+  buildSampleDiffs: () => tinySectionDiffs,
+}));
+
 import { App } from './App';
 
 // --- Mock IntersectionObserver for integration tests ---
