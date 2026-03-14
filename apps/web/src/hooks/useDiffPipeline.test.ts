@@ -544,8 +544,6 @@ describe('useDiffPipeline — Caching', () => {
       expect(result.current.status).toBe('done');
     });
 
-    const parseCallCount = mockParseFiling.mock.calls.length;
-
     // Now select (A, C) — A's document should be cached
     mockFetchFiling.mockReset();
     mockFetchFiling.mockResolvedValueOnce(MOCK_RAW_FILING_C);
@@ -570,10 +568,9 @@ describe('useDiffPipeline — Caching', () => {
 
 describe('useDiffPipeline — Abort & Restart', () => {
   it('DP-U25: Filing A changed mid-pipeline → new pipeline starts', async () => {
-    // First pipeline: slow fetch
-    let resolveFirst: (v: typeof MOCK_RAW_FILING_A) => void;
+    // First pipeline: slow fetch (never resolves — will be aborted)
     mockFetchFiling.mockImplementation(
-      () => new Promise((r) => { resolveFirst = r; }),
+      () => new Promise(() => { /* never resolves */ }),
     );
 
     const { result, rerender } = renderHook(
@@ -605,12 +602,10 @@ describe('useDiffPipeline — Abort & Restart', () => {
   });
 
   it('DP-U26: Filing B changed mid-pipeline → previous pipeline aborted, new pipeline starts', async () => {
-    // First pipeline: controllable fetch that we can keep pending
-    let resolveFirstA: (v: typeof MOCK_RAW_FILING_A) => void;
-    let resolveFirstB: (v: typeof MOCK_RAW_FILING_B) => void;
+    // First pipeline: controllable fetch that we can keep pending (never resolves — will be aborted)
     mockFetchFiling
-      .mockImplementationOnce(() => new Promise((r) => { resolveFirstA = r; }))
-      .mockImplementationOnce(() => new Promise((r) => { resolveFirstB = r; }));
+      .mockImplementationOnce(() => new Promise(() => { /* never resolves */ }))
+      .mockImplementationOnce(() => new Promise(() => { /* never resolves */ }));
 
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
@@ -689,7 +684,7 @@ describe('useDiffPipeline — Abort & Restart', () => {
   it('DP-U28: both filings cleared mid-pipeline → idle', async () => {
     // Slow fetch
     mockFetchFiling.mockImplementation(
-      () => new Promise(() => {}), // never resolves
+      () => new Promise(() => { /* never resolves */ }),
     );
 
     const { result, rerender } = renderHook(
@@ -712,7 +707,7 @@ describe('useDiffPipeline — Abort & Restart', () => {
 
   it('DP-U29: rapid filing changes (A→B→C) → only latest pipeline runs to completion', async () => {
     // First pipeline: never-resolving fetch
-    mockFetchFiling.mockImplementation(() => new Promise(() => {}));
+    mockFetchFiling.mockImplementation(() => new Promise(() => { /* never resolves */ }));
 
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
@@ -723,7 +718,7 @@ describe('useDiffPipeline — Abort & Restart', () => {
     expect(result.current.status).toBe('fetching');
 
     // Rapid change #1: switch to (A, C) — still never-resolving
-    mockFetchFiling.mockImplementation(() => new Promise(() => {}));
+    mockFetchFiling.mockImplementation(() => new Promise(() => { /* never resolves */ }));
     rerender({ a: ACCESSION_A, b: ACCESSION_C });
     expect(result.current.status).toBe('fetching');
 

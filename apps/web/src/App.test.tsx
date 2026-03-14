@@ -5,7 +5,7 @@ import type { SectionDiff, ParagraphDiff, TableDiff, ChangeType } from '@edgar-d
 // --- Mock the heavy AAPL fixture with a tiny inline document ---
 // The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
 
-const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock, mockDiffPipelineState, resetDiffPipelineMock, setDiffPipelineDone } = vi.hoisted(() => {
+const { mockFilingListState, resetFilingListMock, mockDiffPipelineState, resetDiffPipelineMock, setDiffPipelineDone } = vi.hoisted(() => {
   const tinyHtml = [
     '<div>Preamble content</div>',
     '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
