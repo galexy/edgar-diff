@@ -10,12 +10,14 @@ This test plan covers two tiers:
 
 ### Test Ownership
 
-| Owner | Tests | Scope |
-|-------|-------|-------|
-| **Coder** (TDD) | SN-U24–U52 | SectionNav unit tests: badges, summary bar, accessibility, backward compat |
-| **Coder** (TDD) | CC-U1–U9 | `countChanges()` helper unit tests |
-| **Tester** | DS-I1–I2, E2E-I1–I2 | Integration tests: summary computation, App.tsx data flow |
-| **Tester** | UAT (`uat.md`) | Visual validation via Chrome DevTools MCP |
+| Area | Owner | Where specified |
+|------|-------|-----------------|
+| Unit tests (SN-U24–U49, CC-I1–I6) | **Coder** — written during TDD | [implementation-design.md](./implementation-design.md) §2.6–2.12 |
+| Integration tests (DS-I1–I2, E2E-I1–I2) | **Tester** | This file, §3 |
+| Boundary & error conditions | **Tester** — verified during integration | This file, §4–5 |
+| Test data & fixtures | **Shared** — both agents use | This file, §6 |
+| BDD acceptance criteria | **Tester** — defines "done" | This file, §1 |
+| UAT (visual validation) | **Tester** | `uat.md` (future) |
 
 ### Test-Relevant Design Decisions
 
@@ -117,109 +119,26 @@ Scenario: A section with exactly 1 change shows singular text
 
 ---
 
-## 2. Unit Tests — `SectionNav` Component
+## 2. Unit Tests (Coder-Owned)
 
-**Owner: Coder** (written during TDD implementation)
-
-File: `apps/web/src/components/SectionNav.test.tsx` (extends existing test file)
-
-Continue SN-U numbering from SN-U24.
-
-### 2.1 Badge rendering
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U24 | Modified section with `changeCount=5` renders amber badge with text "5 changes" | Badge displays count with label (AC-1) |
-| SN-U25 | Modified section with `changeCount=1` renders badge with "1 change" (singular) | Singular/plural (AC-9) |
-| SN-U26 | Modified section with `changeCount=0` renders no badge | Zero-change = no badge (AC-2) |
-| SN-U27 | Unchanged section renders no badge regardless of changeCount | Unchanged = no badge (AC-5) |
-| SN-U28 | Added section renders "Added" text badge (ignores changeCount) | Added keeps text badge (AC-3) |
-| SN-U29 | Removed section renders "Removed" text badge (ignores changeCount) | Removed keeps text badge (AC-4) |
-| SN-U30 | Amber badge has correct styling classes (`text-amber-700 bg-amber-100`) | Color verification |
-
-### 2.2 Badge colors / changeTypes
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U31 | Reordered section with `changeCount > 0` renders amber badge (same as modified) | Reordered treated as modified |
-| SN-U32 | Moved section with `changeCount > 0` renders amber badge (same as modified) | Moved treated as modified |
-| SN-U33 | Badge is rendered inside the section button element | Badge visually associated with section |
-| SN-U34 | Each section renders its own badge with its own count independently | Per-section independent rendering |
-
-### 2.3 Badge interaction with existing features
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U35 | Active section with a badge still shows active styling (bg-blue-100) on the button | Badge doesn't break active state |
-| SN-U36 | Section with badge still triggers `onSectionClick` with correct id when clicked | Badge doesn't interfere with click handling |
-| SN-U37 | Section heading text is still truncated when long, even with badge present | Truncation still works with badge |
-
-### 2.4 Badge accessibility
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U38 | Modified badge has `aria-label` with count (e.g., "5 changes") | Screen reader announces count |
-| SN-U39 | Added badge has `aria-label="Section added"` | Screen reader announces addition |
-| SN-U40 | Removed badge has `aria-label="Section removed"` | Screen reader announces removal |
-
-### 2.5 Backward compatibility
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U41 | Section with `changeCount=0` (default) renders no badge | Backward compat — existing fixtures default to 0 |
-| SN-U42 | Existing tests still pass with updated `SectionNavItem` interface (`makeSectionNavItem` defaults changeCount to 0) | No regressions |
-
-### 2.6 Diff summary bar
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| SN-U43 | DiffSummary bar renders when `diffSummary` prop is provided | Conditional rendering |
-| SN-U44 | DiffSummary bar is NOT rendered when `diffSummary` prop is omitted | Backward compatibility |
-| SN-U45 | DiffSummary bar omits zero-count categories | Zero-hiding behavior (AC-7) |
-| SN-U46 | DiffSummary bar shows correct counts with labels (e.g., "3 modified", "2 added") | Content accuracy (AC-6) |
-| SN-U47 | DiffSummary bar has `role="status"` and `aria-label="Diff summary"` | Accessibility |
-| SN-U48 | DiffSummary bar renders between "Sections" heading and section list in DOM order | Correct positioning |
-| SN-U49 | Modified count in summary bar has amber styling (`text-amber-700 bg-amber-100`) | Color coding |
-| SN-U50 | Added count in summary bar has green styling (`text-green-700 bg-green-100`) | Color coding |
-| SN-U51 | Removed count in summary bar has red styling (`text-red-700 bg-red-100`) | Color coding |
-| SN-U52 | Unchanged count in summary bar has gray styling (`text-gray-500 bg-gray-100`) | Color coding |
+Unit tests for SectionNav (SN-U24–U49) and `countChanges()` (CC-I1–I6) are specified in [implementation-design.md](./implementation-design.md) §2.6–2.12. The coder writes these during TDD implementation. They are not repeated here.
 
 ---
 
-## 3. Unit Tests — `countChanges` Helper
+## 3. Integration Tests — App-Level Data Flow
 
-**Owner: Coder** (written during TDD implementation)
-
-File: co-located with `countChanges` (likely `apps/web/src/App.test.tsx` or extracted utility test file)
-
-| ID | Test | Rationale |
-|----|------|-----------|
-| CC-U1 | `countChanges(sectionDiff)` returns count of non-unchanged paragraphDiffs + non-unchanged tableDiffs | Core computation (AC-8) |
-| CC-U2 | SectionDiff with 3 modified paragraphs and empty `tableDiffs` → returns 3 | Paragraph-only section |
-| CC-U3 | SectionDiff with empty `paragraphDiffs` and 2 modified tableDiffs → returns 2 | Table-only section |
-| CC-U4 | SectionDiff with 2 modified paragraphs and 1 added table → returns 3 | Mixed content |
-| CC-U5 | SectionDiff with all unchanged paragraphs and tables → returns 0 | All unchanged = zero |
-| CC-U6 | SectionDiff with empty `paragraphDiffs: []` and empty `tableDiffs: []` → returns 0 | Empty arrays |
-| CC-U7 | 5 paragraphs total, 2 unchanged → returns 3 | Unchanged filtered out correctly |
-| CC-U8 | All non-unchanged changeTypes counted: added, removed, modified, reordered, moved all contribute | Filter correctness |
-| CC-U9 | Subsection diffs are NOT recursively counted (section with subsectionDiffs returns count of direct children only) | Documents design constraint |
-
----
-
-## 4. Integration Tests — App-Level Data Flow
-
-**Owner: Tester** (written after implementation)
+**Owner: Tester.**
 
 File: `apps/web/src/App.test.tsx` (extends existing test file)
 
-### 4.1 Diff summary computation
+### 3.1 Diff summary computation
 
 | ID | Test | Rationale |
 |----|------|-----------|
 | DS-I1 | `diffSummary` counts sections by changeType: added, removed, modified (including reordered/moved), unchanged | Aggregation logic |
 | DS-I2 | Reordered/moved sections are bucketed under "modified" in summary | Design decision verified |
 
-### 4.2 End-to-end data flow
+### 3.2 End-to-end data flow
 
 | ID | Test | Rationale |
 |----|------|-----------|
@@ -228,7 +147,7 @@ File: `apps/web/src/App.test.tsx` (extends existing test file)
 
 ---
 
-## 5. Boundary Conditions
+## 4. Boundary Conditions
 
 | ID | Condition | Expected behavior |
 |----|-----------|-------------------|
@@ -248,7 +167,7 @@ File: `apps/web/src/App.test.tsx` (extends existing test file)
 
 ---
 
-## 6. Error Conditions
+## 5. Error Conditions
 
 | ID | Condition | Expected behavior |
 |----|-----------|-------------------|
@@ -257,46 +176,13 @@ File: `apps/web/src/App.test.tsx` (extends existing test file)
 
 ---
 
-## 7. Test Data Strategy
+## 6. Test Data Strategy
 
-### Extended fixture helper
+Unit test fixtures (SectionNav and `countChanges`) are specified in [implementation-design.md](./implementation-design.md) and owned by the coder.
 
-```typescript
-function makeSectionNavItem(
-  id: string,
-  heading: string,
-  changeType: ChangeType = 'modified',
-  changeCount: number = 0,
-): SectionNavItem {
-  return { id, heading, changeType, changeCount };
-}
-```
+### Integration test fixtures (tester-owned)
 
-### Update existing fixtures
-
-The existing `standardSections` and `mixedChangeTypes` arrays use `makeSectionNavItem(id, heading, changeType)` — the helper defaults `changeCount` to `0`, so existing fixtures continue to work unchanged. No badge will be rendered for items with `changeCount=0`, preserving existing test behavior.
-
-### New fixture arrays
-
-| Fixture | Contents | Use case |
-|---------|----------|----------|
-| `sectionsWithCounts` | 4 sections: modified (5 changes), added (3 — ignored), removed (2 — ignored), unchanged (0) | Badge rendering + color tests |
-| `sectionsAllUnchanged` | 3 sections all with `changeType='unchanged'` | No-badge boundary |
-| `sectionsAllChanged` | 3 sections all modified with various counts (1, 10, 100) | All-badges boundary |
-| `singleSection` | 1 section with `changeType='modified'`, `changeCount=7` | Single-item edge case |
-
-### SectionDiff fixtures for `countChanges` tests
-
-| Fixture | Contents | Use case |
-|---------|----------|----------|
-| `sectionDiffParagraphsOnly` | SectionDiff with 3 modified paragraphDiffs, empty tableDiffs | Paragraph-only count |
-| `sectionDiffTablesOnly` | SectionDiff with empty paragraphDiffs, 2 modified tableDiffs | Table-only count |
-| `sectionDiffMixed` | SectionDiff with 2 modified paragraphs + 1 added table | Mixed count |
-| `sectionDiffAllUnchanged` | SectionDiff with all unchanged paragraphs and tables | Zero count |
-| `sectionDiffPartiallyChanged` | SectionDiff with 5 paragraphs (2 unchanged, 3 modified) | Filter verification |
-| `sectionDiffWithSubsections` | SectionDiff with subsectionDiffs containing changes | Verifies no recursion |
-
-### DiffSummary test data
+**DiffSummary test data:**
 
 | Fixture | Values | Use case |
 |---------|--------|----------|
@@ -306,25 +192,27 @@ The existing `standardSections` and `mixedChangeTypes` arrays use `makeSectionNa
 
 ---
 
-## 8. Test File Organization
+## 7. Test File Organization
 
 ```
 apps/web/src/
   components/
     SectionNav.tsx           # Extended: changeCount prop, badge rendering, DiffSummary bar (inline)
-    SectionNav.test.tsx      # Extended: SN-U24 through SN-U52 (badges, summary, a11y, compat)
+    SectionNav.test.tsx      # Coder-owned: SN-U24–U49 (badges, summary, a11y, compat)
   App.tsx                    # Extended: countChanges() helper, diffSummary computation
+  App.test.tsx               # Tester-owned: DS-I1–I2, E2E-I1–I2 (integration tests)
 
 .specs/us-2-7-change-badges/
-  test-plan.md              # This file
-  uat.md                    # Visual validation scenarios (future)
+  implementation-design.md  # Coder-owned: architecture + unit test specs
+  test-plan.md              # Tester-owned: acceptance criteria, integration tests, boundary/error
+  uat.md                    # Tester-owned: visual validation (future)
 ```
 
 All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 
 ---
 
-## 9. Testing Limitations (jsdom)
+## 8. Testing Limitations (jsdom)
 
 | Limitation | Impact | Mitigation |
 |-----------|--------|-----------|
@@ -333,18 +221,4 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 | No font/size rendering | Cannot verify badge text size matches design | Verify CSS classes; UAT for visual check |
 | No scroll behavior | Cannot verify badges remain visible during scroll | UAT for scroll behavior |
 
-### What jsdom CAN verify (and we test thoroughly)
-
-- Badge text content ("5 changes", "1 change", "Added", "Removed")
-- Correct CSS classes applied per changeType (amber/green/red)
-- Badge not rendered when changeCount is 0 or negative
-- Badge not rendered for unchanged sections
-- Added/Removed sections show text badges (changeCount ignored)
-- Badge rendered inside the correct button element
-- `aria-label` on badges: "{n} changes" for modified, "Section added"/"Section removed" for added/removed
-- DiffSummary renders correct counts with labels, omits zero-count categories
-- DiffSummary has `role="status"`, `aria-label="Diff summary"`, correct DOM position
-- DiffSummary not rendered when prop omitted
-- Backward compatibility: existing test fixtures work with `changeCount` defaulting to `0`
-- Click behavior and active section styling unaffected by badge presence
-- `countChanges()` filters unchanged, handles empty arrays, handles all change types, does not recurse into subsections
+See [implementation-design.md](./implementation-design.md) for the full list of what unit tests verify in jsdom.
