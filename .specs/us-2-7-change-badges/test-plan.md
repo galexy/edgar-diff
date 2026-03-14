@@ -376,6 +376,6 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 - DiffSummary renders correct counts with labels, omits zero-count categories
 - DiffSummary has `role="status"`, `aria-label="Diff summary"`, correct DOM position
 - DiffSummary not rendered when prop omitted
-- Backward compatibility: sections without changeCount don't crash
+- Backward compatibility: existing test fixtures work with `changeCount` defaulting to `0`
 - Click behavior and active section styling unaffected by badge presence
 - `countChanges()` filters unchanged, handles empty arrays, handles all change types, does not recurse into subsections
