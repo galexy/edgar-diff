@@ -21,13 +21,13 @@ describe('fetchCompanySubmissions', () => {
   });
 
   it('pads short CIK to 10 digits', async () => {
-    const mockFetch = vi.fn(() =>
+    const mockFetch = vi.fn<typeof fetch>(() =>
       Promise.resolve(new Response(JSON.stringify(MOCK_AAPL_SUBMISSIONS), { status: 200 })),
     );
     vi.stubGlobal('fetch', mockFetch);
 
     await fetchCompanySubmissions('320193');
-    const url = mockFetch.mock.calls[0][0] as string;
+    const url = mockFetch.mock.calls[0]?.[0] as string;
     expect(url).toContain('CIK0000320193');
   });
 
@@ -106,14 +106,14 @@ describe('fetchCompanySubmissions', () => {
   });
 
   it('accepts and forwards AbortSignal', async () => {
-    const mockFetch = vi.fn(() =>
+    const mockFetch = vi.fn<typeof fetch>(() =>
       Promise.resolve(new Response(JSON.stringify(MOCK_AAPL_SUBMISSIONS), { status: 200 })),
     );
     vi.stubGlobal('fetch', mockFetch);
 
     const controller = new AbortController();
     await fetchCompanySubmissions('320193', controller.signal);
-    expect(mockFetch.mock.calls[0][1]).toEqual(
+    expect(mockFetch.mock.calls[0]?.[1]).toEqual(
       expect.objectContaining({ signal: controller.signal }),
     );
   });
