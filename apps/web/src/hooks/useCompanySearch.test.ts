@@ -260,7 +260,7 @@ describe('useCompanySearch: Concurrency', () => {
   it('abort in-flight on clear', async () => {
     mockSearchCompanies.mockResolvedValue([appleMatch]);
     mockFetchCompanySubmissions.mockImplementation(
-      () => new Promise(() => {}), // never resolves
+      () => new Promise(/* never resolves */ () => undefined),
     );
 
     const { result } = renderHook(() => useCompanySearch());

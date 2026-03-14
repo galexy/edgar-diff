@@ -183,7 +183,7 @@ describe('SearchBar: Keyboard Navigation', () => {
   it('Escape closes dropdown and keeps focus on input', async () => {
     const user = userEvent.setup();
     mockHookReturn = { ...mockHookReturn, matches: [appleMatch], query: 'AAPL' };
-    const { rerender } = render(<SearchBar />);
+    render(<SearchBar />);
 
     const input = screen.getByRole('combobox');
     await user.click(input);

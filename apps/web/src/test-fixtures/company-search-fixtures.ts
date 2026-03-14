@@ -90,7 +90,7 @@ export const MOCK_NETWORK_ERROR = new TypeError('Failed to fetch');
 export function createMockFetch(
   responses: Record<string, Response | (() => Response | Promise<Response>)>,
 ) {
-  return vi.fn((url: string | URL | Request, _init?: RequestInit) => {
+  return vi.fn((url: string | URL | Request) => {
     const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.toString() : url.url;
     const match = Object.entries(responses).find(([pattern]) => urlStr.includes(pattern));
     if (!match) return Promise.reject(new Error(`Unmocked URL: ${urlStr}`));

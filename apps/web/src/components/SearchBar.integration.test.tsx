@@ -4,12 +4,11 @@
  * Render SearchBar with real hooks wired up; only mock `globalThis.fetch`
  * for the Worker tickers endpoint and Worker submissions proxy.
  */
-import { render, screen, within, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SearchBar } from './SearchBar';
 import {
-  MOCK_COMPANY_TICKERS,
   MOCK_AAPL_SUBMISSIONS,
   MOCK_MSFT_SUBMISSIONS,
   mockTickersResponse,

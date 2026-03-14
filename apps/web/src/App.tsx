@@ -10,7 +10,7 @@ import type { Company } from './services/types';
 
 export function App() {
   // selectedCompany will be consumed by US-2.9 Filing Selectors
-  const [_selectedCompany, setSelectedCompany] = useState<Company | null>(null);
+  const [, setSelectedCompany] = useState<Company | null>(null);
   const sampleDiffs = useMemo(() => buildSampleDiffs(sampleDocument), []);
 
   const sections = useMemo(
