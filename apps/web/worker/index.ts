@@ -8,16 +8,19 @@ export default {
 
     // CORS preflight
     if (request.method === 'OPTIONS') {
+      console.log(`[Worker] OPTIONS ${url.pathname}`);
       return handleOptions(request);
     }
 
     // Route: Ticker data
     if (url.pathname === '/api/tickers') {
+      console.log(`[Worker] GET /api/tickers`);
       return handleTickers(request, env);
     }
 
     // Route: SEC submissions proxy
     if (url.pathname.startsWith('/api/sec/submissions/')) {
+      console.log(`[Worker] GET ${url.pathname}`);
       return handleSubmissionsProxy(request, env, url);
     }
 
@@ -46,16 +49,18 @@ async function handleTickers(request: Request, env: Env): Promise<Response> {
   // Check cache first
   const cached = await cache.match(cacheKey);
   if (cached) {
+    console.log('[Worker] tickers cache HIT');
     return addCorsHeaders(cached, request);
   }
 
-  // Fetch from SEC
+  console.log('[Worker] tickers cache MISS, fetching from SEC');
   const secResponse = await fetch(
     'https://www.sec.gov/files/company_tickers.json',
     { headers: { 'User-Agent': env.SEC_USER_AGENT } },
   );
 
   if (!secResponse.ok) {
+    console.log(`[Worker] SEC tickers fetch failed: ${secResponse.status}`);
     return addCorsHeaders(
       new Response(JSON.stringify({ error: 'Failed to fetch tickers' }), {
         status: 502,
@@ -89,6 +94,7 @@ async function handleSubmissionsProxy(
 
   // Validate path to prevent traversal attacks
   if (!/^CIK\d{10}\.json$/.test(secPath)) {
+    console.log(`[Worker] rejected invalid path: ${secPath}`);
     return addCorsHeaders(
       new Response(JSON.stringify({ error: 'Invalid CIK format' }), {
         status: 400,
@@ -99,10 +105,15 @@ async function handleSubmissionsProxy(
   }
 
   const secUrl = `https://data.sec.gov/submissions/${secPath}`;
+  console.log(`[Worker] proxying to ${secUrl}`);
 
   const secResponse = await fetch(secUrl, {
     headers: { 'User-Agent': env.SEC_USER_AGENT },
   });
+
+  if (!secResponse.ok) {
+    console.log(`[Worker] submissions proxy error: ${secResponse.status}`);
+  }
 
   return addCorsHeaders(
     new Response(secResponse.body, {
