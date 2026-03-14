@@ -1,6 +1,6 @@
 # US-2.7: Section Change Badges — UAT Results
 
-**Date:** 2026-03-14
+**Date:** 2026-03-14 (re-run after inline badge layout fix)
 **Viewport:** 1280x800 (default), 640x800 (narrow)
 **Browser:** Chrome via DevTools MCP
 **Result:** ALL CHECKS PASS
@@ -23,11 +23,14 @@
 
 ---
 
-## 2. Change Count Badges — Amber (Modified Sections)
+## 2. Change Count Badges — Inline Layout
 
 **Action:** Inspect each section nav button.
 
 **Verify:**
+- Badges are **inline** next to the heading text (not on a separate line below)
+- Heading text truncates with ellipsis to make room for the badge
+- Badge does not wrap or shrink (`shrink-0` on badge element)
 - Each modified section shows an amber badge with change count
 - Badge text format: "{n} changes" (plural) or "{n} change" (singular)
 - Badge has amber styling (`text-amber-700 bg-amber-100`)
@@ -93,10 +96,10 @@
 **Action:** Scroll the section nav to the bottom.
 
 **Verify:**
-- Badges remain visible on all sections during and after scroll
+- Badges remain inline and visible on all sections during and after scroll
 - Nav scrolls independently from filing panels
 
-![Nav scrolled to bottom showing remaining sections with badges](screenshots/03-nav-scrolled-bottom.png)
+![Nav scrolled to bottom showing remaining sections with inline badges](screenshots/03-nav-scrolled-bottom.png)
 
 **Result:** PASS
 
@@ -108,12 +111,13 @@
 
 **Verify:**
 - Layout doesn't break
-- Section nav still visible with badges
+- Section nav still visible with inline badges
+- Heading text truncates further at narrow width; badges remain visible
 - No horizontal scrollbar
 - Summary bar still visible
 - All three columns still visible
 
-![Narrow viewport showing badges](screenshots/02-narrow-viewport-640x800.png)
+![Narrow viewport showing inline badges](screenshots/02-narrow-viewport-640x800.png)
 
 **Result:** PASS
 
@@ -128,7 +132,7 @@
 - Each badge has `aria-label` matching badge text (e.g., "2 changes", "1 change")
 - Navigation landmark is present with `aria-labelledby`
 
-**Observed:** Accessibility tree confirms all ARIA attributes present and correct.
+**Observed:** Accessibility tree confirms all ARIA attributes present and correct after layout change.
 
 **Result:** PASS
 
@@ -139,7 +143,7 @@
 | Check | Status |
 |-------|--------|
 | Diff summary bar renders with correct counts | PASS |
-| Amber change count badges on modified sections | PASS |
+| Inline badges next to heading text | PASS |
 | Singular/plural badge text | PASS |
 | No console errors | PASS |
 | Badges visible after scroll | PASS |
@@ -154,3 +158,4 @@
 
 - All sections in the sample data are `changeType='modified'`, so green ("Added") and red ("Removed") text badges are not visible in this UAT. Those badge types are verified by unit tests (SN-U14, SN-U15, SN-U18, SN-U19, SN-U28, SN-U29) and will appear when real diff data includes added/removed sections.
 - The diff summary bar only shows "23 modified" because all sample sections have the same changeType. The zero-count category suppression is verified by unit test SN-U45.
+- Badge layout was updated from block (below heading) to inline (next to heading) per PR feedback. Uses `flex items-center gap-1.5` with `truncate` on heading and `shrink-0` on badge.
