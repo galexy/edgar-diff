@@ -604,6 +604,88 @@ describe('useDiffPipeline — Abort & Restart', () => {
     expect(result.current.diff).toEqual(MOCK_DIFF);
   });
 
+  it('DP-U26: Filing B changed mid-pipeline → previous pipeline aborted, new pipeline starts', async () => {
+    // First pipeline: controllable fetch that we can keep pending
+    let resolveFirstA: (v: typeof MOCK_RAW_FILING_A) => void;
+    let resolveFirstB: (v: typeof MOCK_RAW_FILING_B) => void;
+    mockFetchFiling
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirstA = r; }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirstB = r; }));
+
+    const { result, rerender } = renderHook(
+      ({ a, b }: { a: string | null; b: string | null }) =>
+        useDiffPipeline(a, b),
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
+    );
+
+    expect(result.current.status).toBe('fetching');
+
+    // Change Filing B before first pipeline completes
+    mockFetchFiling.mockReset();
+    mockFetchFiling
+      .mockResolvedValueOnce(MOCK_RAW_FILING_A)
+      .mockResolvedValueOnce(MOCK_RAW_FILING_C);
+    mockParseFiling
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_A)
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_C);
+    mockDiffFilings.mockReturnValue(MOCK_DIFF);
+
+    rerender({ a: ACCESSION_A, b: ACCESSION_C });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    // Verify the new pipeline completed with updated Filing B
+    expect(result.current.diff).toEqual(MOCK_DIFF);
+    expect(result.current.newDocument).toEqual(MOCK_STRUCTURED_DOC_C);
+  });
+
+  it('DP-U27: aborted pipeline late-resolving results do not update state', async () => {
+    // First pipeline: controllable fetch
+    let resolveFirstA: (v: typeof MOCK_RAW_FILING_A) => void;
+    let resolveFirstB: (v: typeof MOCK_RAW_FILING_B) => void;
+    mockFetchFiling
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirstA = r; }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveFirstB = r; }));
+
+    const { result, rerender } = renderHook(
+      ({ a, b }: { a: string | null; b: string | null }) =>
+        useDiffPipeline(a, b),
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
+    );
+
+    expect(result.current.status).toBe('fetching');
+
+    // Start a second pipeline (different pair) — aborts the first
+    mockFetchFiling.mockReset();
+    mockFetchFiling
+      .mockResolvedValueOnce(MOCK_RAW_FILING_C)
+      .mockResolvedValueOnce(MOCK_RAW_FILING_B);
+    mockParseFiling
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_C)
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_B);
+    mockDiffFilings.mockReturnValue(MOCK_DIFF);
+
+    rerender({ a: ACCESSION_C, b: ACCESSION_B });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    // Now resolve the FIRST pipeline's fetch (after it was aborted)
+    await act(async () => {
+      resolveFirstA!(MOCK_RAW_FILING_A);
+      resolveFirstB!(MOCK_RAW_FILING_B);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // State should still reflect the second pipeline, not the stale first
+    expect(result.current.oldDocument).toEqual(MOCK_STRUCTURED_DOC_C);
+    expect(result.current.newDocument).toEqual(MOCK_STRUCTURED_DOC_B);
+    expect(result.current.status).toBe('done');
+  });
+
   it('DP-U28: both filings cleared mid-pipeline → idle', async () => {
     // Slow fetch
     mockFetchFiling.mockImplementation(
@@ -625,6 +707,106 @@ describe('useDiffPipeline — Abort & Restart', () => {
     expect(result.current.oldDocument).toBeNull();
     expect(result.current.newDocument).toBeNull();
     expect(result.current.diff).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('DP-U29: rapid filing changes (A→B→C) → only latest pipeline runs to completion', async () => {
+    // First pipeline: never-resolving fetch
+    mockFetchFiling.mockImplementation(() => new Promise(() => {}));
+
+    const { result, rerender } = renderHook(
+      ({ a, b }: { a: string | null; b: string | null }) =>
+        useDiffPipeline(a, b),
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
+    );
+
+    expect(result.current.status).toBe('fetching');
+
+    // Rapid change #1: switch to (A, C) — still never-resolving
+    mockFetchFiling.mockImplementation(() => new Promise(() => {}));
+    rerender({ a: ACCESSION_A, b: ACCESSION_C });
+    expect(result.current.status).toBe('fetching');
+
+    // Rapid change #2: switch to (C, B) — this one resolves
+    mockFetchFiling.mockReset();
+    mockFetchFiling
+      .mockResolvedValueOnce(MOCK_RAW_FILING_C)
+      .mockResolvedValueOnce(MOCK_RAW_FILING_B);
+    mockParseFiling
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_C)
+      .mockReturnValueOnce(MOCK_STRUCTURED_DOC_B);
+    mockDiffFilings.mockReturnValue(MOCK_DIFF);
+
+    rerender({ a: ACCESSION_C, b: ACCESSION_B });
+
+    await waitFor(() => {
+      expect(result.current.status).toBe('done');
+    });
+
+    // Only the final pipeline's results should be present
+    expect(result.current.oldDocument).toEqual(MOCK_STRUCTURED_DOC_C);
+    expect(result.current.newDocument).toEqual(MOCK_STRUCTURED_DOC_B);
+    expect(result.current.diff).toEqual(MOCK_DIFF);
+  });
+
+  it('DP-U30: unmount during active pipeline → no React state-update warnings', async () => {
+    // Controllable fetch so pipeline is in-flight at unmount
+    let resolveFetchA: (v: typeof MOCK_RAW_FILING_A) => void;
+    let resolveFetchB: (v: typeof MOCK_RAW_FILING_B) => void;
+    mockFetchFiling
+      .mockImplementationOnce(() => new Promise((r) => { resolveFetchA = r; }))
+      .mockImplementationOnce(() => new Promise((r) => { resolveFetchB = r; }));
+
+    const consoleSpy = vi.spyOn(console, 'error');
+
+    const { result, unmount } = renderHook(() =>
+      useDiffPipeline(ACCESSION_A, ACCESSION_B),
+    );
+
+    expect(result.current.status).toBe('fetching');
+
+    // Unmount while fetch is still in-flight
+    unmount();
+
+    // Resolve the fetch after unmount — should not trigger state update warning
+    await act(async () => {
+      resolveFetchA!(MOCK_RAW_FILING_A);
+      resolveFetchB!(MOCK_RAW_FILING_B);
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // No "Can't perform a React state update on an unmounted component" warnings
+    const stateUpdateWarnings = consoleSpy.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('unmounted'),
+    );
+    expect(stateUpdateWarnings).toHaveLength(0);
+
+    consoleSpy.mockRestore();
+  });
+
+  it('DP-U32: AbortError from fetch is silently ignored (not treated as error state)', async () => {
+    // Fetch throws AbortError (as browsers do when signal is aborted)
+    const abortError = new DOMException('The operation was aborted.', 'AbortError');
+    mockFetchFiling.mockRejectedValue(abortError);
+
+    const { result, rerender } = renderHook(
+      ({ a, b }: { a: string | null; b: string | null }) =>
+        useDiffPipeline(a, b),
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
+    );
+
+    // Immediately clear filings to trigger abort
+    rerender({ a: null as string | null, b: null as string | null });
+
+    expect(result.current.status).toBe('idle');
+
+    // Wait for the rejected promise to settle
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+
+    // Should NOT have transitioned to error state — abort is silently ignored
+    expect(result.current.status).toBe('idle');
     expect(result.current.error).toBeNull();
   });
 });
