@@ -6,7 +6,18 @@ import { FilingPanel } from './components/FilingPanel';
 import { useActiveSection } from './hooks/useActiveSection';
 import { sampleDocument } from './fixtures/sample-filing';
 import { buildSampleDiffs } from './fixtures/sample-diff';
+import type { SectionDiff } from '@edgar-diff/lib';
 import type { Company } from './services/types';
+
+export function countChanges(section: SectionDiff): number {
+  const paragraphChanges = section.paragraphDiffs.filter(
+    (p) => p.changeType !== 'unchanged',
+  ).length;
+  const tableChanges = section.tableDiffs.filter(
+    (t) => t.changeType !== 'unchanged',
+  ).length;
+  return paragraphChanges + tableChanges;
+}
 
 export function App() {
   // selectedCompany will be consumed by US-2.9 Filing Selectors
@@ -14,9 +25,27 @@ export function App() {
   const sampleDiffs = useMemo(() => buildSampleDiffs(sampleDocument), []);
 
   const sections = useMemo(
-    () => sampleDiffs.map((sd) => ({ id: sd.id, heading: sd.heading, changeType: sd.changeType })),
+    () =>
+      sampleDiffs.map((sd) => ({
+        id: sd.id,
+        heading: sd.heading,
+        changeType: sd.changeType,
+        changeCount: countChanges(sd),
+      })),
     [sampleDiffs],
   );
+
+  const diffSummary = useMemo(() => {
+    const summary = { added: 0, removed: 0, modified: 0, unchanged: 0 };
+    for (const sd of sampleDiffs) {
+      if (sd.changeType === 'added') summary.added++;
+      else if (sd.changeType === 'removed') summary.removed++;
+      else if (sd.changeType === 'modified' || sd.changeType === 'reordered' || sd.changeType === 'moved')
+        summary.modified++;
+      else summary.unchanged++;
+    }
+    return summary;
+  }, [sampleDiffs]);
 
   const oldPanelRef = useRef<HTMLDivElement>(null);
   const newPanelRef = useRef<HTMLDivElement>(null);
@@ -41,6 +70,7 @@ export function App() {
           sections={sections}
           activeSectionId={activeSectionId}
           onSectionClick={handleSectionClick}
+          diffSummary={diffSummary}
         />
         <FilingPanel
           ref={oldPanelRef}
