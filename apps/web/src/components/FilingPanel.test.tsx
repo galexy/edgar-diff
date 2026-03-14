@@ -1,3 +1,4 @@
+import { createRef } from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
 import { Temporal } from '@js-temporal/polyfill';
@@ -219,5 +220,30 @@ describe('FilingPanel', () => {
     expect(container.querySelector('b')).not.toBeNull();
     expect(container.querySelector('i')).not.toBeNull();
     expect(container.querySelector('u')).not.toBeNull();
+  });
+
+  // --- US-2.4: forwardRef ---
+
+  // FP-U1: Ref is attached to the scrollable <div> (inner div with overflow-y-auto)
+  it('ref is attached to the scrollable div with overflow-y-auto', () => {
+    const ref = createRef<HTMLDivElement>();
+    render(<FilingPanel ref={ref} label="Filing A" />);
+
+    expect(ref.current).not.toBeNull();
+    expect(ref.current!.className).toContain('overflow-y-auto');
+  });
+
+  // FP-U2: Existing tests still pass (backward compatibility) — covered by all tests above
+  it('renders correctly with ref and document prop', () => {
+    const ref = createRef<HTMLDivElement>();
+    const html = '<p>Content</p>';
+    const doc = makeDocument(html, [
+      makeSection('item-1', 'Item 1', 0, html.length),
+    ]);
+    render(<FilingPanel ref={ref} label="Filing A" document={doc} />);
+
+    expect(ref.current).not.toBeNull();
+    expect(ref.current!.className).toContain('overflow-y-auto');
+    expect(screen.getByText('Content')).toBeInTheDocument();
   });
 });
