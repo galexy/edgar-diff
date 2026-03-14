@@ -4,7 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // --- Mock the heavy AAPL fixture with a tiny inline document ---
 // The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
 
-const { tinyDocument, tinySectionDiffs } = vi.hoisted(() => {
+const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock } = vi.hoisted(() => {
   const tinyHtml = [
     '<div>Preamble content</div>',
     '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
@@ -92,6 +92,14 @@ vi.mock('./hooks/useCompanySearch', () => ({
     error: null,
     selectMatch: vi.fn(),
     clear: vi.fn(),
+  }),
+}));
+
+vi.mock('./hooks/useFilingList', () => ({
+  useFilingList: () => ({
+    filings: [],
+    status: 'idle' as const,
+    error: null,
   }),
 }));
 
@@ -464,5 +472,25 @@ describe('US-2.8: Company Search Integration', () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/company name, ticker, or cik/i);
     expect(input).toHaveAttribute('role', 'combobox');
+  });
+});
+
+// --- US-2.9: Filing Selectors Integration ---
+
+describe('US-2.9: Filing Selectors Integration', () => {
+  it('filing selectors are disabled on initial load (no company)', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => expect(select).toBeDisabled());
+  });
+
+  it('both panels have filing selector aria-labels', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    const labels = selects.map((s) => s.getAttribute('aria-label'));
+    expect(labels).toContain('Select Filing A');
+    expect(labels).toContain('Select Filing B');
   });
 });
