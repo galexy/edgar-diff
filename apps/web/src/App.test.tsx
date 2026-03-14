@@ -82,6 +82,19 @@ vi.mock('./fixtures/sample-diff', () => ({
   buildSampleDiffs: () => tinySectionDiffs,
 }));
 
+vi.mock('./hooks/useCompanySearch', () => ({
+  useCompanySearch: () => ({
+    query: '',
+    setQuery: vi.fn(),
+    status: 'idle' as const,
+    matches: [],
+    selectedCompany: null,
+    error: null,
+    selectMatch: vi.fn(),
+    clear: vi.fn(),
+  }),
+}));
+
 import { App } from './App';
 
 // --- Mock IntersectionObserver for integration tests ---
@@ -144,9 +157,12 @@ describe('App', () => {
 
   it('renders filing selector placeholders', () => {
     render(<App />);
+    // 3 comboboxes: search bar + 2 filing selectors
     const selects = screen.getAllByRole('combobox');
-    expect(selects).toHaveLength(2);
-    selects.forEach(select => expect(select).toBeDisabled());
+    expect(selects).toHaveLength(3);
+    // Filing selectors (the last two) are disabled
+    const filingSelectors = selects.filter((s) => s.tagName === 'SELECT');
+    filingSelectors.forEach(select => expect(select).toBeDisabled());
   });
 
   it('renders components in correct DOM order: header > search > main', () => {
@@ -253,9 +269,8 @@ describe('Accessibility', () => {
     render(<App />);
     const input = screen.getByPlaceholderText(/company name, ticker, or cik/i);
     expect(input).toBeInTheDocument();
-    expect(
-      input.getAttribute('aria-label') ?? input.closest('[role="search"]')
-    ).toBeTruthy();
+    expect(input).toHaveAttribute('aria-label');
+    expect(input.closest('[role="search"]')).toBeTruthy();
   });
 
   it('filing panels have heading hierarchy', () => {
@@ -433,5 +448,21 @@ describe('US-2.4: Section Navigation Integration', () => {
     });
 
     expect(nav.querySelectorAll('[aria-current="true"]').length).toBe(0);
+  });
+});
+
+// --- US-2.8: App-Level Integration ---
+
+describe('US-2.8: Company Search Integration', () => {
+  it('search bar is enabled (not disabled)', () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/company name, ticker, or cik/i);
+    expect(input).toBeEnabled();
+  });
+
+  it('search bar has combobox role', () => {
+    render(<App />);
+    const input = screen.getByPlaceholderText(/company name, ticker, or cik/i);
+    expect(input).toHaveAttribute('role', 'combobox');
   });
 });

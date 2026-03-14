@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { SectionNav } from './components/SectionNav';
@@ -6,8 +6,11 @@ import { FilingPanel } from './components/FilingPanel';
 import { useActiveSection } from './hooks/useActiveSection';
 import { sampleDocument } from './fixtures/sample-filing';
 import { buildSampleDiffs } from './fixtures/sample-diff';
+import type { Company } from './services/types';
 
 export function App() {
+  // selectedCompany will be consumed by US-2.9 Filing Selectors
+  const [, setSelectedCompany] = useState<Company | null>(null);
   const sampleDiffs = useMemo(() => buildSampleDiffs(sampleDocument), []);
 
   const sections = useMemo(
@@ -32,7 +35,7 @@ export function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <Header />
-      <SearchBar />
+      <SearchBar onCompanySelect={setSelectedCompany} />
       <main className="flex-1 flex overflow-hidden">
         <SectionNav
           sections={sections}
