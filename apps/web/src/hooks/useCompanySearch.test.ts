@@ -163,6 +163,20 @@ describe('useCompanySearch: State Transitions', () => {
     expect(result.current.status).toBe('idle');
   });
 
+  it('searchCompanies rejection sets error status with user-facing message', async () => {
+    mockSearchCompanies.mockRejectedValue(new Error('Unable to load company data'));
+    const { result } = renderHook(() => useCompanySearch());
+
+    act(() => result.current.setQuery('AAPL'));
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+
+    expect(result.current.status).toBe('error');
+    expect(result.current.error).toBe('Unable to load company data');
+    expect(result.current.matches).toEqual([]);
+  });
+
   it('new query clears selected company', async () => {
     mockSearchCompanies.mockResolvedValue([appleMatch]);
     const { result } = renderHook(() => useCompanySearch());

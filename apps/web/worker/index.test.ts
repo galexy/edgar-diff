@@ -364,4 +364,16 @@ describe('Worker: Submissions Proxy', () => {
     );
     expect(response.status).toBe(400);
   });
+
+  it('rejects path traversal attempts with 400', async () => {
+    // URL-encoded traversal that stays within the route prefix
+    const response = await worker.fetch(
+      makeRequest('/api/sec/submissions/..%2F..%2Fetc%2Fpasswd'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body).toHaveProperty('error');
+  });
 });
