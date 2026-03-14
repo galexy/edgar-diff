@@ -4,15 +4,26 @@ export interface SectionNavItem {
   id: string;
   heading: string;
   changeType: ChangeType;
+  /** Number of non-unchanged paragraph + table diffs within this section. */
+  changeCount: number;
+}
+
+export interface DiffSummaryData {
+  added: number;
+  removed: number;
+  modified: number;
+  unchanged: number;
 }
 
 interface SectionNavProps {
   sections: SectionNavItem[];
   activeSectionId?: string;
   onSectionClick?: (sectionId: string) => void;
+  /** Aggregate diff totals displayed above the section list. */
+  diffSummary?: DiffSummaryData;
 }
 
-export function SectionNav({ sections, activeSectionId, onSectionClick }: SectionNavProps) {
+export function SectionNav({ sections, activeSectionId, onSectionClick, diffSummary }: SectionNavProps) {
   return (
     <nav
       className="w-60 shrink-0 border-r border-gray-200 bg-gray-50 overflow-y-auto"
@@ -25,6 +36,30 @@ export function SectionNav({ sections, activeSectionId, onSectionClick }: Sectio
         >
           Sections
         </h2>
+        {diffSummary && (diffSummary.added + diffSummary.removed + diffSummary.modified + diffSummary.unchanged > 0) && (
+          <div className="mb-3 flex flex-wrap gap-2 text-xs" role="status" aria-label="Diff summary">
+            {diffSummary.modified > 0 && (
+              <span className="text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                {diffSummary.modified} modified
+              </span>
+            )}
+            {diffSummary.added > 0 && (
+              <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
+                {diffSummary.added} added
+              </span>
+            )}
+            {diffSummary.removed > 0 && (
+              <span className="text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                {diffSummary.removed} removed
+              </span>
+            )}
+            {diffSummary.unchanged > 0 && (
+              <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                {diffSummary.unchanged} unchanged
+              </span>
+            )}
+          </div>
+        )}
         {sections.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No sections</p>
         ) : (
@@ -41,17 +76,33 @@ export function SectionNav({ sections, activeSectionId, onSectionClick }: Sectio
                   }`}
                   onClick={() => onSectionClick?.(section.id)}
                 >
-                  <span className="block truncate">{section.heading}</span>
-                  {section.changeType === 'added' && (
-                    <span className="inline-block mt-0.5 text-xs text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                      Added
-                    </span>
-                  )}
-                  {section.changeType === 'removed' && (
-                    <span className="inline-block mt-0.5 text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                      Removed
-                    </span>
-                  )}
+                  <span className="relative block pr-5">
+                    <span className="block truncate">{section.heading}</span>
+                    {section.changeType === 'added' && (
+                      <span
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold text-green-700 bg-green-100 px-1.5 rounded-full"
+                        aria-label="Section added"
+                      >
+                        Added
+                      </span>
+                    )}
+                    {section.changeType === 'removed' && (
+                      <span
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold text-red-700 bg-red-100 px-1.5 rounded-full"
+                        aria-label="Section removed"
+                      >
+                        Removed
+                      </span>
+                    )}
+                    {['modified', 'reordered', 'moved'].includes(section.changeType) && section.changeCount > 0 && (
+                      <span
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold min-w-[1.25rem] text-center text-amber-700 bg-amber-100 px-1.5 rounded-full"
+                        aria-label={`${section.changeCount} ${section.changeCount === 1 ? 'change' : 'changes'}`}
+                      >
+                        {section.changeCount}
+                      </span>
+                    )}
+                  </span>
                 </button>
               </li>
             ))}
