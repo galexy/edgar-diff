@@ -1,4 +1,4 @@
-import type { WordChange, SectionDiff, Paragraph } from '@edgar-diff/lib';
+import type { WordChange, SectionDiff, Paragraph, CellDiff, Table } from '@edgar-diff/lib';
 
 export type Side = 'old' | 'new';
 
@@ -24,6 +24,83 @@ export function wrapParagraph(
     return `<ins class="diff-paragraph-added">${paragraphHtml}</ins>`;
   }
   return `<del class="diff-paragraph-removed">${paragraphHtml}</del>`;
+}
+
+// ─── Table Diff Helpers ──────────────────────────────────────────
+
+/**
+ * Inject a CSS class into an HTML opening tag string.
+ * Handles double-quoted, single-quoted, and missing class attributes.
+ */
+export function injectClass(openingTag: string, className: string): string {
+  if (!openingTag.includes('>')) return openingTag;
+
+  // Append to existing double-quoted class
+  const doubleQuoteMatch = openingTag.match(/\bclass\s*=\s*"([^"]*)"/);
+  if (doubleQuoteMatch) {
+    return openingTag.replace(
+      doubleQuoteMatch[0],
+      `class="${doubleQuoteMatch[1]} ${className}"`,
+    );
+  }
+
+  // Append to existing single-quoted class
+  const singleQuoteMatch = openingTag.match(/\bclass\s*=\s*'([^']*)'/);
+  if (singleQuoteMatch) {
+    return openingTag.replace(
+      singleQuoteMatch[0],
+      `class='${singleQuoteMatch[1]} ${className}'`,
+    );
+  }
+
+  // No class attribute — insert after tag name
+  return openingTag.replace(
+    /^(<(?:tr|td|th)\b)/i,
+    `$1 class="${className}"`,
+  );
+}
+
+/**
+ * Escape HTML special characters for safe injection into annotations.
+ */
+export function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Highlight a single table cell: inject CSS class based on change type and side.
+ * Original cell content is always preserved — only the class is injected.
+ * Modified cells use side-specific classes: red (old) or green (new).
+ */
+export function highlightCell(
+  cellHtml: string,
+  cellDiff: CellDiff,
+  side: Side,
+): string {
+  let cssClass: string;
+  if (cellDiff.changeType === 'added') {
+    cssClass = 'diff-cell-added';
+  } else if (cellDiff.changeType === 'removed') {
+    cssClass = 'diff-cell-removed';
+  } else if (cellDiff.changeType === 'modified') {
+    cssClass = side === 'old' ? 'diff-cell-removed' : 'diff-cell-added';
+  } else {
+    return cellHtml; // unchanged or unknown
+  }
+
+  // Find the opening tag to inject the class
+  const openTagEnd = cellHtml.indexOf('>');
+  if (openTagEnd === -1) return cellHtml;
+
+  const openingTag = cellHtml.slice(0, openTagEnd + 1);
+  const rest = cellHtml.slice(openTagEnd + 1);
+
+  return injectClass(openingTag, cssClass) + rest;
 }
 
 // ─── DOM walking helpers ─────────────────────────────────────────
@@ -154,10 +231,12 @@ export function applyHighlightsToSection(
   sectionDiff: SectionDiff,
   paragraphIndex: Map<string, Paragraph>,
   side: Side,
+  tableIndex: Map<string, Table> = new Map(),
 ): string {
   // Collect replacements: { relStart, relEnd, html }
   const replacements: { relStart: number; relEnd: number; html: string }[] = [];
 
+  // ─── Paragraph processing (existing US-2.5 logic) ─────────────
   for (const pd of sectionDiff.paragraphDiffs) {
     // Get the source location for this side
     const sourceLoc = pd.sourceMapping[side];
@@ -198,6 +277,54 @@ export function applyHighlightsToSection(
     }
 
     replacements.push({ relStart, relEnd, html: replacedHtml });
+  }
+
+  // ─── Table processing (US-2.6) ────────────────────────────────
+  for (const tableDiff of sectionDiff.tableDiffs) {
+    const tableSourceLoc = tableDiff.sourceMapping[side];
+    if (!tableSourceLoc) continue; // table doesn't exist on this side
+
+    const tableKey = `${tableSourceLoc.start}:${tableSourceLoc.end}`;
+    const table = tableIndex.get(tableKey);
+    if (!table) continue; // safety fallback
+
+    for (const rowDiff of tableDiff.rowDiffs) {
+      const rowIndex = side === 'old' ? rowDiff.oldRowIndex : rowDiff.newRowIndex;
+      if (rowIndex === undefined) continue; // row doesn't exist on this side
+
+      // Bounds check on row index
+      if (rowIndex >= table.rows.length) continue;
+
+      if (rowDiff.changeType === 'added' && side === 'new') {
+        const row = table.rows[rowIndex];
+        const relStart = row.source.start - sectionOffset;
+        const relEnd = row.source.end - sectionOffset;
+        if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+        const rowHtml = sectionHtml.slice(relStart, relEnd);
+        replacements.push({ relStart, relEnd, html: injectClass(rowHtml, 'diff-row-added') });
+      } else if (rowDiff.changeType === 'removed' && side === 'old') {
+        const row = table.rows[rowIndex];
+        const relStart = row.source.start - sectionOffset;
+        const relEnd = row.source.end - sectionOffset;
+        if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+        const rowHtml = sectionHtml.slice(relStart, relEnd);
+        replacements.push({ relStart, relEnd, html: injectClass(rowHtml, 'diff-row-removed') });
+      } else if (rowDiff.changeType === 'modified') {
+        for (const cellDiff of rowDiff.cellDiffs) {
+          if (cellDiff.changeType === 'unchanged') continue;
+
+          const cellSourceLoc = cellDiff.sourceMapping[side];
+          if (!cellSourceLoc) continue;
+
+          const relStart = cellSourceLoc.start - sectionOffset;
+          const relEnd = cellSourceLoc.end - sectionOffset;
+          if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+
+          const cellHtml = sectionHtml.slice(relStart, relEnd);
+          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff, side) });
+        }
+      }
+    }
   }
 
   // Apply replacements in reverse offset order to preserve positions
