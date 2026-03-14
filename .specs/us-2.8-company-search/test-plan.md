@@ -2,20 +2,23 @@
 
 ## Overview
 
-This test plan covers the Company Search feature, which transforms the placeholder `SearchBar` into a functional combobox that resolves companies by ticker, name, or CIK. The architecture uses a **two-stage search flow**:
+This test plan covers the Company Search feature, which transforms the placeholder `SearchBar` into a functional combobox that resolves companies by ticker, name, or CIK. The architecture uses a **two-stage search flow** backed by a **Cloudflare Worker**:
 
-1. **Stage 1 (Local):** User types → debounce (300ms) → search bundled `company_tickers.json` → show dropdown matches
-2. **Stage 2 (API):** User selects a match from dropdown → fetch SEC submissions API via Vite proxy → confirm company → display resolved name + CIK
+1. **Stage 1 (Local):** User types → debounce (300ms) → fetch ticker data from Worker (`/api/tickers`) → search client-side → show dropdown matches
+2. **Stage 2 (API):** User selects a match from dropdown → fetch SEC submissions API via Worker proxy (`/api/sec/submissions/*`) → confirm company → display resolved name + CIK
+
+The Worker handles CORS, `User-Agent` injection, and edge caching (24-hour TTL for ticker data). During development, the Worker runs locally via `@cloudflare/vite-plugin` inside `workerd`.
 
 **Test file locations:**
-- `apps/web/src/services/company-resolver.test.ts` — Local ticker/name/CIK resolution against bundled data
-- `apps/web/src/services/sec-submissions.test.ts` — SEC submissions API fetch + error handling
+- `apps/web/src/services/company-resolver.test.ts` — Local ticker/name/CIK resolution against Worker-served data
+- `apps/web/src/services/sec-submissions.test.ts` — SEC submissions API fetch via Worker proxy + error handling
 - `apps/web/src/hooks/use-debounced-value.test.ts` — Debounce hook with fake timers
 - `apps/web/src/hooks/use-company-search.test.ts` — Orchestrating hook: state transitions, match selection, API integration
 - `apps/web/src/components/SearchBar.test.tsx` — Component rendering, combobox interaction, keyboard navigation
 - `apps/web/src/App.test.tsx` — Integration tests (additions to existing file)
+- `apps/web/worker/index.test.ts` — Worker route matching, CORS headers, caching, error handling
 
-**Test stack:** Vitest + React Testing Library (jsdom), following existing patterns in `FilingPanel.test.tsx` and `App.test.tsx`.
+**Test stack:** Vitest + React Testing Library (jsdom) for client-side tests, following existing patterns in `FilingPanel.test.tsx` and `App.test.tsx`. Worker tests use Vitest with mocked `fetch` and `caches` APIs.
 
 ---
 
@@ -133,7 +136,7 @@ Then the dropdown closes without selecting
 
 ### 2.1 Company Resolver Service (`company-resolver.test.ts`)
 
-Tests the local resolution logic against the bundled `company_tickers.json` data. Uses a small fixture subset (not the full SEC file).
+Tests the local resolution logic against ticker data fetched from the Worker (`/api/tickers`). Uses a small fixture subset (not the full SEC file).
 
 #### Ticker Lookup (O(1) Map)
 
@@ -167,7 +170,7 @@ Tests the local resolution logic against the bundled `company_tickers.json` data
 
 | Test | Scenario | Expected |
 |------|----------|----------|
-| Loads tickers file on first search | Call `resolve("AAPL")` | Fetches `/data/company_tickers.json` once |
+| Loads tickers data on first search | Call `resolve("AAPL")` | Fetches `/api/tickers` once |
 | Caches after first load | Call `resolve` twice | Only one fetch call |
 | Builds ticker Map and CIK Map on load | After load | O(1) lookups work |
 
@@ -183,7 +186,7 @@ Tests the local resolution logic against the bundled `company_tickers.json` data
 
 ### 2.2 SEC Submissions Service (`sec-submissions.test.ts`)
 
-Tests the API call to `/api/sec/submissions/CIK{cik}.json` via the Vite proxy. Uses mocked `fetch`.
+Tests the API call to `/api/sec/submissions/CIK{cik}.json` via the Worker proxy. Uses mocked `fetch`.
 
 | Test | Scenario | Expected |
 |------|----------|----------|
@@ -307,13 +310,61 @@ Replaces the current placeholder tests. SearchBar evolves into a combobox with d
 | Calls `onCompanySelect` on successful resolution | Select match + API succeeds | Callback called with `{ name, cik }` |
 | Calls `onCompanySelect(null)` on clear | Clear input | Callback called with `null` (so App can reset downstream state e.g. filing selectors) |
 
+### 2.6 Cloudflare Worker (`worker/index.test.ts`)
+
+Tests the Worker's route matching, CORS handling, caching, and error propagation. Worker tests mock `globalThis.fetch` (for upstream SEC calls) and `caches.default` (for the Workers Cache API).
+
+#### Route Matching
+
+| Test | Request | Expected |
+|------|---------|----------|
+| Handles ticker data route | `GET /api/tickers` | Returns JSON with tickers data |
+| Handles submissions proxy route | `GET /api/sec/submissions/CIK0000320193.json` | Proxies to `data.sec.gov/submissions/CIK0000320193.json` |
+| Handles CORS preflight | `OPTIONS /api/tickers` | Returns 204 with CORS headers |
+| Returns 404 for unknown API routes | `GET /api/unknown` | Returns 404 |
+| Non-API routes fall through | `GET /` | Returns 404 (assets handled separately) |
+
+#### CORS Headers
+
+| Test | Scenario | Expected |
+|------|----------|----------|
+| Preflight includes Allow-Origin | `OPTIONS` with `Origin: http://localhost:5173` | `Access-Control-Allow-Origin: http://localhost:5173` |
+| Preflight includes Allow-Methods | `OPTIONS` request | `Access-Control-Allow-Methods: GET, OPTIONS` |
+| Preflight includes Allow-Headers | `OPTIONS` request | `Access-Control-Allow-Headers: Content-Type` |
+| Preflight includes Max-Age | `OPTIONS` request | `Access-Control-Max-Age: 86400` |
+| Data responses include Allow-Origin | `GET /api/tickers` | Response has `Access-Control-Allow-Origin` header |
+| Varies by Origin | `GET /api/tickers` with Origin | Response has `Vary: Origin` header |
+| Falls back to wildcard | Request without `Origin` header | `Access-Control-Allow-Origin: *` |
+
+#### Tickers Caching (`/api/tickers`)
+
+| Test | Scenario | Expected |
+|------|----------|----------|
+| Cache miss → fetches from SEC | First request, cache empty | Fetches `https://www.sec.gov/files/company_tickers.json` with `User-Agent` |
+| Cache miss → stores response | First request, cache empty | Calls `cache.put()` with 24h TTL (`max-age=86400`) |
+| Cache hit → returns cached | Subsequent request, cache has entry | Returns cached response, no upstream fetch |
+| Sets Content-Type JSON | Any request | Response has `Content-Type: application/json` |
+| Upstream SEC failure → returns 502 | SEC returns 500 | Returns 502 with `{ error: "Failed to fetch tickers" }` |
+| Upstream SEC timeout → returns 502 | Fetch rejects | Returns 502 error |
+
+#### Submissions Proxy (`/api/sec/submissions/*`)
+
+| Test | Scenario | Expected |
+|------|----------|----------|
+| Proxies to correct SEC URL | `GET /api/sec/submissions/CIK0000320193.json` | Fetches `https://data.sec.gov/submissions/CIK0000320193.json` |
+| Injects User-Agent header | Any submission request | Upstream fetch includes `User-Agent: edgar-diff research@example.com` |
+| Forwards SEC status code | SEC returns 404 | Worker returns 404 |
+| Forwards SEC response body | SEC returns valid JSON | Worker returns same JSON body |
+| Handles SEC 429 (rate limit) | SEC returns 429 | Worker returns 429 |
+| Handles SEC 500 | SEC returns 500 | Worker returns 500 |
+
 ---
 
 ## 3. Integration Tests
 
 ### 3.1 SearchBar Full Flow (mocked fetch at boundary)
 
-Render SearchBar with real hooks wired up; only mock `globalThis.fetch` for the bundled tickers file and SEC API.
+Render SearchBar with real hooks wired up; only mock `globalThis.fetch` for the Worker tickers endpoint (`/api/tickers`) and Worker submissions proxy (`/api/sec/submissions/*`).
 
 | Test | Scenario | Expected |
 |------|----------|----------|
@@ -333,20 +384,22 @@ Additions to verify SearchBar wiring in the app.
 | Search bar is enabled (not disabled) | Render App | Input is interactive |
 | `onCompanySelect` wired to App state | Search + select + resolve | App receives company state |
 
-### 3.3 CORS Proxy (UAT only)
+### 3.3 Worker Integration (UAT only)
 
-The Vite dev proxy (`/api/sec/*` → `data.sec.gov`) cannot be tested in Vitest (jsdom doesn't run Vite). Verify via UAT.
+The Cloudflare Worker runs in `workerd` via `@cloudflare/vite-plugin` and cannot be tested in Vitest (jsdom doesn't run `workerd`). Worker unit tests (section 2.6) cover route matching and logic in isolation. End-to-end Worker verification is done via UAT.
 
 | Check | How |
 |-------|-----|
-| Proxy rewrites `/api/sec/submissions/...` to `data.sec.gov` | UAT: type real ticker, see real company resolve |
-| Proxy forwards User-Agent | UAT: check dev server logs or network tab |
+| Worker routes `/api/tickers` serve ticker data | UAT: type real ticker, dropdown shows matches |
+| Worker proxies `/api/sec/submissions/*` to `data.sec.gov` | UAT: select match, see real company resolve |
+| Worker injects CORS headers | UAT: no CORS errors in console |
+| Worker injects User-Agent | UAT: check network tab for successful SEC responses |
 
 ---
 
 ## 4. End-to-End Scenarios
 
-Full user journeys. In Vitest: integration tests with mocked fetch. In UAT: against the running dev server with real data.
+Full user journeys. In Vitest: integration tests with mocked fetch. In UAT: against the running dev server with Worker (`@cloudflare/vite-plugin`) and real SEC data.
 
 ### E2E-1: Successful ticker search
 
@@ -422,14 +475,15 @@ Full user journeys. In Vitest: integration tests with mocked fetch. In UAT: agai
 
 | Condition | Stage | Trigger | Expected Behavior |
 |-----------|-------|---------|-------------------|
-| Bundled tickers file fails to load | Stage 1 | Fetch `/data/company_tickers.json` fails | Error message: "Unable to load company data" |
+| Worker tickers endpoint fails | Stage 1 | `GET /api/tickers` returns error or Worker 502 | Error message: "Unable to load company data". Falls back to CIK-only mode |
 | No local matches | Stage 1 | Query doesn't match any ticker/name/CIK | Dropdown shows "no matches" — no API call |
-| Network timeout | Stage 2 | SEC API fetch rejects | Error message: "Network error. Please try again." |
+| Network timeout | Stage 2 | Worker proxy fetch rejects | Error message: "Network error. Please try again." |
 | SEC API 404 | Stage 2 | CIK not found in submissions | Error message: "Company not found" |
-| SEC API 429 | Stage 2 | Rate limited by SEC | Error message: "Rate limited. Please wait." |
-| SEC API 500 | Stage 2 | Server error | Error message: "SEC service unavailable." |
+| SEC API 429 | Stage 2 | Rate limited by SEC (forwarded by Worker) | Error message: "Rate limited. Please wait." |
+| SEC API 500 | Stage 2 | Server error (forwarded by Worker) | Error message: "SEC service unavailable." |
+| Worker 502 | Stage 2 | Worker fails to reach upstream SEC | Error message: "SEC data temporarily unavailable. Try again shortly." |
 | Malformed JSON | Stage 2 | Invalid response body | Error message: "Unexpected error" |
-| CORS error | Stage 2 | Proxy misconfigured | Error message: "Network error" (TypeError) |
+| CORS error | Stage 2 | Worker CORS misconfigured | Error message: "Network error" (TypeError) |
 | AbortError | Stage 2 | User starts new search during API call | Silently ignored (not shown as error) |
 
 ---
@@ -450,12 +504,12 @@ Full user journeys. In Vitest: integration tests with mocked fetch. In UAT: agai
 
 ## 8. Test Data & Fixtures
 
-### Mock Bundled Tickers (small fixture subset)
+### Mock Worker Tickers Response (small fixture subset)
 
 ```typescript
 // apps/web/src/test-fixtures/company-search-fixtures.ts
 
-/** Small subset of company_tickers.json for unit/integration tests */
+/** Small subset of /api/tickers response for unit/integration tests */
 export const MOCK_COMPANY_TICKERS = {
   '0': { cik_str: 320193, ticker: 'AAPL', title: 'Apple Inc.', exchange: 'Nasdaq' },
   '1': { cik_str: 789019, ticker: 'MSFT', title: 'Microsoft Corporation', exchange: 'Nasdaq' },
@@ -472,10 +526,10 @@ export const MOCK_COMPANIES = {
 } as const;
 ```
 
-### Mock SEC Submissions API Response
+### Mock SEC Submissions API Response (via Worker proxy)
 
 ```typescript
-// Shape of /api/sec/submissions/CIK0000320193.json
+// Shape of /api/sec/submissions/CIK0000320193.json (Worker proxies to data.sec.gov)
 export const MOCK_AAPL_SUBMISSIONS = {
   cik: '320193',
   entityType: 'operating',
@@ -540,84 +594,31 @@ export function createMockFetch(responses: Record<string, Response | (() => Resp
 
 ## 9. UAT Scenarios (Chrome DevTools MCP)
 
-Visual checks to perform against the running dev server after all automated tests pass.
+Visual and interaction checks performed against the running dev server (with Worker via `@cloudflare/vite-plugin`) after all automated tests pass.
 
-### UAT-1: Search bar appearance and focus
+**Full UAT document:** See [uat.md](uat.md) for the complete 17-step UAT plan with prerequisites, detailed verify steps, reference screenshot placeholders, and pass/fail criteria.
 
-**Action:** Navigate to the app, focus the search bar
-**Verify:**
-- Search bar is visually prominent and spans the full width
-- Input is enabled (not grayed out)
-- Placeholder text is visible and readable
-- Focus ring appears on focus
+**Summary of UAT coverage:**
 
-### UAT-2: Dropdown matches display
-
-**Action:** Type "AAPL" in the search bar, wait for dropdown
-**Verify:**
-- Dropdown appears below the search input
-- Match shows company name and ticker symbol
-- Dropdown is visually contained (no overflow)
-- Matches are selectable (hover highlights)
-
-### UAT-3: Loading state after selection
-
-**Action:** Select a match from the dropdown
-**Verify:**
-- Loading indicator (spinner or text) appears during API call
-- Indicator is visually distinct
-- Dropdown closes after selection
-- Input shows the selected company name or ticker
-
-### UAT-4: Successful result display
-
-**Action:** Wait for SEC API to resolve after selection
-**Verify:**
-- Company name "Apple Inc." is displayed clearly
-- CIK number is displayed alongside the name
-- Result area is visually distinct from the search input
-- No layout shift when result appears
-
-### UAT-5: Error state display
-
-**Action:** Trigger an error (e.g., disconnect network, or search for a CIK that fails on SEC API)
-**Verify:**
-- Error message is visible and readable
-- Error text is clear (not a raw exception)
-- Error styling (e.g., red text) distinguishes it from normal content
-
-### UAT-6: Responsive layout
-
-**Action:** Resize viewport to mobile width (375px)
-**Verify:**
-- Search bar adapts to narrow width
-- Dropdown fits within viewport
-- Result/error text wraps correctly
-- No horizontal overflow
-
-### UAT-7: Keyboard-only flow
-
-**Action:** Tab to search bar, type "MSFT", ArrowDown, Enter
-**Verify:**
-- Focus management works (focus stays on input or moves predictably)
-- Dropdown opens and navigation works without mouse
-- Selected match triggers API call
-
-### UAT-8: Sequential search flow
-
-**Action:** Search "AAPL" → select → see result → clear → search "MSFT" → select → see result
-**Verify:**
-- Previous result clears when input changes
-- New dropdown and result replace old cleanly
-- No visual artifacts from previous search
-
-### UAT-9: Vite proxy verification
-
-**Action:** Search for a real ticker (e.g., "AAPL") and select
-**Verify:**
-- Real company data resolves (name matches real SEC data)
-- No CORS errors in console
-- Network tab shows requests to `/api/sec/...` (not `data.sec.gov` directly)
+| UAT Step | What it covers |
+|----------|----------------|
+| UAT-1 | Search bar default appearance |
+| UAT-2 | Focus state and focus ring |
+| UAT-3 | Dropdown with matches (type "AAPL") |
+| UAT-4 | Dropdown hover interaction |
+| UAT-5 | Keyboard navigation (ArrowDown/Up) |
+| UAT-6 | Loading state after selection |
+| UAT-7 | Successful resolution display (company + CIK) |
+| UAT-8 | No matches empty state |
+| UAT-9 | Error state display |
+| UAT-10 | Sequential search — previous result clears |
+| UAT-11 | Clear input — full reset |
+| UAT-12 | Keyboard-only full flow (Tab, type, ArrowDown, Enter) |
+| UAT-13 | Responsive at 768px |
+| UAT-14 | Responsive at 375px |
+| UAT-15 | Accessibility — ARIA combobox semantics |
+| UAT-16 | No console errors during interaction |
+| UAT-17 | Worker endpoint verification (CORS, routing) |
 
 ---
 
@@ -633,11 +634,13 @@ Visual checks to perform against the running dev server after all automated test
 
 ### Mock Strategy
 
-- **Bundled tickers:** Mock the fetch call to `/data/company_tickers.json` returning `MOCK_COMPANY_TICKERS` fixture
-- **SEC submissions API:** Mock fetch calls to `/api/sec/submissions/CIK*.json` returning `MOCK_*_SUBMISSIONS` fixtures
+- **Worker tickers endpoint:** Mock the fetch call to `/api/tickers` returning `MOCK_COMPANY_TICKERS` fixture
+- **Worker submissions proxy:** Mock fetch calls to `/api/sec/submissions/CIK*.json` returning `MOCK_*_SUBMISSIONS` fixtures
+- **Worker Cache API:** Mock `caches.default` for Worker unit tests (cache hit/miss scenarios)
 - **Timer mocking:** `vi.useFakeTimers()` for debounce delay verification; `vi.advanceTimersByTime(300)` to fire debounce
 - **Module mocking:** `vi.mock()` for `company-resolver` and `sec-submissions` when testing the hook and component in isolation
-- **No real API calls:** All automated tests use mocked responses. Real SEC API calls are verified via UAT only.
+- **No real API calls:** All automated tests use mocked responses. Real SEC API calls via the Worker are verified via UAT only.
+- **Worker tests:** Worker unit tests (section 2.6) mock upstream `fetch` and `caches.default`. They test the Worker handler function directly — no HTTP server or `workerd` needed.
 
 ### Test Isolation
 
@@ -652,12 +655,16 @@ Visual checks to perform against the running dev server after all automated test
 
 | Acceptance Criterion (PRD) | Unit | Integration | E2E/UAT |
 |----------------------------|------|-------------|---------|
-| Search bar accepts free text input | SearchBar component tests | App integration | UAT-1 |
-| Queries SEC submissions API | sec-submissions unit tests | Full-flow integration | UAT-4, UAT-9 |
-| Displays resolved company name and CIK | SearchBar result display tests | App integration | UAT-4 |
-| Shows error if company not found | company-resolver + component tests | Error flow integration | UAT-5 |
-| Handles SEC rate limit (10 req/s) | sec-submissions 429 handling | — | — |
+| Search bar accepts free text input | SearchBar component tests | App integration | UAT-1, UAT-2 |
+| Queries SEC submissions API via Worker | sec-submissions unit tests, Worker unit tests | Full-flow integration | UAT-7, UAT-17 |
+| Displays resolved company name and CIK | SearchBar result display tests | App integration | UAT-7 |
+| Shows error if company not found | company-resolver + component tests | Error flow integration | UAT-9 |
+| Handles SEC rate limit (10 req/s) | sec-submissions 429 handling, Worker 429 forwarding | — | — |
 | Debounces input | use-debounced-value tests | Rapid-type integration | E2E-5 |
-| Bundled ticker resolution (local) | company-resolver tests | Full-flow integration | UAT-2, UAT-9 |
-| Combobox keyboard navigation | SearchBar keyboard tests | Keyboard flow integration | UAT-7 |
+| Worker-served ticker resolution | company-resolver tests, Worker tickers caching tests | Full-flow integration | UAT-3, UAT-17 |
+| Combobox keyboard navigation | SearchBar keyboard tests | Keyboard flow integration | UAT-5, UAT-12 |
 | `onCompanySelect` callback | SearchBar callback tests | App integration | — |
+| Worker CORS handling | Worker CORS header tests | — | UAT-17 |
+| Worker tickers caching (24h TTL) | Worker cache hit/miss tests | — | — |
+| Responsive layout | — | — | UAT-13, UAT-14 |
+| Accessibility (ARIA combobox) | SearchBar ARIA tests | — | UAT-15 |
