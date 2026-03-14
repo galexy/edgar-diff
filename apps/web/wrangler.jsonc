@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "edgar-diff-api",
+  "compatibility_date": "2025-04-01",
+  "main": "./worker/index.ts",
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SEC_USER_AGENT": "edgar-diff research@example.com"
+  }
+}
