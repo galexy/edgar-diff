@@ -79,7 +79,6 @@ export function escapeHtml(text: string): string {
 export function highlightCell(
   cellHtml: string,
   cellDiff: CellDiff,
-  side: Side,
 ): string {
   const classMap: Record<string, string> = {
     added: 'diff-cell-added',
@@ -337,7 +336,7 @@ export function applyHighlightsToSection(
           if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
 
           const cellHtml = sectionHtml.slice(relStart, relEnd);
-          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff, side) });
+          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff) });
         }
       }
     }
