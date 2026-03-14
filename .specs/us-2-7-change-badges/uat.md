@@ -1,6 +1,6 @@
 # US-2.7: Section Change Badges — UAT Results
 
-**Date:** 2026-03-14 (re-run after absolute badge positioning fix)
+**Date:** 2026-03-14 (re-run after badge readability fix)
 **Viewport:** 1280x800 (default), 640x800 (narrow)
 **Browser:** Chrome via DevTools MCP
 **Result:** ALL CHECKS PASS
@@ -23,18 +23,17 @@
 
 ---
 
-## 2. Change Count Badges — Absolute Positioned
+## 2. Change Count Badges — Readability
 
 **Action:** Inspect each section nav button.
 
 **Verify:**
-- Badges are **absolutely positioned** at the top-right of each heading (`absolute -top-1 right-0`)
-- Badges float above the heading text, not in the text flow
-- Heading text truncates via `pr-5` padding reservation, giving badges dedicated space
-- Compact number-only pills (`text-[10px]`, `rounded-full`)
+- Badges are absolutely positioned at the top-right of each heading
+- Badge numbers are **clearly legible** (`text-[11px] font-semibold px-1.5`)
+- Compact number-only pills with `rounded-full`
 - Each modified section shows an amber badge with the change count number
 - Badge has amber styling (`text-amber-700 bg-amber-100`)
-- Badge `aria-label` provides full context (e.g., "2 changes") even though visible text is just the number
+- Badge `aria-label` provides full context (e.g., "2 changes")
 
 **Observed values:**
 | Section | Visible Badge | aria-label |
@@ -85,7 +84,7 @@
 - Badges remain visible on all sections during and after scroll
 - Nav scrolls independently from filing panels
 
-![Nav scrolled to bottom showing remaining sections with absolute-positioned badges](screenshots/03-nav-scrolled-bottom.png)
+![Nav scrolled to bottom showing all sections with legible badges](screenshots/03-nav-scrolled-bottom.png)
 
 **Result:** PASS
 
@@ -98,12 +97,12 @@
 **Verify:**
 - Layout doesn't break
 - Section nav still visible with badges
-- Badges remain at top-right of headings at narrow width
+- Badge numbers remain legible at narrow width
 - No horizontal scrollbar
 - Summary bar still visible
 - All three columns still visible
 
-![Narrow viewport showing absolute-positioned badges](screenshots/02-narrow-viewport-640x800.png)
+![Narrow viewport showing legible badges](screenshots/02-narrow-viewport-640x800.png)
 
 **Result:** PASS
 
@@ -116,7 +115,7 @@
 **Verify:**
 - Diff summary bar has `role="status"` and `aria-label="Diff summary"`
 - Each badge has `aria-label` with full context (e.g., "2 changes", "1 change")
-- Button accessible names combine heading + badge aria-label (e.g., "Item 1. Business 2 changes")
+- Button accessible names combine heading + badge aria-label
 - Navigation landmark is present with `aria-labelledby`
 
 **Observed:** Accessibility tree confirms all ARIA attributes present and correct.
@@ -130,7 +129,7 @@
 | Check | Status |
 |-------|--------|
 | Diff summary bar renders with correct counts | PASS |
-| Absolute-positioned badges at top-right of heading | PASS |
+| Badge numbers clearly legible | PASS |
 | No console errors | PASS |
 | Badges visible after scroll | PASS |
 | Responsive at 640x800 | PASS |
@@ -142,6 +141,6 @@
 
 ## Notes
 
-- All sections in the sample data are `changeType='modified'`, so green ("Added") and red ("Removed") text badges are not visible in this UAT. Those badge types are verified by unit tests (SN-U14, SN-U15, SN-U18, SN-U19, SN-U28, SN-U29) and will appear when real diff data includes added/removed sections.
-- The diff summary bar only shows "23 modified" because all sample sections have the same changeType. The zero-count category suppression is verified by unit test SN-U45.
-- Badge layout evolved through PR feedback: block (below heading) → inline flex → superscript → absolute positioned (`absolute -top-1 right-0` inside `relative block truncate pr-5`).
+- All sections in the sample data are `changeType='modified'`, so green ("Added") and red ("Removed") text badges are not visible in this UAT. Those badge types are verified by unit tests (SN-U14, SN-U15, SN-U18, SN-U19, SN-U28, SN-U29).
+- The diff summary bar only shows "23 modified" because all sample sections have the same changeType. Zero-count suppression is verified by unit test SN-U45.
+- Badge style evolved through PR feedback: block → inline flex → superscript → absolute positioned → readability fix (`text-[11px] font-semibold px-1.5`).
