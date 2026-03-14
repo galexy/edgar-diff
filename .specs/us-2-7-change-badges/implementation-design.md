@@ -209,19 +209,11 @@ Pass to SectionNav:
 />
 ```
 
-### 3. Tests
+### 3. `apps/web/src/components/SectionNav.test.tsx` (Coder-owned, TDD)
 
-**See [test-plan.md](./test-plan.md) for the full test matrix** — it is the single source of truth for test IDs, fixtures, and expected behavior.
+**Test ownership:** The coder writes all unit tests below during TDD. Integration tests and UAT are owned by the tester — see [test-plan.md](./test-plan.md) for those.
 
-#### Test ownership
-
-| Owner | Tests | Scope |
-|---|---|---|
-| **Coder** (TDD) | SN-U24–U52, CC-U1–U9 | Unit tests for SectionNav badges, DiffSummary bar, and `countChanges()` helper |
-| **Tester** | DS-I1–I2, E2E-I1–I2 | Integration tests for App-level data flow and summary computation |
-| **Tester** | UAT (uat.md) | Visual validation via Chrome DevTools MCP |
-
-#### Key fixture changes (coder implements)
+#### a) Update fixture helpers
 
 Update `makeSectionNavItem` to accept `changeCount` with default `0`:
 
@@ -237,6 +229,65 @@ function makeSectionNavItem(
 ```
 
 Existing fixtures (`standardSections`, `mixedChangeTypes`) continue to work unchanged since `changeCount` defaults to `0`.
+
+#### b) Change count badges (section 2.6)
+
+| Test ID | Description |
+|---|---|
+| SN-U24 | Modified section with changeCount=5 renders amber badge with "5 changes" |
+| SN-U25 | Modified section with changeCount=1 renders "1 change" (singular) |
+| SN-U26 | Modified section with changeCount=0 renders no badge |
+| SN-U27 | Unchanged section renders no badge regardless of changeCount |
+| SN-U28 | Added section renders "Added" text badge (ignores changeCount) |
+| SN-U29 | Removed section renders "Removed" text badge (ignores changeCount) |
+| SN-U30 | Amber badge has correct styling classes (`text-amber-700 bg-amber-100`) |
+
+#### c) Badge colors and changeTypes (section 2.7)
+
+| Test ID | Description |
+|---|---|
+| SN-U31 | Reordered section with changeCount > 0 renders amber badge |
+| SN-U32 | Moved section with changeCount > 0 renders amber badge |
+| SN-U33 | Badge is rendered inside the section button element |
+| SN-U34 | Each section renders its own badge with its own count independently |
+
+#### d) Badge interaction with existing features (section 2.8)
+
+| Test ID | Description |
+|---|---|
+| SN-U35 | Active section with a badge still shows active styling (bg-blue-100) |
+| SN-U36 | Section with badge still triggers onSectionClick with correct id |
+| SN-U37 | Long heading with badge: heading text still has truncate class |
+
+#### e) Badge accessibility (section 2.9)
+
+| Test ID | Description |
+|---|---|
+| SN-U38 | Modified badge has aria-label "5 changes" |
+| SN-U39 | Added badge has aria-label "Section added" |
+| SN-U40 | Removed badge has aria-label "Section removed" |
+
+#### f) Backward compatibility (section 2.10)
+
+| Test ID | Description |
+|---|---|
+| SN-U41 | Section with changeCount=0 (default) renders no badge |
+| SN-U42 | Existing test fixtures with default changeCount=0 continue to pass |
+
+#### g) Diff summary bar (section 2.11)
+
+| Test ID | Description |
+|---|---|
+| SN-U43 | DiffSummary bar renders when `diffSummary` prop is provided |
+| SN-U44 | DiffSummary bar is NOT rendered when `diffSummary` prop is omitted |
+| SN-U45 | DiffSummary bar omits zero-count categories |
+| SN-U46 | DiffSummary bar shows correct counts with labels |
+| SN-U47 | DiffSummary bar has `role="status"` and `aria-label="Diff summary"` |
+| SN-U48 | DiffSummary bar renders between heading and section list in DOM order |
+| SN-U49 | Modified count in summary bar has amber styling |
+| SN-U50 | Added count in summary bar has green styling |
+| SN-U51 | Removed count in summary bar has red styling |
+| SN-U52 | Unchanged count in summary bar has gray styling |
 
 ### 4. `apps/web/src/fixtures/sample-diff.ts`
 
