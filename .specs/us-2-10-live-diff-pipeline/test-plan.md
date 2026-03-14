@@ -212,24 +212,29 @@ File: `apps/web/src/hooks/useDiffPipeline.test.ts`
 | DP-U12 | `fetchFiling` throws `EdgarNetworkError(404, acc)` → `error` contains "Filing not available" | 404 mapping (AC-3) |
 | DP-U13 | `fetchFiling` throws `EdgarNetworkError(429, acc, retryAfter)` → `error` contains "rate limit" | 429 mapping |
 | DP-U14 | `fetchFiling` throws generic `TypeError('Failed to fetch')` → `error` is generic fallback | Network error |
-| DP-U15 | `parseFiling` throws → status `'error'`, `error` contains "parse" | Parse error (AC-4) |
-| DP-U16 | `diffFilings` throws → status `'error'`, `error` is a user-friendly fallback | Diff error (AC-5) |
+| DP-U15 | `parseFiling` throws → status `'error'`, `error` is `'Unable to parse filing'` | Parse error — hardcoded by per-stage try/catch (AC-4) |
+| DP-U16 | `diffFilings` throws → status `'error'`, `error` is `'Unable to compute diff'` | Diff error — hardcoded by per-stage try/catch (AC-5) |
 | DP-U17 | Error state has `oldDocument: null`, `newDocument: null`, `diff: null` | Clean error state |
 | DP-U18 | After error, selecting new valid filings → pipeline restarts and succeeds | Error recovery |
 
-### 2.4 `classifyError` Unit Tests
+### 2.4 `classifyFetchError` Unit Tests
 
-Tested as a pure function (exported or tested via hook behavior).
+Exported pure function that only handles fetch-layer errors. Parse and diff errors are handled by per-stage try/catch blocks in the hook itself (hardcoded messages), so `classifyFetchError` is never called for those stages.
 
 | ID | Test | Rationale |
 |----|------|-----------|
-| CE-U1 | `EdgarNetworkError(404)` → message contains "not available" | 404 classification via `instanceof` + `statusCode` |
-| CE-U2 | `EdgarNetworkError(429)` → message contains "rate limit" | 429 classification via `instanceof` + `statusCode` |
-| CE-U3 | `EdgarNetworkError(500)` → message is a generic SEC error fallback | 500 classification |
-| CE-U4 | Generic `Error('something unrelated')` → generic fallback message | Catch-all |
+| CE-U1 | `EdgarNetworkError(404, acc)` → `'Filing not available. It may have been removed from EDGAR.'` | 404 via `instanceof` + `statusCode` |
+| CE-U2 | `EdgarNetworkError(429, acc, retryAfter)` → `'SEC rate limit reached. Please wait a moment and try again.'` | 429 via `instanceof` + `statusCode` |
+| CE-U3 | `EdgarNetworkError(500, acc)` → generic SEC error fallback | 500 via `instanceof` + `statusCode` |
+| CE-U4 | Generic `Error('something unrelated')` → generic fallback message | Catch-all for non-EDGAR errors |
 | CE-U5 | Non-Error thrown (string, undefined) → `'An unexpected error occurred'` | Non-Error safety |
 
-**Note on classification strategy:** We recommend using `instanceof EdgarNetworkError` with `statusCode` checks rather than string matching on `err.message`. String matching is fragile (e.g., a fetch error message containing "parse" would be misclassified as a parse error). For distinguishing parse vs diff stage errors, wrap each stage in its own try/catch to capture the stage unambiguously rather than trying to infer it from the error message.
+**Error handling strategy:** Each pipeline stage wraps its own try/catch:
+- **Fetch stage**: catches errors and passes to `classifyFetchError(err)` for status-code-based classification
+- **Parse stage**: catches errors and returns hardcoded `'Unable to parse filing'`
+- **Diff stage**: catches errors and returns hardcoded `'Unable to compute diff'`
+
+This eliminates fragile string matching entirely. The stage is always known unambiguously from the try/catch scope.
 
 ### 2.5 Caching
 
@@ -592,8 +597,8 @@ File: `apps/web/worker/index.test.ts` (extends existing)
 | EC-2 | `EdgarNetworkError(429, acc, retryAfter)` from EDGAR | `'SEC rate limit reached. Please wait a moment and try again.'` | Rate limiting |
 | EC-3 | `EdgarNetworkError(500, acc)` from EDGAR | Generic SEC error fallback | Server error |
 | EC-4 | `TypeError('Failed to fetch')` (network failure) | Generic fallback | Offline / connectivity |
-| EC-5 | `parseFiling` throws | `'Unable to parse this filing.'` (caught by per-stage try/catch) | Malformed HTML |
-| EC-6 | `diffFilings` throws | `'Unable to compute diff.'` (caught by per-stage try/catch) | Diff engine error |
+| EC-5 | `parseFiling` throws | `'Unable to parse filing'` (hardcoded in parse-stage try/catch) | Malformed HTML |
+| EC-6 | `diffFilings` throws | `'Unable to compute diff'` (hardcoded in diff-stage try/catch) | Diff engine error |
 | EC-7 | One filing fetch succeeds, other fails (`Promise.all` rejects) | Error from failed fetch | Partial failure |
 | EC-8 | `AbortError` / `DOMException('AbortError')` from cancelled fetch | Silently ignored — no state update | Abort is not an error |
 | EC-9 | Non-Error thrown (string, undefined) | `'An unexpected error occurred'` | Safety fallback |
@@ -723,7 +728,7 @@ All tests run via: `NX_OUTPUT_STYLE=stream pnpm nx run web:test`
 
 - Hook state machine transitions (`idle` → `fetching` → `parsing` → `diffing` → `done`)
 - Error state transitions with user-friendly string messages
-- `classifyError` logic (via `instanceof EdgarNetworkError` + `statusCode`)
+- `classifyFetchError` logic (via `instanceof EdgarNetworkError` + `statusCode`)
 - Mock function call sequences and arguments
 - 3-tier cache hit detection (filing, document, diff — with ordered keys)
 - Abort behavior (stale results ignored, AbortError swallowed)
