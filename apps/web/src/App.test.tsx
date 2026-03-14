@@ -9,17 +9,14 @@ type IntersectionCallback = (entries: IntersectionObserverEntry[]) => void;
 let mockIOCallback: IntersectionCallback;
 let mockIOObserve: ReturnType<typeof vi.fn>;
 let mockIODisconnect: ReturnType<typeof vi.fn>;
-let mockIOConstructed: boolean;
 
 beforeEach(() => {
-  mockIOConstructed = false;
   mockIOObserve = vi.fn();
   mockIODisconnect = vi.fn();
 
   class MockIntersectionObserver {
     constructor(callback: IntersectionCallback) {
       mockIOCallback = callback;
-      mockIOConstructed = true;
     }
     observe = mockIOObserve;
     unobserve = vi.fn();
