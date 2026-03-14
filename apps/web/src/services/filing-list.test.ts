@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mockResponse } from '../test-fixtures/company-search-fixtures';
+import { createLargeFilingsSubmissions } from '../test-fixtures/filing-list-fixtures';
 import { fetchFilingList, SUPPORTED_FORM_TYPES } from './filing-list';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -197,5 +198,64 @@ describe('fetchFilingList', () => {
     await expect(fetchFilingList('320193')).rejects.toThrow(
       /unable to load filings/i,
     );
+  });
+
+  it('throws specific message on 404 response', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse(404));
+
+    await expect(fetchFilingList('320193')).rejects.toThrow(
+      'Company not found. Check the CIK and try again.',
+    );
+  });
+
+  it('throws specific message on 429 response', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse(429));
+
+    await expect(fetchFilingList('320193')).rejects.toThrow(
+      'SEC rate limit reached. Please wait a moment and try again.',
+    );
+  });
+
+  it('throws on malformed JSON response', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response('not json', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    );
+
+    await expect(fetchFilingList('320193')).rejects.toThrow(
+      'Unexpected response from SEC. Try again shortly.',
+    );
+  });
+
+  it('handles large input (50+ filings)', async () => {
+    const largeSubmissions = createLargeFilingsSubmissions(60);
+    vi.mocked(fetch).mockResolvedValue(mockResponse(200, largeSubmissions));
+
+    const filings = await fetchFilingList('555555');
+
+    // All 60 filings are supported types (10-K and 10-Q)
+    expect(filings.length).toBe(60);
+    // Should be sorted by date descending
+    for (let i = 1; i < filings.length; i++) {
+      expect(filings[i - 1].filingDate >= filings[i].filingDate).toBe(true);
+    }
+  });
+
+  it('preserves stable order for filings with same date', async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      submissionsResponse({
+        accessionNumber: ['first', 'second'],
+        filingDate: ['2023-11-03', '2023-11-03'],
+        form: ['10-K', '10-Q'],
+      }),
+    );
+
+    const filings = await fetchFilingList('320193');
+
+    expect(filings).toHaveLength(2);
+    expect(filings[0].accessionNumber).toBe('first');
+    expect(filings[1].accessionNumber).toBe('second');
   });
 });

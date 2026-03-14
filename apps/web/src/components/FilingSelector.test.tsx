@@ -132,4 +132,22 @@ describe('FilingSelector', () => {
     );
     expect(screen.getByRole('combobox')).toHaveValue('acc-002');
   });
+
+  it('renders options in the same order as the input array', () => {
+    render(
+      <FilingSelector
+        filings={SAMPLE_FILINGS}
+        selectedAccession={null}
+        onSelect={vi.fn()}
+        aria-label="Select Filing A"
+      />,
+    );
+    const options = screen.getByRole('combobox').querySelectorAll('option');
+    // First option is placeholder
+    expect(options[0]).toHaveTextContent('Select a filing...');
+    // Remaining options match array order (service pre-sorts by date desc)
+    expect(options[1]).toHaveTextContent('10-K | 2023-11-03');
+    expect(options[2]).toHaveTextContent('10-Q | 2023-08-04');
+    expect(options[3]).toHaveTextContent('10-K/A | 2023-05-05');
+  });
 });

@@ -151,4 +151,34 @@ describe('useFilingList', () => {
       expect.any(AbortSignal),
     );
   });
+
+  it('unmount during fetch does not cause state-update warnings', async () => {
+    // Create a promise we control so the fetch is still in-flight at unmount
+    let resolveFetch: (value: AvailableFiling[]) => void;
+    const pendingFetch = new Promise<AvailableFiling[]>((resolve) => {
+      resolveFetch = resolve;
+    });
+    mockFetchFilingList.mockReturnValue(pendingFetch);
+
+    const consoleSpy = vi.spyOn(console, 'error');
+
+    const { unmount } = renderHook(() => useFilingList(AAPL));
+
+    // Unmount while fetch is still in-flight
+    unmount();
+
+    // Resolve the fetch after unmount — should not trigger state update warning
+    resolveFetch!(SAMPLE_FILINGS);
+
+    // Wait a tick for the promise resolution to propagate
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 0));
+    });
+
+    // No "Can't perform a React state update on an unmounted component" warnings
+    const stateUpdateWarnings = consoleSpy.mock.calls.filter(
+      (call) => typeof call[0] === 'string' && call[0].includes('unmounted'),
+    );
+    expect(stateUpdateWarnings).toHaveLength(0);
+  });
 });

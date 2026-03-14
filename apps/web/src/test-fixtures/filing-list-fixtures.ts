@@ -97,7 +97,7 @@ export const MOCK_EMPTY_FILINGS_SUBMISSIONS = {
 };
 
 /** Large set of filings (50+) for scroll/performance testing */
-export function createLargeFilingsSubmissions(count: number = 50) {
+export function createLargeFilingsSubmissions(count = 50) {
   const accessionNumber: string[] = [];
   const filingDate: string[] = [];
   const form: string[] = [];
