@@ -219,13 +219,17 @@ Orchestrating hook. Mock both `company-resolver` and `sec-submissions` modules.
 | Test | Action | Expected State |
 |------|--------|----------------|
 | Initial state | Hook renders | `{ query: '', matches: [], selectedCompany: null, error: null, status: 'idle' }` |
-| Typing populates matches | `setQuery("AAPL")` + advance debounce | `{ matches: [{...Apple}], status: 'idle' }` |
+| Short query stays idle | `setQuery("A")` + advance debounce | `{ matches: [], status: 'idle' }` (query < 2 chars) |
+| Typing populates matches | `setQuery("AAPL")` + advance debounce | `{ matches: [{...Apple}], status: 'searching' }` (local search) |
+| Local search completes | Matches resolved | `{ matches: [{...Apple}], status: 'idle' }` |
 | No matches found | `setQuery("XYZFAKE")` + advance debounce | `{ matches: [], status: 'idle' }` |
-| Select match triggers loading | `selectMatch(appleMatch)` | `{ status: 'loading' }` |
+| Select match triggers API loading | `selectMatch(appleMatch)` | `{ status: 'searching' }` (API in-flight) |
 | Successful API resolution | API resolves | `{ selectedCompany: { name: "Apple Inc.", cik: "..." }, status: 'resolved', error: null }` |
 | Failed API resolution | API rejects | `{ selectedCompany: null, status: 'error', error: "..." }` |
 | Clear resets all state | `clear()` | Back to initial state |
 | New query clears selected company | `setQuery("MSFT")` after resolved | `{ selectedCompany: null, status: 'idle' }` |
+
+> **Note:** `status: 'searching'` covers both local match search and API confirmation. Both stages use the same status value for simplicity.
 
 #### Concurrency & Cleanup
 
@@ -255,7 +259,7 @@ Replaces the current placeholder tests. SearchBar evolves into a combobox with d
 |------|--------|----------|
 | Dropdown hidden initially | Render | No listbox visible |
 | Dropdown appears with matches | Type "AAPL" + debounce | Listbox with options visible |
-| Dropdown shows match details | Matches present | Each option shows company name and ticker |
+| Dropdown shows match details | Matches present | Each option shows ticker, company name, and exchange (e.g., "AAPL — Apple Inc. (Nasdaq)") |
 | Dropdown closes on selection | Click option | Listbox hidden |
 | Dropdown closes on Escape | Press Escape | Listbox hidden |
 | Dropdown shows "no matches" | Type "XYZFAKE" + debounce | Empty state or "no matches" text |
@@ -301,7 +305,7 @@ Replaces the current placeholder tests. SearchBar evolves into a combobox with d
 | Test | Action | Expected |
 |------|--------|----------|
 | Calls `onCompanySelect` on successful resolution | Select match + API succeeds | Callback called with `{ name, cik }` |
-| Calls `onCompanySelect(null)` on clear | Clear input | Callback called with `null` |
+| Calls `onCompanySelect(null)` on clear | Clear input | Callback called with `null` (so App can reset downstream state e.g. filing selectors) |
 
 ---
 
@@ -453,11 +457,11 @@ Full user journeys. In Vitest: integration tests with mocked fetch. In UAT: agai
 
 /** Small subset of company_tickers.json for unit/integration tests */
 export const MOCK_COMPANY_TICKERS = {
-  '0': { cik_str: 320193, ticker: 'AAPL', title: 'Apple Inc.' },
-  '1': { cik_str: 789019, ticker: 'MSFT', title: 'Microsoft Corporation' },
-  '2': { cik_str: 1652044, ticker: 'GOOGL', title: 'Alphabet Inc.' },
-  '3': { cik_str: 1652044, ticker: 'GOOG', title: 'Alphabet Inc.' },
-  '4': { cik_str: 1318605, ticker: 'TSLA', title: 'Tesla, Inc.' },
+  '0': { cik_str: 320193, ticker: 'AAPL', title: 'Apple Inc.', exchange: 'Nasdaq' },
+  '1': { cik_str: 789019, ticker: 'MSFT', title: 'Microsoft Corporation', exchange: 'Nasdaq' },
+  '2': { cik_str: 1652044, ticker: 'GOOGL', title: 'Alphabet Inc.', exchange: 'Nasdaq' },
+  '3': { cik_str: 1652044, ticker: 'GOOG', title: 'Alphabet Inc.', exchange: 'Nasdaq' },
+  '4': { cik_str: 1318605, ticker: 'TSLA', title: 'Tesla, Inc.', exchange: 'Nasdaq' },
 };
 
 export const MOCK_COMPANIES = {
