@@ -1517,9 +1517,10 @@ describe('FilingContent', () => {
           <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
         );
         const cell = container.querySelector('td');
-        expect(cell?.className).toContain('diff-cell-modified');
-        expect(cell?.querySelector('del.diff-removed')?.textContent).toBe('$1,000');
-        expect(cell?.querySelector('ins.diff-added')?.textContent).toBe('$1,234');
+        expect(cell?.className).toContain('diff-cell-added');
+        expect(cell?.textContent).toBe('$1,234');
+        expect(cell?.querySelector('del')).toBeNull();
+        expect(cell?.querySelector('ins')).toBeNull();
       });
 
       it('TFC-I4: added cell on new side has diff-cell-added class', () => {
@@ -1634,7 +1635,7 @@ describe('FilingContent', () => {
           <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
         );
 
-        expect(container.querySelectorAll('td.diff-cell-modified')).toHaveLength(1);
+        expect(container.querySelectorAll('td.diff-cell-added')).toHaveLength(1);
         // Cell B should not have any diff class
         const allTds = container.querySelectorAll('td');
         const cellB = Array.from(allTds).find((el) => el.textContent === 'B');
@@ -1841,7 +1842,7 @@ describe('FilingContent', () => {
         expect(container.querySelectorAll('[class*="diff-"]')).toHaveLength(0);
       });
 
-      it('TFC-I13: modified cell shows old→new annotation on both sides', () => {
+      it('TFC-I13: modified cell gets red on old side, green on new side, content preserved', () => {
         const html = '<h2>Item 1</h2><table><tr><td>Val</td></tr></table>';
         const tdStart = html.indexOf('<td>');
         const tdEnd = html.indexOf('</td>') + 5;
@@ -1871,23 +1872,23 @@ describe('FilingContent', () => {
         );
         const sd = makeSectionDiffWithTables('item-1', 'Item 1', [], [td]);
 
-        // Old side shows annotation
+        // Old side: red (diff-cell-removed), original content preserved
         const { container: oldC } = render(
           <FilingContent document={doc} sectionDiffs={[sd]} side="old" />,
         );
-        const oldCell = oldC.querySelector('td.diff-cell-modified');
+        const oldCell = oldC.querySelector('td.diff-cell-removed');
         expect(oldCell).not.toBeNull();
-        expect(oldCell?.querySelector('del')).not.toBeNull();
-        expect(oldCell?.querySelector('ins')).not.toBeNull();
+        expect(oldCell?.textContent).toBe('Val');
+        expect(oldCell?.querySelector('del')).toBeNull();
 
-        // New side also shows annotation
+        // New side: green (diff-cell-added), original content preserved
         const { container: newC } = render(
           <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
         );
-        const newCell = newC.querySelector('td.diff-cell-modified');
+        const newCell = newC.querySelector('td.diff-cell-added');
         expect(newCell).not.toBeNull();
-        expect(newCell?.querySelector('del')).not.toBeNull();
-        expect(newCell?.querySelector('ins')).not.toBeNull();
+        expect(newCell?.textContent).toBe('Val');
+        expect(newCell?.querySelector('ins')).toBeNull();
       });
     });
 
@@ -2285,20 +2286,20 @@ describe('FilingContent', () => {
           )],
         );
 
-        // Old side: p1 removed, table modified, p2 not shown
+        // Old side: p1 removed, table modified cell gets red, p2 not shown
         const { container: oldC } = render(
           <FilingContent document={doc} sectionDiffs={[sd]} side="old" />,
         );
         expect(oldC.querySelector('del.diff-paragraph-removed')).not.toBeNull();
-        expect(oldC.querySelector('td.diff-cell-modified')).not.toBeNull();
+        expect(oldC.querySelector('td.diff-cell-removed')).not.toBeNull();
         expect(oldC.querySelectorAll('ins.diff-paragraph-added')).toHaveLength(0);
 
-        // New side: p2 added, table modified, p1 not shown
+        // New side: p2 added, table modified cell gets green, p1 not shown
         const { container: newC } = render(
           <FilingContent document={doc} sectionDiffs={[sd]} side="new" />,
         );
         expect(newC.querySelector('ins.diff-paragraph-added')).not.toBeNull();
-        expect(newC.querySelector('td.diff-cell-modified')).not.toBeNull();
+        expect(newC.querySelector('td.diff-cell-added')).not.toBeNull();
         expect(newC.querySelectorAll('del.diff-paragraph-removed')).toHaveLength(0);
       });
     });

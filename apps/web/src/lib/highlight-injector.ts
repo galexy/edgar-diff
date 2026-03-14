@@ -73,49 +73,34 @@ export function escapeHtml(text: string): string {
 }
 
 /**
- * Highlight a single table cell: inject CSS class and optionally replace
- * inner content with old→new annotation for modified cells.
+ * Highlight a single table cell: inject CSS class based on change type and side.
+ * Original cell content is always preserved — only the class is injected.
+ * Modified cells use side-specific classes: red (old) or green (new).
  */
 export function highlightCell(
   cellHtml: string,
   cellDiff: CellDiff,
+  side: Side,
 ): string {
-  const classMap: Record<string, string> = {
-    added: 'diff-cell-added',
-    removed: 'diff-cell-removed',
-    modified: 'diff-cell-modified',
-  };
+  let cssClass: string;
+  if (cellDiff.changeType === 'added') {
+    cssClass = 'diff-cell-added';
+  } else if (cellDiff.changeType === 'removed') {
+    cssClass = 'diff-cell-removed';
+  } else if (cellDiff.changeType === 'modified') {
+    cssClass = side === 'old' ? 'diff-cell-removed' : 'diff-cell-added';
+  } else {
+    return cellHtml; // unchanged or unknown
+  }
 
-  const cssClass = classMap[cellDiff.changeType];
-  if (!cssClass) return cellHtml; // unchanged or unknown
-
-  // Find end of opening tag
+  // Find the opening tag to inject the class
   const openTagEnd = cellHtml.indexOf('>');
   if (openTagEnd === -1) return cellHtml;
 
-  // Find closing tag from END of string
-  const closingMatch = cellHtml.match(/<\/(td|th)>\s*$/i);
-  if (!closingMatch) return cellHtml;
-
-  const closingStart = cellHtml.lastIndexOf(closingMatch[0]);
   const openingTag = cellHtml.slice(0, openTagEnd + 1);
-  const innerContent = cellHtml.slice(openTagEnd + 1, closingStart);
-  const closingTag = cellHtml.slice(closingStart);
+  const rest = cellHtml.slice(openTagEnd + 1);
 
-  const modifiedOpeningTag = injectClass(openingTag, cssClass);
-
-  if (cellDiff.changeType === 'modified') {
-    const oldVal = escapeHtml(cellDiff.oldValue ?? '');
-    const newVal = escapeHtml(cellDiff.newValue ?? '');
-    const annotation =
-      `<del class="diff-removed">${oldVal}</del>` +
-      ` <span class="diff-arrow">\u2192</span> ` +
-      `<ins class="diff-added">${newVal}</ins>`;
-    return modifiedOpeningTag + annotation + closingTag;
-  }
-
-  // added/removed: keep original inner content
-  return modifiedOpeningTag + innerContent + closingTag;
+  return injectClass(openingTag, cssClass) + rest;
 }
 
 // ─── DOM walking helpers ─────────────────────────────────────────
@@ -336,7 +321,7 @@ export function applyHighlightsToSection(
           if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
 
           const cellHtml = sectionHtml.slice(relStart, relEnd);
-          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff) });
+          replacements.push({ relStart, relEnd, html: highlightCell(cellHtml, cellDiff, side) });
         }
       }
     }
