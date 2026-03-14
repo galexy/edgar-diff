@@ -1,6 +1,7 @@
-interface Env {
-  SEC_USER_AGENT: string;
-}
+import type { Env } from './types';
+import { addCorsHeaders, handleOptions } from './cors';
+import { handleEftsProxy } from './handle-efts-proxy';
+import { handleArchivesProxy } from './handle-archives-proxy';
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -24,23 +25,22 @@ export default {
       return handleSubmissionsProxy(request, env, url);
     }
 
+    // Route: SEC EFTS proxy
+    if (url.pathname.startsWith('/api/sec/efts/')) {
+      console.log(`[Worker] GET ${url.pathname}`);
+      return handleEftsProxy(request, env, url);
+    }
+
+    // Route: SEC Archives proxy
+    if (url.pathname.startsWith('/api/sec/archives/')) {
+      console.log(`[Worker] GET ${url.pathname}`);
+      return handleArchivesProxy(request, env, url);
+    }
+
     // Not an API route — let assets/SPA handle it
     return new Response(null, { status: 404 });
   },
 } satisfies ExportedHandler<Env>;
-
-function handleOptions(request: Request): Response {
-  const origin = request.headers.get('Origin') ?? '*';
-  return new Response(null, {
-    status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': origin,
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400',
-    },
-  });
-}
 
 async function handleTickers(request: Request, env: Env): Promise<Response> {
   const cache = caches.default;
@@ -122,12 +122,4 @@ async function handleSubmissionsProxy(
     }),
     request,
   );
-}
-
-function addCorsHeaders(response: Response, request: Request): Response {
-  const origin = request.headers.get('Origin') ?? '*';
-  const newResponse = new Response(response.body, response);
-  newResponse.headers.set('Access-Control-Allow-Origin', origin);
-  newResponse.headers.set('Vary', 'Origin');
-  return newResponse;
 }
