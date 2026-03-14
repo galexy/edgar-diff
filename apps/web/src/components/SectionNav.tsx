@@ -36,6 +36,30 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
         >
           Sections
         </h2>
+        {diffSummary && (diffSummary.added + diffSummary.removed + diffSummary.modified + diffSummary.unchanged > 0) && (
+          <div className="mb-3 flex flex-wrap gap-2 text-xs" role="status" aria-label="Diff summary">
+            {diffSummary.modified > 0 && (
+              <span className="text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                {diffSummary.modified} modified
+              </span>
+            )}
+            {diffSummary.added > 0 && (
+              <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
+                {diffSummary.added} added
+              </span>
+            )}
+            {diffSummary.removed > 0 && (
+              <span className="text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                {diffSummary.removed} removed
+              </span>
+            )}
+            {diffSummary.unchanged > 0 && (
+              <span className="text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                {diffSummary.unchanged} unchanged
+              </span>
+            )}
+          </div>
+        )}
         {sections.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No sections</p>
         ) : (

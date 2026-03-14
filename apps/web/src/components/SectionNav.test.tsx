@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { SectionNav } from './SectionNav';
-import type { SectionNavItem } from './SectionNav';
+import type { SectionNavItem, DiffSummaryData } from './SectionNav';
 import type { ChangeType } from '@edgar-diff/lib';
 
 // --- Fixture helpers ---
@@ -412,5 +412,96 @@ describe('SectionNav', () => {
     expect(buttons).toHaveLength(standardSections.length);
     // No badges should appear since all have changeCount=0
     expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+  });
+
+  // 2.11 Diff summary bar
+
+  // SN-U43: DiffSummary bar renders when diffSummary prop is provided
+  it('DiffSummary bar renders when diffSummary prop is provided', () => {
+    const summary: DiffSummaryData = { added: 2, removed: 1, modified: 3, unchanged: 4 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    expect(screen.getByRole('status')).toBeInTheDocument();
+  });
+
+  // SN-U44: DiffSummary bar is NOT rendered when diffSummary prop is omitted
+  it('DiffSummary bar is NOT rendered when diffSummary prop is omitted', () => {
+    render(<SectionNav sections={standardSections} />);
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  // SN-U45: DiffSummary bar omits zero-count categories
+  it('DiffSummary bar omits zero-count categories', () => {
+    const summary: DiffSummaryData = { added: 0, removed: 0, modified: 3, unchanged: 2 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    expect(screen.getByText('3 modified')).toBeInTheDocument();
+    expect(screen.getByText('2 unchanged')).toBeInTheDocument();
+    expect(screen.queryByText(/added/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/removed/i)).not.toBeInTheDocument();
+  });
+
+  // SN-U46: DiffSummary bar shows correct counts with labels
+  it('DiffSummary bar shows correct counts with labels', () => {
+    const summary: DiffSummaryData = { added: 2, removed: 1, modified: 3, unchanged: 4 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    expect(screen.getByText('3 modified')).toBeInTheDocument();
+    expect(screen.getByText('2 added')).toBeInTheDocument();
+    expect(screen.getByText('1 removed')).toBeInTheDocument();
+    expect(screen.getByText('4 unchanged')).toBeInTheDocument();
+  });
+
+  // SN-U47: DiffSummary bar has role="status" and aria-label="Diff summary"
+  it('DiffSummary bar has role="status" and aria-label="Diff summary"', () => {
+    const summary: DiffSummaryData = { added: 1, removed: 0, modified: 2, unchanged: 0 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const bar = screen.getByRole('status');
+    expect(bar).toHaveAttribute('aria-label', 'Diff summary');
+  });
+
+  // SN-U48: DiffSummary bar renders between heading and section list in DOM order
+  it('DiffSummary bar renders between heading and section list in DOM order', () => {
+    const summary: DiffSummaryData = { added: 1, removed: 0, modified: 2, unchanged: 0 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const heading = screen.getByText('Sections');
+    const summaryBar = screen.getByRole('status');
+    const firstButton = screen.getAllByRole('button')[0];
+    // Summary bar should come after heading and before the first button in DOM order
+    expect(heading.compareDocumentPosition(summaryBar)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(summaryBar.compareDocumentPosition(firstButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
+
+  // SN-U49: Modified count in summary bar has amber styling
+  it('modified count in summary bar has amber styling', () => {
+    const summary: DiffSummaryData = { added: 0, removed: 0, modified: 3, unchanged: 0 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const modifiedBadge = screen.getByText('3 modified');
+    expect(modifiedBadge.className).toContain('text-amber-700');
+    expect(modifiedBadge.className).toContain('bg-amber-100');
+  });
+
+  // SN-U50: Added count in summary bar has green styling
+  it('added count in summary bar has green styling', () => {
+    const summary: DiffSummaryData = { added: 2, removed: 0, modified: 0, unchanged: 0 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const addedBadge = screen.getByText('2 added');
+    expect(addedBadge.className).toContain('text-green-700');
+    expect(addedBadge.className).toContain('bg-green-100');
+  });
+
+  // SN-U51: Removed count in summary bar has red styling
+  it('removed count in summary bar has red styling', () => {
+    const summary: DiffSummaryData = { added: 0, removed: 1, modified: 0, unchanged: 0 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const removedBadge = screen.getByText('1 removed');
+    expect(removedBadge.className).toContain('text-red-700');
+    expect(removedBadge.className).toContain('bg-red-100');
+  });
+
+  // SN-U52: Unchanged count in summary bar has gray styling
+  it('unchanged count in summary bar has gray styling', () => {
+    const summary: DiffSummaryData = { added: 0, removed: 0, modified: 0, unchanged: 4 };
+    render(<SectionNav sections={standardSections} diffSummary={summary} />);
+    const unchangedBadge = screen.getByText('4 unchanged');
+    expect(unchangedBadge.className).toContain('text-gray-500');
+    expect(unchangedBadge.className).toContain('bg-gray-100');
   });
 });
