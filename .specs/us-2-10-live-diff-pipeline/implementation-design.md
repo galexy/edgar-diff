@@ -8,7 +8,7 @@ When both Filing A and Filing B are selected, the app automatically executes a f
 
 ## Approach
 
-The core abstraction is a single `useDiffPipeline` hook that takes the two selected filing accession numbers and orchestrates the full pipeline. The hook manages a finite state machine (`idle → fetching → parsing → diffing → done | error`) and returns the pipeline outputs directly (status, documents, diff, error) for UI consumption.
+The core abstraction is a `useDiffPipeline` hook that serves as a **thin React binding** around framework-agnostic pipeline logic. The hook manages a finite state machine (`idle → fetching → parsing → diffing → done | error`) and returns the pipeline outputs directly (status, documents, diff, error) for UI consumption. The pipeline orchestration itself — fetching, parsing, diffing, caching, abort handling — uses only plain async functions and `Map` objects, with no React dependencies. This separation is intentional: it allows the pipeline logic to be extracted into a standalone service or moved to a Web Worker without changing its core behavior (see [Alternatives Considered](#alternatives-considered)).
 
 **Strategy:**
 
@@ -26,6 +26,60 @@ The core abstraction is a single `useDiffPipeline` hook that takes the two selec
 - Persistent/disk caching (memory cache only for MVP)
 - Prefetching filings before selection
 - Web Worker offloading for parse/diff (noted as future optimization)
+
+---
+
+## Alternatives Considered
+
+### Why a React hook?
+
+The `useDiffPipeline` hook is intentionally a **thin React binding layer** around framework-agnostic pipeline logic. The core orchestration — fetching, parsing, diffing, caching, abort — uses only plain async functions, `Map` objects, and `AbortController`. None of this requires React. The hook's React-specific surface is minimal (~20 lines): `useState` for exposing status/results, `useEffect` for triggering on input changes and cleanup, and `useRef` for cache/client persistence across renders.
+
+This separation is deliberate: the pipeline logic can be extracted into a standalone module (e.g., `DiffPipelineService`) without changing its behavior. The hook would then become a subscriber that calls the service and forwards state to React.
+
+### Alternatives evaluated
+
+| Alternative | Pros | Cons | Why not chosen |
+|-------------|------|------|----------------|
+| **Standalone service class** (`DiffPipelineService` with EventEmitter/callback pattern) | Framework-agnostic from day one; trivially movable to Web Worker | Requires a subscription mechanism (EventEmitter, Observable, or callback) to push state updates to React; more boilerplate for MVP; event-based patterns add indirection without immediate benefit | Over-engineering for current scope. The hook's internal `runPipeline()` function is already a plain async function that can be extracted verbatim into a service class when needed. |
+| **State machine library** (XState, Zag) | Formal FSM with guaranteed valid transitions; visual state charts; built-in support for parallel states | Adds a dependency; learning curve for contributors; our FSM is linear (`idle→fetching→parsing→diffing→done\|error`) with no parallel/nested states — XState's power isn't needed | Complexity mismatch. A linear pipeline with per-stage try/catch is simpler and equally correct. XState would be warranted if we had branching/parallel states. |
+| **TanStack Query (React Query)** | Built-in caching, deduplication, stale-while-revalidate, devtools | Designed for single-request data fetching, not multi-stage pipelines; no native concept of "stages" for loading indicators; our 3-tier cache (filing → document → diff) doesn't map to its key-based model; would need to split into 3 separate queries and manually orchestrate sequencing | Wrong abstraction level. TanStack Query manages individual data fetches; our pipeline orchestrates a sequence of fetch→parse→diff with shared caches across stages. |
+| **Zustand / Jotai store** | Global state accessible anywhere; no prop drilling; good devtools | Introduces external state management for a single feature; the pipeline state is inherently scoped to the App component tree (not needed globally); adds a dependency | Premature. If multiple components need independent access to pipeline state, a store becomes justified. Currently only `App` consumes it and passes data down via props (matching existing patterns like `useFilingList`). |
+
+### Web Worker migration path
+
+The design explicitly supports future Web Worker offloading. Here's how:
+
+**Step 1: Extract service (no Worker yet)**
+```
+useDiffPipeline hook
+  └── calls runPipeline() directly (current)
+
+↓ refactor to ↓
+
+useDiffPipeline hook
+  └── calls DiffPipelineService.run(accA, accB)
+        └── returns { status, oldDocument, newDocument, diff, error }
+```
+
+The `runPipeline()` async function, caches, and `classifyFetchError()` move into `DiffPipelineService` unchanged. The hook becomes a thin caller that sets React state from the service's return value.
+
+**Step 2: Move service to Web Worker**
+```
+useDiffPipeline hook (main thread)
+  └── Comlink.wrap(new Worker('./diff-pipeline.worker.ts'))
+        └── DiffPipelineService.run(accA, accB)  ← runs in Worker
+              └── posts status updates via Comlink proxy
+```
+
+Key design choices that enable this migration:
+- **Per-stage try/catch** → maps to discrete worker message types (`{ type: 'status', stage: 'parsing' }`)
+- **Caches are plain `Map` objects** → transferable to a Worker context (no React refs needed)
+- **`EdgarClient` accepts custom `fetch`** → Worker can use its own `fetch` or the main thread's via proxy
+- **Abort via `AbortController`** → Worker can receive abort signals via `postMessage`
+- **No React APIs in pipeline logic** → `parseFiling` and `diffFilings` are pure functions, fully Worker-compatible
+
+The only non-trivial aspect is the `EdgarClient` creation (which currently uses a browser `fetch` with URL rewriting). In a Worker context, the Worker would either create its own client or receive a `MessagePort` for proxied fetches. Both approaches are straightforward.
 
 ---
 
