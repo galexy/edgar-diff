@@ -80,7 +80,7 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                     {section.heading}
                     {section.changeType === 'added' && (
                       <span
-                        className="absolute -top-1 right-0 text-[10px] leading-none text-green-700 bg-green-100 px-1 rounded-full"
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold text-green-700 bg-green-100 px-1.5 rounded-full"
                         aria-label="Section added"
                       >
                         Added
@@ -88,7 +88,7 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                     )}
                     {section.changeType === 'removed' && (
                       <span
-                        className="absolute -top-1 right-0 text-[10px] leading-none text-red-700 bg-red-100 px-1 rounded-full"
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold text-red-700 bg-red-100 px-1.5 rounded-full"
                         aria-label="Section removed"
                       >
                         Removed
@@ -96,7 +96,7 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                     )}
                     {['modified', 'reordered', 'moved'].includes(section.changeType) && section.changeCount > 0 && (
                       <span
-                        className="absolute -top-1 right-0 text-[10px] leading-none min-w-[1.25rem] text-center text-amber-700 bg-amber-100 px-1 rounded-full"
+                        className="absolute -top-1 right-0 text-[11px] leading-none font-semibold min-w-[1.25rem] text-center text-amber-700 bg-amber-100 px-1.5 rounded-full"
                         aria-label={`${section.changeCount} ${section.changeCount === 1 ? 'change' : 'changes'}`}
                       >
                         {section.changeCount}
