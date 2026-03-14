@@ -76,11 +76,11 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                   }`}
                   onClick={() => onSectionClick?.(section.id)}
                 >
-                  <span className="flex items-center gap-1.5">
+                  <span className="flex items-baseline gap-1">
                     <span className="truncate">{section.heading}</span>
                     {section.changeType === 'added' && (
                       <span
-                        className="shrink-0 text-xs text-green-700 bg-green-100 px-1.5 py-0.5 rounded"
+                        className="shrink-0 text-[10px] leading-none text-green-700 bg-green-100 px-1 rounded-full -translate-y-0.5"
                         aria-label="Section added"
                       >
                         Added
@@ -88,7 +88,7 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                     )}
                     {section.changeType === 'removed' && (
                       <span
-                        className="shrink-0 text-xs text-red-700 bg-red-100 px-1.5 py-0.5 rounded"
+                        className="shrink-0 text-[10px] leading-none text-red-700 bg-red-100 px-1 rounded-full -translate-y-0.5"
                         aria-label="Section removed"
                       >
                         Removed
@@ -96,10 +96,10 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                     )}
                     {['modified', 'reordered', 'moved'].includes(section.changeType) && section.changeCount > 0 && (
                       <span
-                        className="shrink-0 text-xs text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded"
+                        className="shrink-0 text-[10px] leading-none min-w-[1.25rem] text-center text-amber-700 bg-amber-100 px-1 rounded-full -translate-y-0.5"
                         aria-label={`${section.changeCount} ${section.changeCount === 1 ? 'change' : 'changes'}`}
                       >
-                        {section.changeCount} {section.changeCount === 1 ? 'change' : 'changes'}
+                        {section.changeCount}
                       </span>
                     )}
                   </span>

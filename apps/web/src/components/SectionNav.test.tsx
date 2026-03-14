@@ -246,32 +246,35 @@ describe('SectionNav', () => {
 
   // 2.6 Change count badges
 
-  // SN-U24: Modified section with changeCount=5 renders amber badge with "5 changes"
-  it('modified section with changeCount=5 renders badge with "5 changes"', () => {
+  // SN-U24: Modified section with changeCount=5 renders amber badge with count
+  it('modified section with changeCount=5 renders badge with count "5"', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 5)];
     render(<SectionNav sections={sections} />);
-    expect(screen.getByText('5 changes')).toBeInTheDocument();
+    const badge = screen.getByLabelText('5 changes');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent('5');
   });
 
-  // SN-U25: Modified section with changeCount=1 renders "1 change" (singular)
-  it('modified section with changeCount=1 renders "1 change" (singular)', () => {
+  // SN-U25: Modified section with changeCount=1 renders badge with "1" (singular aria-label)
+  it('modified section with changeCount=1 renders badge with singular aria-label', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 1)];
     render(<SectionNav sections={sections} />);
-    expect(screen.getByText('1 change')).toBeInTheDocument();
+    const badge = screen.getByLabelText('1 change');
+    expect(badge).toHaveTextContent('1');
   });
 
   // SN-U26: Modified section with changeCount=0 renders no badge
   it('modified section with changeCount=0 renders no badge', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 0)];
     render(<SectionNav sections={sections} />);
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
   });
 
   // SN-U27: Unchanged section renders no badge regardless of changeCount
   it('unchanged section renders no badge regardless of changeCount', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'unchanged', 5)];
     render(<SectionNav sections={sections} />);
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
     expect(screen.queryByText('Added')).not.toBeInTheDocument();
     expect(screen.queryByText('Removed')).not.toBeInTheDocument();
   });
@@ -281,7 +284,7 @@ describe('SectionNav', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'added', 10)];
     render(<SectionNav sections={sections} />);
     expect(screen.getByText('Added')).toBeInTheDocument();
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
   });
 
   // SN-U29: Removed section renders "Removed" text badge (ignores changeCount)
@@ -289,14 +292,14 @@ describe('SectionNav', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'removed', 10)];
     render(<SectionNav sections={sections} />);
     expect(screen.getByText('Removed')).toBeInTheDocument();
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
   });
 
   // SN-U30: Amber badge has correct styling classes
   it('amber badge has text-amber-700 and bg-amber-100 classes', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 3)];
     render(<SectionNav sections={sections} />);
-    const badge = screen.getByText('3 changes');
+    const badge = screen.getByLabelText('3 changes');
     expect(badge.className).toContain('text-amber-700');
     expect(badge.className).toContain('bg-amber-100');
   });
@@ -307,7 +310,7 @@ describe('SectionNav', () => {
   it('reordered section with changeCount > 0 renders amber badge', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'reordered', 4)];
     render(<SectionNav sections={sections} />);
-    const badge = screen.getByText('4 changes');
+    const badge = screen.getByLabelText('4 changes');
     expect(badge.className).toContain('text-amber-700');
     expect(badge.className).toContain('bg-amber-100');
   });
@@ -316,7 +319,7 @@ describe('SectionNav', () => {
   it('moved section with changeCount > 0 renders amber badge', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'moved', 2)];
     render(<SectionNav sections={sections} />);
-    const badge = screen.getByText('2 changes');
+    const badge = screen.getByLabelText('2 changes');
     expect(badge.className).toContain('text-amber-700');
     expect(badge.className).toContain('bg-amber-100');
   });
@@ -325,7 +328,7 @@ describe('SectionNav', () => {
   it('badge is rendered inside the section button element', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 5)];
     render(<SectionNav sections={sections} />);
-    const badge = screen.getByText('5 changes');
+    const badge = screen.getByLabelText('5 changes');
     expect(badge.closest('button')).not.toBeNull();
   });
 
@@ -336,8 +339,8 @@ describe('SectionNav', () => {
       makeSectionNavItem('s2', 'Section B', 'modified', 7),
     ];
     render(<SectionNav sections={sections} />);
-    expect(screen.getByText('3 changes')).toBeInTheDocument();
-    expect(screen.getByText('7 changes')).toBeInTheDocument();
+    expect(screen.getByLabelText('3 changes')).toBeInTheDocument();
+    expect(screen.getByLabelText('7 changes')).toBeInTheDocument();
   });
 
   // 2.8 Badge interaction with existing features
@@ -348,7 +351,7 @@ describe('SectionNav', () => {
     render(<SectionNav sections={sections} activeSectionId="s1" />);
     const button = screen.getByText('Section A').closest('button');
     expect(button?.className).toContain('bg-blue-100');
-    expect(screen.getByText('5 changes')).toBeInTheDocument();
+    expect(screen.getByLabelText('5 changes')).toBeInTheDocument();
   });
 
   // SN-U36: Section with badge still triggers onSectionClick with correct id
@@ -367,7 +370,7 @@ describe('SectionNav', () => {
     render(<SectionNav sections={sections} />);
     const headingEl = screen.getByText(longHeading);
     expect(headingEl.className).toContain('truncate');
-    expect(screen.getByText('5 changes')).toBeInTheDocument();
+    expect(screen.getByLabelText('5 changes')).toBeInTheDocument();
   });
 
   // 2.9 Badge accessibility
@@ -376,8 +379,9 @@ describe('SectionNav', () => {
   it('modified badge has aria-label "5 changes"', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified', 5)];
     render(<SectionNav sections={sections} />);
-    const badge = screen.getByText('5 changes');
+    const badge = screen.getByLabelText('5 changes');
     expect(badge).toHaveAttribute('aria-label', '5 changes');
+    expect(badge).toHaveTextContent('5');
   });
 
   // SN-U39: Added badge has aria-label "Section added"
@@ -402,7 +406,7 @@ describe('SectionNav', () => {
   it('section with default changeCount=0 renders no badge', () => {
     const sections = [makeSectionNavItem('s1', 'Section A', 'modified')];
     render(<SectionNav sections={sections} />);
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
   });
 
   // SN-U42: Existing test fixtures with default changeCount=0 continue to pass
@@ -411,7 +415,7 @@ describe('SectionNav', () => {
     const buttons = screen.getAllByRole('button');
     expect(buttons).toHaveLength(standardSections.length);
     // No badges should appear since all have changeCount=0
-    expect(screen.queryByText(/\d+ change/)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/\d+ change/)).not.toBeInTheDocument();
   });
 
   // 2.11 Diff summary bar

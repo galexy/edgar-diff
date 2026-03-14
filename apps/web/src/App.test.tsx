@@ -719,10 +719,10 @@ describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
     render(<App />);
 
     // tinySectionDiffs has:
-    //   item-1: 2 non-unchanged paragraphs (modified + added) → changeCount=2 → "2 changes"
-    //   item-1a: 1 modified paragraph + 1 modified table → changeCount=2 → "2 changes"
+    //   item-1: 2 non-unchanged paragraphs (modified + added) → changeCount=2 → badge shows "2"
+    //   item-1a: 1 modified paragraph + 1 modified table → changeCount=2 → badge shows "2"
     //   item-2: 1 unchanged paragraph → changeCount=0 → no badge
-    const badges = screen.getAllByText(/\d+ changes?/);
+    const badges = screen.getAllByLabelText(/\d+ changes?/);
     expect(badges.length).toBe(2); // item-1 and item-1a
 
     // Each badge should have amber styling
@@ -732,7 +732,7 @@ describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
     }
 
     // Both item-1 and item-1a have changeCount=2
-    const twoChangesBadges = screen.getAllByText('2 changes');
+    const twoChangesBadges = screen.getAllByLabelText('2 changes');
     expect(twoChangesBadges).toHaveLength(2);
   });
 
