@@ -107,4 +107,18 @@ describe('Archives Proxy Handler', () => {
     const body = await response.json();
     expect(body.error).toBe('Invalid archives path');
   });
+
+  it('WP-A7: SEC unreachable returns 502 with error message', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('fetch failed'))));
+
+    const response = await handleArchivesProxy(
+      makeRequest('/api/sec/archives/edgar/data/320193/000032019323000106/aapl.htm'),
+      env,
+      makeUrl('/api/sec/archives/edgar/data/320193/000032019323000106/aapl.htm'),
+    );
+
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe('SEC service unavailable');
+  });
 });

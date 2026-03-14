@@ -205,7 +205,7 @@ describe('useDiffPipeline — Error Handling', () => {
       expect(result.current.status).toBe('error');
     });
 
-    expect(result.current.error).toBeTruthy();
+    expect(result.current.error).toBe('Unable to fetch filing');
   });
 
   it('DP-U12: EdgarNetworkError(404) → "Filing not available"', async () => {
@@ -251,7 +251,7 @@ describe('useDiffPipeline — Error Handling', () => {
       expect(result.current.status).toBe('error');
     });
 
-    expect(result.current.error).toBeTruthy();
+    expect(result.current.error).toBe('Unable to fetch filing. Check your connection.');
   });
 
   it('DP-U15: parseFiling throws → "Unable to parse filing"', async () => {
@@ -362,20 +362,19 @@ describe('classifyFetchError', () => {
   it('CE-U3: EdgarNetworkError(500) → generic SEC error', () => {
     const err = new EdgarNetworkError(500, ACCESSION_A);
     const msg = classifyFetchError(err);
-    expect(msg).toBeTruthy();
-    expect(msg).not.toContain('Filing not available');
+    expect(msg).toBe('SEC service temporarily unavailable');
   });
 
   it('CE-U4: generic Error → generic fallback', () => {
     const err = new Error('something unrelated');
     const msg = classifyFetchError(err);
-    expect(msg).toBeTruthy();
+    expect(msg).toBe('Unable to fetch filing');
   });
 
   it('CE-U5: TypeError → connection error message', () => {
     const err = new TypeError('Failed to fetch');
     const msg = classifyFetchError(err);
-    expect(msg).toBeTruthy();
+    expect(msg).toBe('Unable to fetch filing. Check your connection.');
   });
 });
 

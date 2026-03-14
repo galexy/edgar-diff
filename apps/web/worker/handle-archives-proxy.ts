@@ -23,9 +23,20 @@ export async function handleArchivesProxy(
 
   const secUrl = `https://www.sec.gov/Archives/${secPath}`;
 
-  const secResponse = await fetch(secUrl, {
-    headers: { 'User-Agent': env.SEC_USER_AGENT },
-  });
+  let secResponse: Response;
+  try {
+    secResponse = await fetch(secUrl, {
+      headers: { 'User-Agent': env.SEC_USER_AGENT },
+    });
+  } catch {
+    return addCorsHeaders(
+      new Response(JSON.stringify({ error: 'SEC service unavailable' }), {
+        status: 502,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+      request,
+    );
+  }
 
   return addCorsHeaders(
     new Response(secResponse.body, {

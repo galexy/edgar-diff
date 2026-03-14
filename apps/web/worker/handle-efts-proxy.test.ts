@@ -110,4 +110,18 @@ describe('EFTS Proxy Handler', () => {
 
     expect(response.status).toBe(429);
   });
+
+  it('WP-E7: SEC unreachable returns 502 with error message', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new TypeError('fetch failed'))));
+
+    const response = await handleEftsProxy(
+      makeRequest('/api/sec/efts/search-index?q=apple'),
+      env,
+      makeUrl('/api/sec/efts/search-index?q=apple'),
+    );
+
+    expect(response.status).toBe(502);
+    const body = await response.json();
+    expect(body.error).toBe('SEC service unavailable');
+  });
 });
