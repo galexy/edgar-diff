@@ -10,7 +10,7 @@ function makeSectionNavItem(
   id: string,
   heading: string,
   changeType: ChangeType = 'modified',
-  changeCount: number = 0,
+  changeCount = 0,
 ): SectionNavItem {
   return { id, heading, changeType, changeCount };
 }
