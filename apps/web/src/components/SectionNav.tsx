@@ -76,8 +76,8 @@ export function SectionNav({ sections, activeSectionId, onSectionClick, diffSumm
                   }`}
                   onClick={() => onSectionClick?.(section.id)}
                 >
-                  <span className="relative block truncate pr-5">
-                    {section.heading}
+                  <span className="relative block pr-5">
+                    <span className="block truncate">{section.heading}</span>
                     {section.changeType === 'added' && (
                       <span
                         className="absolute -top-1 right-0 text-[11px] leading-none font-semibold text-green-700 bg-green-100 px-1.5 rounded-full"
