@@ -318,7 +318,7 @@ describe('useDiffPipeline — Error Handling', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -388,7 +388,7 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -398,7 +398,7 @@ describe('useDiffPipeline — Caching', () => {
     const fetchCount = mockFetchFiling.mock.calls.length;
 
     // Clear selections, then re-select same pair
-    rerender({ a: null, b: null });
+    rerender({ a: null as string | null, b: null as string | null });
     expect(result.current.status).toBe('idle');
 
     rerender({ a: ACCESSION_A, b: ACCESSION_B });
@@ -416,14 +416,14 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
       expect(result.current.status).toBe('done');
     });
 
-    rerender({ a: null, b: null });
+    rerender({ a: null as string | null, b: null as string | null });
     rerender({ a: ACCESSION_A, b: ACCESSION_B });
 
     // Immediately done — no intermediate states
@@ -436,7 +436,7 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -471,7 +471,7 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -504,7 +504,7 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -538,7 +538,7 @@ describe('useDiffPipeline — Caching', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -580,7 +580,7 @@ describe('useDiffPipeline — Abort & Restart', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     expect(result.current.status).toBe('fetching');
@@ -614,13 +614,13 @@ describe('useDiffPipeline — Abort & Restart', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     expect(result.current.status).toBe('fetching');
 
     // Clear both filings
-    rerender({ a: null, b: null });
+    rerender({ a: null as string | null, b: null as string | null });
 
     expect(result.current.status).toBe('idle');
     expect(result.current.oldDocument).toBeNull();
@@ -655,7 +655,7 @@ describe('useDiffPipeline — Edge Cases', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
@@ -663,7 +663,7 @@ describe('useDiffPipeline — Edge Cases', () => {
     });
 
     // Simulate company change → clear filings
-    rerender({ a: null, b: null });
+    rerender({ a: null as string | null, b: null as string | null });
     expect(result.current.status).toBe('idle');
 
     // Re-select same pair → should use cache
@@ -697,7 +697,7 @@ describe('useDiffPipeline — Integration', () => {
     const { result, rerender } = renderHook(
       ({ a, b }: { a: string | null; b: string | null }) =>
         useDiffPipeline(a, b),
-      { initialProps: { a: ACCESSION_A, b: ACCESSION_B } },
+      { initialProps: { a: ACCESSION_A as string | null, b: ACCESSION_B as string | null } },
     );
 
     await waitFor(() => {
