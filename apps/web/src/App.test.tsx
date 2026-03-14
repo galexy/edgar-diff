@@ -71,7 +71,19 @@ const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock
     sourceMapping: { old: s.source, new: s.source },
   }));
 
-  return { tinyDocument: doc, tinySectionDiffs: diffs };
+  const mockFilingListState = {
+    filings: [] as Array<{ accessionNumber: string; formType: string; filingDate: string }>,
+    status: 'idle' as string,
+    error: null as string | null,
+  };
+
+  function resetFilingListMock() {
+    mockFilingListState.filings = [];
+    mockFilingListState.status = 'idle';
+    mockFilingListState.error = null;
+  }
+
+  return { tinyDocument: doc, tinySectionDiffs: diffs, mockFilingListState, resetFilingListMock };
 });
 
 vi.mock('./fixtures/sample-filing', () => ({
@@ -96,11 +108,7 @@ vi.mock('./hooks/useCompanySearch', () => ({
 }));
 
 vi.mock('./hooks/useFilingList', () => ({
-  useFilingList: () => ({
-    filings: [],
-    status: 'idle' as const,
-    error: null,
-  }),
+  useFilingList: () => mockFilingListState,
 }));
 
 import { App } from './App';
@@ -114,6 +122,7 @@ let mockIOObserve: ReturnType<typeof vi.fn>;
 let mockIODisconnect: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  resetFilingListMock();
   mockIOObserve = vi.fn();
   mockIODisconnect = vi.fn();
 
@@ -477,6 +486,12 @@ describe('US-2.8: Company Search Integration', () => {
 
 // --- US-2.9: Filing Selectors Integration ---
 
+const SAMPLE_FILINGS = [
+  { accessionNumber: '0000320193-23-000106', formType: '10-K', filingDate: '2023-11-03' },
+  { accessionNumber: '0000320193-23-000077', formType: '10-Q', filingDate: '2023-08-04' },
+  { accessionNumber: '0000320193-23-000064', formType: '10-Q', filingDate: '2023-05-05' },
+];
+
 describe('US-2.9: Filing Selectors Integration', () => {
   it('filing selectors are disabled on initial load (no company)', () => {
     render(<App />);
@@ -492,5 +507,92 @@ describe('US-2.9: Filing Selectors Integration', () => {
     const labels = selects.map((s) => s.getAttribute('aria-label'));
     expect(labels).toContain('Select Filing A');
     expect(labels).toContain('Select Filing B');
+  });
+
+  it('filing selectors show placeholder text when idle', () => {
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => {
+      expect(select).toHaveTextContent(/select a filing/i);
+    });
+  });
+
+  it('filing selectors are disabled during loading', () => {
+    mockFilingListState.status = 'loading';
+    mockFilingListState.filings = [];
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => expect(select).toBeDisabled());
+  });
+
+  it('filing selectors are enabled and populated when loaded', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    expect(selects).toHaveLength(2);
+    selects.forEach((select) => {
+      expect(select).toBeEnabled();
+      // Each selector should have the filing options
+      expect(select).toHaveTextContent('10-K | 2023-11-03');
+      expect(select).toHaveTextContent('10-Q | 2023-08-04');
+      expect(select).toHaveTextContent('10-Q | 2023-05-05');
+    });
+  });
+
+  it('both selectors show the same filing options', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const optionsA = selects[0].querySelectorAll('option');
+    const optionsB = selects[1].querySelectorAll('option');
+    // Same number of options (filings + placeholder)
+    expect(optionsA.length).toBe(optionsB.length);
+    expect(optionsA.length).toBe(SAMPLE_FILINGS.length + 1);
+  });
+
+  it('selecting a filing in Filing A does not affect Filing B', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const [filingA, filingB] = selects;
+
+    // Select a filing in Filing A
+    fireEvent.change(filingA, { target: { value: '0000320193-23-000106' } });
+
+    // Filing A has a selection, Filing B still shows placeholder
+    expect(filingA).toHaveValue('0000320193-23-000106');
+    expect(filingB).toHaveValue('');
+  });
+
+  it('selecting different filings in A and B independently', () => {
+    mockFilingListState.status = 'loaded';
+    mockFilingListState.filings = SAMPLE_FILINGS;
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    const [filingA, filingB] = selects;
+
+    fireEvent.change(filingA, { target: { value: '0000320193-23-000106' } });
+    fireEvent.change(filingB, { target: { value: '0000320193-23-000077' } });
+
+    expect(filingA).toHaveValue('0000320193-23-000106');
+    expect(filingB).toHaveValue('0000320193-23-000077');
+  });
+
+  it('filing selectors are disabled on error status', () => {
+    mockFilingListState.status = 'error';
+    mockFilingListState.error = 'Unable to load filings';
+    mockFilingListState.filings = [];
+
+    render(<App />);
+    const selects = screen.getAllByRole('combobox').filter((s) => s.tagName === 'SELECT');
+    selects.forEach((select) => expect(select).toBeDisabled());
   });
 });
