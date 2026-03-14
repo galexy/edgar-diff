@@ -35,13 +35,21 @@
 .filing-section tr.diff-row-added > td,
 .filing-section tr.diff-row-added > th {
   background-color: #f0fdf4 !important; /* green-50 — !important overrides filing styles */
-  border-left: 3px solid #16a34a; /* green-600 */
+}
+
+.filing-section tr.diff-row-added > td:first-child,
+.filing-section tr.diff-row-added > th:first-child {
+  border-left: 3px solid #16a34a; /* green-600 — left edge indicator only */
 }
 
 .filing-section tr.diff-row-removed > td,
 .filing-section tr.diff-row-removed > th {
   background-color: #fef2f2 !important; /* red-50 */
-  border-left: 3px solid #dc2626; /* red-600 */
+}
+
+.filing-section tr.diff-row-removed > td:first-child,
+.filing-section tr.diff-row-removed > th:first-child {
+  border-left: 3px solid #dc2626; /* red-600 — left edge indicator only */
 }
 
 /* ─── Cell-level table highlights ──────────────────── */
