@@ -738,6 +738,41 @@ describe('applyHighlightsToSection — table processing', () => {
     expect(result).toContain('diff-row-removed');
   });
 
+  it('AT-U5: added row does NOT also get cell-level classes (no double-highlighting)', () => {
+    const html = '<table><tr><td>A</td><td>B</td></tr></table>';
+    const trStart = html.indexOf('<tr>');
+    const trEnd = html.indexOf('</tr>') + 5;
+    const td1Start = html.indexOf('<td>A');
+    const td1End = html.indexOf('</td>') + 5;
+    const td2Start = html.indexOf('<td>B');
+    const td2End = html.indexOf('</td>', td2Start) + 5;
+
+    // Row is 'added' but cellDiffs also have 'added' cells — cell diffs should be ignored
+    const cd1 = makeCellDiff('added', { newSource: { start: td1Start, end: td1End } });
+    const cd2 = makeCellDiff('added', { newSource: { start: td2Start, end: td2End } });
+    const rd = makeRowDiff('added', [cd1, cd2], undefined, 0);
+    const td = makeTableDiff('modified', [rd],
+      undefined,
+      { start: 0, end: html.length },
+    );
+    const sd = makeSectionDiffWithTables('s1', [], [td]);
+    const table = makeTable(
+      [makeTableRow([
+        makeTableCell('A', td1Start, td1End),
+        makeTableCell('B', td2Start, td2End),
+      ], trStart, trEnd)],
+      0, html.length,
+    );
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
+    // Row-level class should be present
+    expect(result).toContain('diff-row-added');
+    // Cell-level classes should NOT be present (no double-highlighting)
+    expect(result).not.toContain('diff-cell-added');
+    expect(result).not.toContain('diff-cell-removed');
+  });
+
   it('AT-U6: sectionOffset > 0 — absolute offsets converted to relative', () => {
     const html = '<table><tr><td>Val</td></tr></table>';
     const sectionOffset = 500;

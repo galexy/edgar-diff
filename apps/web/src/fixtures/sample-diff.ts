@@ -24,11 +24,12 @@ export function buildSampleDiffs(doc: StructuredDocument): SectionDiff[] {
     if (paragraphs.length === 0 && tables.length === 0) continue;
 
     const paragraphDiffs: ParagraphDiff[] = [];
+    const hasTables = tables.some((t) => t.rows.length >= 4);
 
     for (let i = 0; i < paragraphs.length; i++) {
       const para = paragraphs[i];
 
-      if (i === 0 && para.text.length >= 10) {
+      if (i === 0 && para.text.length >= 5) {
         // First paragraph: modified with a word-level change on the first word
         const firstSpace = para.text.indexOf(' ');
         const wordEnd = firstSpace > 0 ? firstSpace : Math.min(5, para.text.length);
@@ -43,8 +44,8 @@ export function buildSampleDiffs(doc: StructuredDocument): SectionDiff[] {
             new: { start: para.source.start, end: para.source.end },
           },
         });
-      } else if (i === 1) {
-        // Second paragraph: added/removed
+      } else if (i === 1 || (i === 0 && hasTables && para.text.length < 5)) {
+        // Second paragraph (or first short paragraph in a section with tables): added/removed
         paragraphDiffs.push({
           changeType: 'added',
           sourceMapping: {
