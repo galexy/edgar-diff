@@ -2,66 +2,20 @@
 
 ## Overview
 
-US-2.7 adds change-count badges to the section navigation. Modified/reordered/moved sections show an amber badge with "{n} changes" (singular: "1 change"). Added/removed sections retain their existing text badges ("Added"/"Removed"). Unchanged sections show no badge. A diff summary bar above the section list shows aggregate section-level totals (modified/added/removed/unchanged), omitting zero-count categories.
+See [implementation-design.md](./implementation-design.md) for full architecture, types, and data flow.
 
-The test strategy splits into two tiers:
-1. **Programmatic tests** (Vitest + Testing Library) — verify DOM structure, badge content, accessibility, and data flow
-2. **Visual validation** (Chrome DevTools MCP) — verify badge colors, positioning, and summary layout (see `uat.md`)
+This test plan covers two tiers:
+1. **Programmatic tests** (Vitest + Testing Library) — DOM structure, badge content, accessibility, data flow
+2. **Visual validation** (Chrome DevTools MCP) — badge colors, positioning, summary layout (see `uat.md`)
 
-### Architecture (aligned with implementation design)
+### Test-Relevant Design Decisions
 
-**Prop extension:** `SectionNavItem` gains a required `changeCount: number` field. The `makeSectionNavItem` test helper defaults it to `0` for backward compatibility with existing tests. Badge rendering guards with `section.changeCount > 0`.
-
-**Change count computation:** `App.tsx` computes `changeCount` per section via an exported `countChanges()` helper:
-
-```typescript
-export function countChanges(section: SectionDiff): number {
-  const paragraphChanges = section.paragraphDiffs.filter(p => p.changeType !== 'unchanged').length;
-  const tableChanges = section.tableDiffs.filter(t => t.changeType !== 'unchanged').length;
-  return paragraphChanges + tableChanges;
-}
-```
-
-Subsection diffs are NOT recursively counted (deferred to future story).
-
-**Diff summary bar:** An optional `diffSummary?: DiffSummaryData` prop on `SectionNav`. When provided, renders inline JSX with `role="status"` between the "Sections" heading and the section list. Zero-count categories are omitted; if all counts are zero, the summary bar is not rendered.
-
-**Badge rendering by changeType:**
-
-| changeType | Badge | Color |
-|---|---|---|
-| `modified` | `{n} changes` / `{n} change` | Amber (`text-amber-700 bg-amber-100`) |
-| `added` | `Added` (text) | Green (`text-green-700 bg-green-100`) — unchanged from current |
-| `removed` | `Removed` (text) | Red (`text-red-700 bg-red-100`) — unchanged from current |
-| `unchanged` | No badge | — |
-| `reordered` / `moved` | `{n} changes` | Amber (same as modified) |
-
-For modified/reordered/moved, badge only shown when `changeCount > 0`.
-
-### Key Types
-
-```typescript
-export interface SectionNavItem {
-  id: string;
-  heading: string;
-  changeType: ChangeType;
-  changeCount: number;  // NEW: count of non-unchanged paragraphDiffs + tableDiffs
-}
-
-export interface DiffSummaryData {
-  added: number;
-  removed: number;
-  modified: number;
-  unchanged: number;
-}
-
-interface SectionNavProps {
-  sections: SectionNavItem[];
-  activeSectionId?: string;
-  onSectionClick?: (sectionId: string) => void;
-  diffSummary?: DiffSummaryData;  // NEW
-}
-```
+- `changeCount: number` is **required** on `SectionNavItem`; test helper defaults to `0`
+- Badge guard: `changeCount > 0` (no null check needed)
+- Added/Removed sections keep text badges; only modified/reordered/moved show numeric count
+- Diff summary bar omits zero-count categories; fully suppressed when all counts are 0
+- `countChanges()` is exported from App.tsx for direct unit testing
+- Subsection diffs are NOT recursively counted
 
 ---
 
