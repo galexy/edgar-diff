@@ -135,6 +135,28 @@ describe('Worker: Route Matching', () => {
     );
     expect(response.status).toBe(400);
   });
+
+  it('WP-R5: POST to /api/sec/efts/ returns 405', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/efts/search-index?q=apple', 'POST'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error).toBe('Method not allowed');
+  });
+
+  it('WP-R6: POST to /api/sec/archives/ returns 405', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/archives/edgar/data/320193/000032019323000106/aapl.htm', 'POST'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error).toBe('Method not allowed');
+  });
 });
 
 // ─── CORS Headers ─────────────────────────────────────────────────────────────

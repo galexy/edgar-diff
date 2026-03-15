@@ -183,7 +183,7 @@ export function useDiffPipeline(
  */
 export function classifyFetchError(err: unknown): string {
   if (err instanceof EdgarNetworkError) {
-    if (err.statusCode === 404) return 'Filing not available';
+    if (err.statusCode === 404) return 'Filing not available. It may have been removed from EDGAR.';
     if (err.statusCode === 429) return 'SEC rate limit exceeded. Please wait and try again.';
     return 'SEC service temporarily unavailable';
   }

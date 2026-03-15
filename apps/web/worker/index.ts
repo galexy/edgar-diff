@@ -27,12 +27,30 @@ export default {
 
     // Route: SEC EFTS proxy
     if (url.pathname.startsWith('/api/sec/efts/')) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return addCorsHeaders(
+          new Response(JSON.stringify({ error: 'Method not allowed' }), {
+            status: 405,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+          request,
+        );
+      }
       console.log(`[Worker] GET ${url.pathname}`);
       return handleEftsProxy(request, env, url);
     }
 
     // Route: SEC Archives proxy
     if (url.pathname.startsWith('/api/sec/archives/')) {
+      if (request.method !== 'GET' && request.method !== 'HEAD') {
+        return addCorsHeaders(
+          new Response(JSON.stringify({ error: 'Method not allowed' }), {
+            status: 405,
+            headers: { 'Content-Type': 'application/json' },
+          }),
+          request,
+        );
+      }
       console.log(`[Worker] GET ${url.pathname}`);
       return handleArchivesProxy(request, env, url);
     }
