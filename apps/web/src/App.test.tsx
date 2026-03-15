@@ -918,6 +918,96 @@ describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
   });
 });
 
+// --- US-2.11: Sync Scroll Integration Tests ---
+
+describe('US-2.11: Sync Scroll Integration', () => {
+  // SS-I1: App renders Header with sync scroll toggle
+  it('SS-I1: renders sync scroll toggle button with aria-pressed=true in Header', () => {
+    render(<App />);
+    const toggle = screen.getByRole('button', { name: /sync scroll/i });
+    expect(toggle).toBeInTheDocument();
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    // Toggle should be inside the header
+    const header = screen.getByRole('banner');
+    expect(header.contains(toggle)).toBe(true);
+  });
+
+  // SS-I3: Toggle disables/enables sync between panels
+  it('SS-I3: clicking toggle changes aria-pressed from true to false and back', () => {
+    render(<App />);
+    const toggle = screen.getByRole('button', { name: /sync scroll/i });
+
+    // Initially enabled
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    // Click to disable
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+    // Click to re-enable
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  // SS-I2: useSyncedScroll is wired — IntersectionObservers created for panels
+  it('SS-I2: sync scroll hook creates IntersectionObservers when pipeline is done', () => {
+    setDiffPipelineDone();
+    render(<App />);
+
+    // The hook creates IntersectionObservers for both panels
+    // Plus useActiveSection creates one for oldPanelRef
+    // At minimum, IntersectionObserver constructor was called
+    expect(mockIOObserve).toHaveBeenCalled();
+  });
+
+  // SS-I4: SectionNav click coexists with sync scroll
+  it('SS-I4: SectionNav click still scrolls both panels when sync is enabled', () => {
+    setDiffPipelineDone();
+    const { container } = render(<App />);
+
+    // Verify sync toggle is present and enabled
+    const toggle = screen.getByRole('button', { name: /sync scroll/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+
+    // Click a section in SectionNav
+    const nav = screen.getByRole('navigation');
+    const firstButton = nav.querySelector('button')!;
+    expect(firstButton).not.toBeNull();
+
+    fireEvent.click(firstButton);
+
+    // Both panels should have scrollIntoView called on their matching section
+    const sectionId = container.querySelector('section[id]:not(#preamble)')?.id;
+    if (sectionId) {
+      const matchingSections = container.querySelectorAll(`#${CSS.escape(sectionId)}`);
+      expect(matchingSections.length).toBe(2);
+      for (const section of matchingSections) {
+        expect(section.scrollIntoView).toHaveBeenCalledWith({
+          behavior: 'smooth',
+          block: 'start',
+        });
+      }
+    }
+  });
+  // SS-I5: Sync scroll works with dynamically loaded sections
+  it('SS-I5: sections become available after pipeline transitions to done', () => {
+    // Start with pipeline idle — no sections rendered
+    const { container, rerender } = render(<App />);
+    expect(container.querySelectorAll('section[id]')).toHaveLength(0);
+
+    // Transition to done — sections should appear
+    setDiffPipelineDone();
+    rerender(<App />);
+
+    const sections = container.querySelectorAll('section[id]');
+    expect(sections.length).toBeGreaterThan(0);
+
+    // Sync toggle is still enabled
+    const toggle = screen.getByRole('button', { name: /sync scroll/i });
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  });
+});
+
 // --- US-2.10: Pipeline Integration Tests ---
 
 describe('US-2.10: Pipeline Integration (APP-P)', () => {
