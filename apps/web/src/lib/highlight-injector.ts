@@ -220,6 +220,28 @@ export function injectWordHighlights(
   return div.innerHTML;
 }
 
+// ─── Source Offset Annotation ─────────────────────────────────────
+
+/**
+ * Inject a data-source-start attribute into the first opening HTML tag.
+ * Falls back to wrapping in a <span> if no opening tag is found.
+ */
+export function injectSourceOffset(blockHtml: string, sourceStart: number): string {
+  const trimmed = blockHtml.trimStart();
+  if (!trimmed.startsWith('<')) {
+    return `<span data-source-start="${sourceStart}">${blockHtml}</span>`;
+  }
+  const tagEnd = blockHtml.indexOf('>');
+  if (tagEnd === -1) return blockHtml;
+  // Self-closing tags: insert before />
+  if (blockHtml[tagEnd - 1] === '/') {
+    let pos = tagEnd - 1;
+    while (pos > 0 && blockHtml[pos - 1] === ' ') pos--;
+    return blockHtml.slice(0, pos) + ` data-source-start="${sourceStart}" />` + blockHtml.slice(tagEnd + 1);
+  }
+  return blockHtml.slice(0, tagEnd) + ` data-source-start="${sourceStart}"` + blockHtml.slice(tagEnd);
+}
+
 // ─── Section-Level Highlight Application ─────────────────────────
 
 /**
@@ -236,7 +258,7 @@ export function applyHighlightsToSection(
   // Collect replacements: { relStart, relEnd, html }
   const replacements: { relStart: number; relEnd: number; html: string }[] = [];
 
-  // ─── Paragraph processing (existing US-2.5 logic) ─────────────
+  // ─── Paragraph processing (US-2.5 + US-2.11 source offset annotation) ──
   for (const pd of sectionDiff.paragraphDiffs) {
     // Get the source location for this side
     const sourceLoc = pd.sourceMapping[side];
@@ -251,7 +273,7 @@ export function applyHighlightsToSection(
 
     const paragraphHtml = sectionHtml.slice(relStart, relEnd);
 
-    let replacedHtml: string;
+    let replacedHtml: string | undefined;
 
     if (pd.changeType === 'added' && side === 'new') {
       replacedHtml = wrapParagraph(paragraphHtml, 'added');
@@ -263,26 +285,42 @@ export function applyHighlightsToSection(
         side === 'old' ? wc.type === 'removed' : wc.type === 'added',
       );
 
-      if (filteredChanges.length === 0) continue; // Nothing to highlight for this side
-
-      // Look up the paragraph text for normalization mapping
-      const paraKey = `${sourceLoc.start}:${sourceLoc.end}`;
-      const paragraph = paragraphIndex.get(paraKey);
-      if (!paragraph) continue;
-
-      replacedHtml = injectWordHighlights(paragraphHtml, filteredChanges, paragraph.text);
-    } else {
-      // 'unchanged', 'reordered', etc. — no modification
-      continue;
+      if (filteredChanges.length > 0) {
+        // Look up the paragraph text for normalization mapping
+        const paraKey = `${sourceLoc.start}:${sourceLoc.end}`;
+        const paragraph = paragraphIndex.get(paraKey);
+        if (paragraph) {
+          replacedHtml = injectWordHighlights(paragraphHtml, filteredChanges, paragraph.text);
+        }
+      }
     }
+    // 'unchanged', 'reordered', or modified with no highlights on this side:
+    // replacedHtml stays undefined — only source offset annotation below
+
+    // Always inject source offset annotation for scroll sync
+    replacedHtml = injectSourceOffset(replacedHtml ?? paragraphHtml, sourceLoc.start);
 
     replacements.push({ relStart, relEnd, html: replacedHtml });
   }
 
-  // ─── Table processing (US-2.6) ────────────────────────────────
+  // ─── Table processing (US-2.6 + US-2.11 source offset annotation) ──
   for (const tableDiff of sectionDiff.tableDiffs) {
     const tableSourceLoc = tableDiff.sourceMapping[side];
     if (!tableSourceLoc) continue; // table doesn't exist on this side
+
+    // Inject data-source-start on the table opening tag for scroll sync
+    // Only replace the opening tag range to avoid conflicting with row/cell replacements
+    const tableRelStart = tableSourceLoc.start - sectionOffset;
+    if (tableRelStart >= 0 && tableRelStart < sectionHtml.length) {
+      const tagEnd = sectionHtml.indexOf('>', tableRelStart);
+      if (tagEnd > tableRelStart) {
+        const openingTag = sectionHtml.slice(tableRelStart, tagEnd + 1);
+        if (!openingTag.includes('data-source-start')) {
+          const annotatedTag = injectSourceOffset(openingTag, tableSourceLoc.start);
+          replacements.push({ relStart: tableRelStart, relEnd: tagEnd + 1, html: annotatedTag });
+        }
+      }
+    }
 
     const tableKey = `${tableSourceLoc.start}:${tableSourceLoc.end}`;
     const table = tableIndex.get(tableKey);

@@ -29,6 +29,8 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 **Verify:**
 - "Edgar-Differ" title is visible in a header bar
 - Header spans full width with a bottom border
+- "Sync Scroll" toggle button visible on the right side of the header
+- Toggle shows blue enabled state by default (`aria-pressed="true"`)
 
 ---
 
@@ -85,18 +87,31 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 
 ---
 
-## 7. Independent Scrolling
+## 7. Synchronized Scrolling
 
-**Action:** If content overflows, scroll within each panel
+**Action:** Load two filings with content. Scroll Filing A.
 
 **Verify:**
-- Each panel scrolls independently
-- Header and search bar stay fixed
-- No page-level scrollbar
+- Filing B follows at corresponding content positions (offset-based content alignment)
+- Unchanged paragraphs align exactly (same text at top of both panels)
+- No huge jumps when scrolling through sections — smooth tracking
+- Scrolling Filing B also syncs Filing A (bidirectional)
 
 ---
 
-## 8. Responsive — Narrow Viewport (640x800)
+## 8. Sync Scroll Toggle
+
+**Action:** Click "Sync Scroll" toggle to disable, then scroll.
+
+**Verify:**
+- Toggle changes to gray disabled state (`aria-pressed="false"`)
+- Scrolling Filing A does NOT move Filing B (independent scrolling)
+- Click toggle again to re-enable
+- Scrolling resumes syncing from current positions
+
+---
+
+## 9. Responsive — Narrow Viewport (640x800)
 
 **Action:** Resize viewport to 640x800
 
@@ -113,3 +128,4 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 |-------|---------|
 | US-2.2 | Initial suite: page load, header, search, 3-column layout, section nav, filing panels, scroll, responsive |
 | US-2.7 | Added: diff summary bar, change count badges, badge singular/plural, badge visibility on scroll. Updated: search input is enabled (was disabled) |
+| US-2.11 | Added: sync scroll toggle in header, synchronized scrolling checks, sync toggle disable/enable checks. Replaced independent scrolling check with synchronized scrolling |

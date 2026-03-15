@@ -221,7 +221,7 @@ describe('diffFilings — table behavior', () => {
     expect(sectionDiff.tableDiffs).toHaveLength(0);
   });
 
-  it('U-MSD-3: matched sections with identical tables produce empty tableDiffs (unchanged filtered)', () => {
+  it('U-MSD-3: matched sections with identical tables retain unchanged tableDiffs (US-2.11)', () => {
     const table = [['Header', 'Value'], ['Row1', '100']];
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
@@ -235,8 +235,9 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sectionDiff = result.sectionDiffs[0];
-    // Unchanged tables are filtered out
-    expect(sectionDiff.tableDiffs).toHaveLength(0);
+    // Unchanged tables are retained for scroll sync (US-2.11)
+    expect(sectionDiff.tableDiffs).toHaveLength(1);
+    expect(sectionDiff.tableDiffs[0].changeType).toBe('unchanged');
   });
 
   it('U-MSD-4: added section WITH tables has tableDiffs with changeType added', () => {
@@ -392,7 +393,7 @@ describe('diffFilings — table behavior', () => {
     expect(sd.tableDiffs[0].changeType).toBe('removed');
   });
 
-  it('U-MSD-9: multiple tables in matched section — unchanged tables filtered', () => {
+  it('U-MSD-9: multiple tables in matched section — unchanged tables retained (US-2.11)', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
         makeTable([['Revenue', '$100'], ['Costs', '$80']], 0),
@@ -407,12 +408,13 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    // Only the modified table remains (unchanged table filtered out)
-    expect(sd.tableDiffs).toHaveLength(1);
-    expect(sd.tableDiffs[0].changeType).toBe('modified');
+    // Both tables retained: 1 modified + 1 unchanged (US-2.11)
+    expect(sd.tableDiffs).toHaveLength(2);
+    expect(sd.tableDiffs.filter(td => td.changeType === 'modified')).toHaveLength(1);
+    expect(sd.tableDiffs.filter(td => td.changeType === 'unchanged')).toHaveLength(1);
   });
 
-  it('U-MSD-10: mismatched table counts (3 old, 2 new) — unchanged filtered', () => {
+  it('U-MSD-10: mismatched table counts (3 old, 2 new) — unchanged retained (US-2.11)', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
         makeTable([['T1-Header', 'V1']], 0),
@@ -428,15 +430,17 @@ describe('diffFilings — table behavior', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    // T1 is unchanged (filtered), T2 is modified, T3 is removed → 2 diffs
-    expect(sd.tableDiffs.length).toBeGreaterThanOrEqual(2);
+    // T1 is unchanged (retained), T2 is modified, T3 is removed → 3 diffs
+    expect(sd.tableDiffs.length).toBeGreaterThanOrEqual(3);
     const removed = sd.tableDiffs.filter(td => td.changeType === 'removed');
     expect(removed.length).toBeGreaterThanOrEqual(1);
+    const unchanged = sd.tableDiffs.filter(td => td.changeType === 'unchanged');
+    expect(unchanged.length).toBeGreaterThanOrEqual(1);
   });
 });
 
-describe('slim diff filtering (new behavior)', () => {
-  it('DE-S1: unchanged paragraphs filtered from matched section output', () => {
+describe('unchanged entries retained (US-2.11 scroll sync)', () => {
+  it('DE-S1: unchanged paragraphs retained in matched section output (US-2.11)', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-1', 'Item 1. Business', [
         makeParagraph('Stable paragraph one.', 0),
@@ -453,12 +457,13 @@ describe('slim diff filtering (new behavior)', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    // Only the modified paragraph remains (2 unchanged filtered)
-    expect(sd.paragraphDiffs).toHaveLength(1);
-    expect(sd.paragraphDiffs[0].changeType).toBe('modified');
+    // All 3 paragraphs retained: 2 unchanged + 1 modified (US-2.11)
+    expect(sd.paragraphDiffs).toHaveLength(3);
+    expect(sd.paragraphDiffs.filter(pd => pd.changeType === 'modified')).toHaveLength(1);
+    expect(sd.paragraphDiffs.filter(pd => pd.changeType === 'unchanged')).toHaveLength(2);
   });
 
-  it('DE-S2: unchanged tables filtered from matched section output', () => {
+  it('DE-S2: unchanged tables retained in matched section output (US-2.11)', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-8', 'Item 8. Financial Statements', [
         makeTable([['Metric', 'Value'], ['Revenue', '$100']], 0),
@@ -473,12 +478,13 @@ describe('slim diff filtering (new behavior)', () => {
     ]);
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
-    // Only the modified table remains (1 unchanged filtered)
-    expect(sd.tableDiffs).toHaveLength(1);
-    expect(sd.tableDiffs[0].changeType).toBe('modified');
+    // Both tables retained: 1 modified + 1 unchanged (US-2.11)
+    expect(sd.tableDiffs).toHaveLength(2);
+    expect(sd.tableDiffs.filter(td => td.changeType === 'modified')).toHaveLength(1);
+    expect(sd.tableDiffs.filter(td => td.changeType === 'unchanged')).toHaveLength(1);
   });
 
-  it('DE-S3: section with all unchanged content → empty paragraphDiffs and tableDiffs', () => {
+  it('DE-S3: section with all unchanged content → paragraphDiffs and tableDiffs contain unchanged entries (US-2.11)', () => {
     const oldDoc = makeStructuredDoc([
       makeSection('item-1', 'Item 1. Business', [
         makeParagraph('Unchanged text.', 0),
@@ -494,8 +500,11 @@ describe('slim diff filtering (new behavior)', () => {
     const result = diffFilings(oldDoc, newDoc);
     const sd = result.sectionDiffs[0];
     expect(sd.changeType).toBe('unchanged');
-    expect(sd.paragraphDiffs).toEqual([]);
-    expect(sd.tableDiffs).toEqual([]);
+    // Unchanged entries are retained for scroll sync (US-2.11)
+    expect(sd.paragraphDiffs.length).toBeGreaterThan(0);
+    expect(sd.paragraphDiffs.every(pd => pd.changeType === 'unchanged')).toBe(true);
+    expect(sd.tableDiffs.length).toBeGreaterThan(0);
+    expect(sd.tableDiffs.every(td => td.changeType === 'unchanged')).toBe(true);
     // Section still appears in sectionDiffs (sections are NOT filtered)
     expect(result.sectionDiffs).toHaveLength(1);
   });

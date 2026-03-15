@@ -101,7 +101,7 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
     }
   });
 
-  it('E2E-4: diffing a document against itself produces all unchanged (with filtering)', () => {
+  it('E2E-4: diffing a document against itself produces all unchanged (US-2.11 retains entries)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -112,9 +112,13 @@ describe('E2E: Full diff pipeline (parseFiling -> diffFilings)', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
-      // BQ6: unchanged paragraphs and tables are filtered from output
-      expect(sd.paragraphDiffs).toEqual([]);
-      expect(sd.tableDiffs).toEqual([]);
+      // US-2.11: unchanged paragraphs and tables are retained for scroll sync
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
+      }
+      for (const td of sd.tableDiffs) {
+        expect(td.changeType).toBe('unchanged');
+      }
     }
   });
 
@@ -313,7 +317,7 @@ describe('E2E: structured diff with tables', () => {
     expect(typeof parsed.newFiling.filingDate).toBe('string');
   });
 
-  it('E2E-T6: self-diff produces no table changes (all filtered)', () => {
+  it('E2E-T6: self-diff produces no table changes (unchanged retained for US-2.11)', () => {
     const result = diffFilings(oldDoc, oldDoc);
 
     expect(result.summary.added).toBe(0);
@@ -322,9 +326,13 @@ describe('E2E: structured diff with tables', () => {
 
     for (const sd of result.sectionDiffs) {
       expect(sd.changeType).toBe('unchanged');
-      // BQ6: unchanged paragraphs and tables are filtered from output
-      expect(sd.paragraphDiffs).toEqual([]);
-      expect(sd.tableDiffs).toEqual([]);
+      // US-2.11: unchanged paragraphs and tables are retained for scroll sync
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
+      }
+      for (const td of sd.tableDiffs) {
+        expect(td.changeType).toBe('unchanged');
+      }
     }
   });
 
@@ -433,19 +441,25 @@ describe('E2E: single word change produces minimal focused diff', () => {
     // The added word offset should map to text containing our replacement
     expect(addedWords.some((wc) => newParagraph!.text.slice(wc.start, wc.end).includes('XREVENUEX'))).toBe(true);
 
-    // No tableDiffs anywhere (we only changed paragraph text)
+    // No modified/added/removed tableDiffs anywhere (we only changed paragraph text)
     for (const sd of result.sectionDiffs) {
-      expect(sd.tableDiffs).toEqual([]);
+      for (const td of sd.tableDiffs) {
+        expect(td.changeType).toBe('unchanged');
+      }
     }
 
-    // All other sections should be unchanged with empty diffs
+    // All other sections should be unchanged with only unchanged diffs (US-2.11)
     const unchangedSections = result.sectionDiffs.filter(
       (sd) => sd.changeType === 'unchanged',
     );
     expect(unchangedSections.length).toBe(result.sectionDiffs.length - 1);
     for (const sd of unchangedSections) {
-      expect(sd.paragraphDiffs).toEqual([]);
-      expect(sd.tableDiffs).toEqual([]);
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
+      }
+      for (const td of sd.tableDiffs) {
+        expect(td.changeType).toBe('unchanged');
+      }
     }
 
     // Summary should show exactly 1 modified
@@ -455,10 +469,12 @@ describe('E2E: single word change produces minimal focused diff', () => {
     expect(result.summary.reordered).toBe(0);
     expect(result.summary.unchanged).toBe(result.sectionDiffs.length - 1);
 
-    // Output JSON should be small (< 50 KB for a single word change)
+    // US-2.11: output includes unchanged entries for scroll sync, so size is larger
+    // Still should be reasonable — check it finishes and produces valid JSON
     const json = JSON.stringify(result);
     const sizeBytes = json.length;
     console.log(`E2E-S2: output JSON size = ${sizeBytes} bytes (${(sizeBytes / 1024).toFixed(1)} KB)`);
-    expect(sizeBytes).toBeLessThan(50 * 1024); // < 50 KB
+    // With unchanged entries retained, allow up to 2MB (same as E2E-S1)
+    expect(sizeBytes).toBeLessThan(2 * 1024 * 1024); // < 2MB
   });
 });

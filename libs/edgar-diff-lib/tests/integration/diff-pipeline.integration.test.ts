@@ -240,13 +240,14 @@ describe('diff pipeline integration', () => {
     const item8 = result.sectionDiffs.find((d) => d.id === 'item-8')!;
     expect(item8.tableDiffs.length).toBeGreaterThanOrEqual(2);
 
-    // BQ6: Verify unchanged paragraphs/tables are filtered from output
+    // US-2.11: unchanged paragraphs/tables are now retained for scroll sync
+    // Verify all entries have valid changeTypes (including 'unchanged')
     for (const sd of result.sectionDiffs) {
       for (const pd of sd.paragraphDiffs) {
-        expect(pd.changeType).not.toBe('unchanged');
+        expect(['added', 'removed', 'modified', 'unchanged', 'moved']).toContain(pd.changeType);
       }
       for (const td of sd.tableDiffs) {
-        expect(td.changeType).not.toBe('unchanged');
+        expect(['added', 'removed', 'modified', 'unchanged']).toContain(td.changeType);
       }
     }
   });
@@ -402,8 +403,9 @@ describe('boundary conditions — structured diff', () => {
     const newDoc = makeStructuredDoc([makeSection('item-8', 'Item 8', tables)]);
 
     const result = diffFilings(oldDoc, newDoc);
-    // BQ6: identical tables are all unchanged → all filtered from output
-    expect(result.sectionDiffs[0].tableDiffs).toHaveLength(0);
+    // US-2.11: identical tables are all unchanged but retained for scroll sync
+    expect(result.sectionDiffs[0].tableDiffs).toHaveLength(10);
+    expect(result.sectionDiffs[0].tableDiffs.every(td => td.changeType === 'unchanged')).toBe(true);
     expect(result.sectionDiffs[0].changeType).toBe('unchanged');
   });
 

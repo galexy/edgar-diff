@@ -55,15 +55,17 @@ describe('PD-I1: cross-year diff produces reasonable change count', () => {
     // Cross-year filings should have some changes
     expect(totalChanges).toBeGreaterThan(0);
 
-    // Unchanged paragraphs are now filtered from diffFilings output.
-    // Verify that total changes is less than total paragraphs (some unchanged exist but are filtered).
+    // US-2.11: unchanged paragraphs are now retained for scroll sync.
+    // Verify that unchanged paragraphs exist alongside changed ones.
     const unchangedCount = allParagraphDiffs.filter(pd => pd.changeType === 'unchanged').length;
-    expect(unchangedCount).toBe(0); // unchanged paragraphs are filtered out
-    // But not all paragraphs should be changed — unchanged sections have empty paragraphDiffs
-    const sectionsWithEmptyParagraphs = result.sectionDiffs.filter(
-      sd => sd.paragraphDiffs.length === 0 && sd.changeType === 'unchanged',
-    ).length;
-    expect(sectionsWithEmptyParagraphs).toBeGreaterThan(0);
+    expect(unchangedCount).toBeGreaterThan(0); // unchanged paragraphs are retained
+    // Unchanged sections should have paragraphDiffs with only unchanged entries
+    const unchangedSections = result.sectionDiffs.filter(sd => sd.changeType === 'unchanged');
+    for (const sd of unchangedSections) {
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
+      }
+    }
   });
 });
 
@@ -99,9 +101,11 @@ describe('PD-I3: identity diff', () => {
     expect(addedSections).toHaveLength(0);
     expect(removedSections).toHaveLength(0);
 
-    // Self-diff: all paragraphs are unchanged and filtered out
+    // US-2.11: self-diff retains all paragraphs as unchanged for scroll sync
     for (const sd of result.sectionDiffs) {
-      expect(sd.paragraphDiffs).toHaveLength(0);
+      for (const pd of sd.paragraphDiffs) {
+        expect(pd.changeType).toBe('unchanged');
+      }
     }
   });
 });
