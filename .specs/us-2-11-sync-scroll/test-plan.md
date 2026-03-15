@@ -514,9 +514,11 @@ it('disconnects IntersectionObservers, MutationObserver, and clears timeout on u
 });
 ```
 
-#### SS-U13: Settling timeout resets scrollSourceRef after 150ms
+#### SS-U13: Settling timeout resets scrollSourceRef after SCROLL_SETTLE_MS
 ```typescript
-it('resets scroll source flag after 150ms settling timeout', () => {
+import { useSyncedScroll, SCROLL_SETTLE_MS } from './useSyncedScroll';
+
+it('resets scroll source flag after SCROLL_SETTLE_MS settling timeout', () => {
   vi.useFakeTimers();
   const containerA = makeContainer('s1', 's2');
   const containerB = makeContainer('s1', 's2');
@@ -542,9 +544,9 @@ it('resets scroll source flag after 150ms settling timeout', () => {
   act(() => { flushRAF(); });
   expect(containerA.querySelector('#s1')?.scrollIntoView).not.toHaveBeenCalled();
 
-  // After 150ms timeout: scrollSourceRef resets to 'none'
+  // After SCROLL_SETTLE_MS: scrollSourceRef resets to 'none'
   // Now panel B scrolling should trigger sync to panel A
-  act(() => { vi.advanceTimersByTime(150); });
+  act(() => { vi.advanceTimersByTime(SCROLL_SETTLE_MS); });
   act(() => { fireScroll(containerB); });
   act(() => { flushRAF(); });
   expect(containerA.querySelector('#s1')?.scrollIntoView).toHaveBeenCalled();
