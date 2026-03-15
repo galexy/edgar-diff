@@ -27,11 +27,11 @@ Scenario: SS-AC1-2 — Scroll Filing B syncs Filing A proportionally
   When the user scrolls Filing B so that section "s3" is 40% through at viewport center
   Then Filing A sets scrollTop so that section "s3" is at 40% through
 
-Scenario: SS-AC1-3 — Section not found in other panel (silent no-op)
+Scenario: SS-AC1-3 — Section not found in other panel (global ratio fallback)
   Given Filing A has sections [s1, s2, s3] and Filing B has sections [s1, s3]
   And sync scrolling is enabled
   When the user scrolls Filing A so that section "s2" is at the viewport center
-  Then Filing B does NOT scroll (section "s2" does not exist in Filing B)
+  Then Filing B falls back to global proportional scrolling (scrollTop/scrollHeight ratio)
   And no error is thrown
 
 Scenario: SS-AC1-4 — No filings loaded
@@ -134,7 +134,7 @@ export interface SectionRect {
 
 ### 2a. `findSectionAtPosition(sections, centerY)` — Binary Search
 
-Returns `SectionRect | null`.
+Returns `{ section: SectionRect; index: number } | null`.
 
 ```typescript
 import { describe, it, expect } from 'vitest';
@@ -158,7 +158,7 @@ describe('findSectionAtPosition', () => {
       { id: 's1', offsetTop: 100, offsetHeight: 200 },
       { id: 's2', offsetTop: 300, offsetHeight: 200 },
     ];
-    expect(findSectionAtPosition(sections, 50)).toEqual(sections[0]);
+    expect(findSectionAtPosition(sections, 50)).toEqual({ section: sections[0], index: 0 });
   });
 
   // SS-PF3: Position in middle of a section returns that section
@@ -168,7 +168,7 @@ describe('findSectionAtPosition', () => {
       { id: 's2', offsetTop: 300, offsetHeight: 400 },
       { id: 's3', offsetTop: 700, offsetHeight: 300 },
     ];
-    expect(findSectionAtPosition(sections, 500)).toEqual(sections[1]); // 500 is within s2 (300-700)
+    expect(findSectionAtPosition(sections, 500)).toEqual({ section: sections[1], index: 1 });
   });
 
   // SS-PF4: Position at exact boundary between sections
@@ -179,7 +179,7 @@ describe('findSectionAtPosition', () => {
     ];
     // At 300: s1 ends (0+300), s2 begins. Binary search: centerY >= s.offsetTop + s.offsetHeight
     // skips s1, lands on s2.
-    expect(findSectionAtPosition(sections, 300)).toEqual(sections[1]);
+    expect(findSectionAtPosition(sections, 300)).toEqual({ section: sections[1], index: 1 });
   });
 
   // SS-PF5: Position after last section returns last section
@@ -188,15 +188,15 @@ describe('findSectionAtPosition', () => {
       { id: 's1', offsetTop: 0, offsetHeight: 200 },
       { id: 's2', offsetTop: 200, offsetHeight: 300 },
     ];
-    expect(findSectionAtPosition(sections, 9999)).toEqual(sections[1]);
+    expect(findSectionAtPosition(sections, 9999)).toEqual({ section: sections[1], index: 1 });
   });
 
   // SS-PF6: Single section
   it('returns the only section regardless of position', () => {
     const sections: SectionRect[] = [{ id: 's1', offsetTop: 0, offsetHeight: 1000 }];
-    expect(findSectionAtPosition(sections, 500)).toEqual(sections[0]);
-    expect(findSectionAtPosition(sections, 0)).toEqual(sections[0]);
-    expect(findSectionAtPosition(sections, 2000)).toEqual(sections[0]);
+    expect(findSectionAtPosition(sections, 500)).toEqual({ section: sections[0], index: 0 });
+    expect(findSectionAtPosition(sections, 0)).toEqual({ section: sections[0], index: 0 });
+    expect(findSectionAtPosition(sections, 2000)).toEqual({ section: sections[0], index: 0 });
   });
 
   // SS-PF7: Many sections — binary search correctness
@@ -207,7 +207,7 @@ describe('findSectionAtPosition', () => {
       offsetHeight: 200,
     }));
     // Position 2500 is in section 13 (offsetTop=2400, range 2400-2600)
-    expect(findSectionAtPosition(sections, 2500)).toEqual(sections[12]);
+    expect(findSectionAtPosition(sections, 2500)).toEqual({ section: sections[12], index: 12 });
   });
 
   // SS-PF8: Gap between sections (preamble or padding) — snaps to nearest
@@ -220,7 +220,7 @@ describe('findSectionAtPosition', () => {
     const result = findSectionAtPosition(sections, 150); // in the gap
     // Should return one of the adjacent sections (implementation-defined: nearest)
     expect(result).not.toBeNull();
-    expect(result!.id).toMatch(/^s[12]$/);
+    expect(result!.section.id).toMatch(/^s[12]$/);
   });
 });
 ```
@@ -272,8 +272,9 @@ describe('computeRatio', () => {
 
 ### 2c. `computeTargetScrollTop(matchingSection, ratio, containerHeight)` — Target Scroll
 
-The function returns `Math.max(0, matchingSection.offsetTop + ratio * matchingSection.offsetHeight - containerHeight / 2)`.
-It clamps the lower bound to 0; the browser clamps the upper bound (`scrollHeight - clientHeight`) on assignment.
+The function returns `matchingSection.offsetTop + ratio * matchingSection.offsetHeight - containerHeight / 2`.
+It does NOT clamp — the browser clamps `scrollTop` naturally on assignment (negative → 0,
+exceeds max → `scrollHeight - clientHeight`).
 
 ```typescript
 describe('computeTargetScrollTop', () => {
@@ -283,32 +284,32 @@ describe('computeTargetScrollTop', () => {
 
   // SS-PF16: Ratio 0 → viewport center at section top
   it('positions viewport center at section start for ratio 0', () => {
-    // Target: max(0, 200 + 0 * 600 - 200) = max(0, 0) = 0
+    // Target: 200 + 0 * 600 - 200 = 0
     expect(computeTargetScrollTop(section, 0, containerHeight)).toBe(0);
   });
 
   // SS-PF17: Ratio 1 → viewport center at section bottom
   it('positions viewport center at section end for ratio 1', () => {
-    // Target: max(0, 200 + 1 * 600 - 200) = 600
+    // Target: 200 + 1 * 600 - 200 = 600
     expect(computeTargetScrollTop(section, 1, containerHeight)).toBe(600);
   });
 
   // SS-PF18: Ratio 0.5 → viewport center at section midpoint
   it('positions viewport center at section midpoint for ratio 0.5', () => {
-    // Target: max(0, 200 + 0.5 * 600 - 200) = 300
+    // Target: 200 + 0.5 * 600 - 200 = 300
     expect(computeTargetScrollTop(section, 0.5, containerHeight)).toBe(300);
   });
 
-  // SS-PF19: Clamps to 0 when computed value would be negative
-  it('clamps to 0 when section is near the top', () => {
+  // SS-PF19: Can return negative — browser clamps scrollTop to 0 on assignment
+  it('can return negative value (browser clamps on assignment)', () => {
     const topSection: SectionRect = { id: 's1', offsetTop: 50, offsetHeight: 100 };
-    // Raw: 50 + 0 * 100 - 200 = -150 → clamped to 0
-    expect(computeTargetScrollTop(topSection, 0, containerHeight)).toBe(0);
+    // Target: 50 + 0 * 100 - 200 = -150
+    expect(computeTargetScrollTop(topSection, 0, containerHeight)).toBe(-150);
   });
 
   // SS-PF20: Ratio 0.75 produces correct intermediate value
   it('produces correct value for ratio 0.75', () => {
-    // Target: max(0, 200 + 0.75 * 600 - 200) = 450
+    // Target: 200 + 0.75 * 600 - 200 = 450
     expect(computeTargetScrollTop(section, 0.75, containerHeight)).toBe(450);
   });
 });
@@ -612,9 +613,9 @@ it('does not throw when one ref is null', () => {
 });
 ```
 
-#### SS-U9: Handles missing section in other panel — silent no-op
+#### SS-U9: Handles missing section in other panel — global ratio fallback
 ```typescript
-it('does not scroll target panel when section is missing (no-op)', () => {
+it('falls back to global proportional scroll when section is missing in target panel', () => {
   const containerA = makeContainer('s1', 's2', 's3');
   const containerB = makeContainer('s1', 's3'); // s2 missing
 
@@ -625,8 +626,11 @@ it('does not scroll target panel when section is missing (no-op)', () => {
   act(() => { fireScroll(containerA); });
   act(() => { flushRAF(); });
 
-  // B should NOT have scrolled — no matching section, no fallback
-  expect(containerB.scrollTop).toBe(0);
+  // B should have scrolled using global ratio fallback, NOT stayed at 0
+  // Global ratio: scrollTop / scrollHeight = 500 / 1500 ≈ 0.333
+  // Target: 0.333 * 1000 (B's scrollHeight, 2 sections * 500) ≈ 333
+  expect(containerB.scrollTop).not.toBe(0);
+  expect(containerB.scrollTop).toBeGreaterThan(0);
 });
 ```
 
@@ -874,10 +878,10 @@ File: `.specs/us-2-11-sync-scroll/uat.md`
 | SS-B3 | 20+ sections in both panels | Binary search efficiently finds the correct section among many; sync works for any section |
 | SS-B4 | Very large section (> 3 viewports tall) | Proportional ratio mapping tracks smoothly through the section — no jumps |
 | SS-B5 | Very small section (< 50px) | Binary search detects it when viewport center passes through; ratio computed correctly |
-| SS-B6 | Mismatched section counts (A has 10, B has 7) | Matching IDs sync proportionally; non-matching sections are silently skipped (no-op) |
+| SS-B6 | Mismatched section counts (A has 10, B has 7) | Matching IDs sync proportionally; non-matching sections fall back to global ratio |
 | SS-B7 | Both panels at the same section already | scrollTop is set to computed value — proportional mapping naturally produces correct position |
-| SS-B8 | scrollTop would be negative | `computeTargetScrollTop` clamps to 0 via `Math.max(0, ...)` |
-| SS-B9 | scrollTop would exceed scrollHeight - clientHeight | Browser clamps `scrollTop` to max on assignment (pure function does not clamp upper bound) |
+| SS-B8 | scrollTop would be negative | `computeTargetScrollTop` may return negative; browser clamps `scrollTop` to 0 on assignment |
+| SS-B9 | scrollTop would exceed scrollHeight - clientHeight | `computeTargetScrollTop` may return large value; browser clamps `scrollTop` to max on assignment |
 | SS-B10 | Gap between sections (preamble, padding) | `findSectionAtPosition` binary search fallback snaps to nearest section |
 
 ---
@@ -888,7 +892,7 @@ File: `.specs/us-2-11-sync-scroll/uat.md`
 |----|-----------|-------------------|
 | SS-ERR1 | Both panel refs null (not mounted) | Hook early-returns (`if (!panelA \|\| !panelB \|\| !enabled) return`); no listeners attached |
 | SS-ERR2 | One panel ref null | Hook early-returns; no listeners attached |
-| SS-ERR3 | Section exists in panel A but not panel B | Falls back to global proportional scrolling (`scrollTop/scrollHeight` ratio) |
+| SS-ERR3 | Section exists in panel A but not panel B | Falls back to global proportional scrolling (`scrollTop/scrollHeight` ratio); no error |
 | SS-ERR4 | Sections load asynchronously (pipeline states) | No issue — `getSectionRects` queries `querySelectorAll('section[id]')` fresh each scroll; returns `[]` during loading |
 | SS-ERR5 | Panel unmounted mid-scroll (race condition) | useEffect cleanup removes listeners; in-flight rAF may fire but harmlessly sets scrollTop on still-mounted target |
 | SS-ERR6 | Toggle disable during active rAF | useEffect cleanup removes listeners; pending rAF callback may fire one last time (harmless) |
@@ -1028,7 +1032,7 @@ function flushRAF(): void {
 | SS-U6 | Unit | Uses requestAnimationFrame for debouncing |
 | SS-U7 | Unit | Coalesces rapid scroll events via cancelAnimationFrame |
 | SS-U8 | Unit | Handles null refs (early return) |
-| SS-U9 | Unit | Falls back to global proportional scroll for missing sections |
+| SS-U9 | Unit | Missing section in target panel — silent no-op |
 | SS-U10 | Unit | Toggle removes/adds listeners dynamically |
 | SS-U11 | Unit | Sections queried fresh on each scroll (dynamic DOM) |
 | SS-U12 | Unit | No sections loaded — handler no-ops |
@@ -1047,5 +1051,5 @@ function flushRAF(): void {
 | UAT-4 | UAT | Toggle re-enables sync |
 | UAT-5 | UAT | Bidirectional sync |
 | UAT-6 | UAT | No huge jumps — smooth tracking (v1 failure mode) |
-| SS-B1–B11 | Boundary | Edge cases (empty, small, large, mismatched, clamping, gaps) |
+| SS-B1–B10 | Boundary | Edge cases (empty, small, large, mismatched, clamping, gaps) |
 | SS-ERR1–ERR7 | Error | Error conditions |

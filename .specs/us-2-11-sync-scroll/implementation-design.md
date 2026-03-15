@@ -27,7 +27,7 @@ Instead of snapping to section tops, v2 computes a **proportional position** wit
 
 These live in `apps/web/src/lib/sync-scroll.ts` — a standalone module with zero React or DOM dependencies (operates on plain numbers). The hook in `apps/web/src/hooks/useSyncedScroll.ts` imports and orchestrates them.
 
-#### `findSectionAtPosition(sections, centerY): { section, index } | null`
+#### `findSectionAtPosition(sections, centerY): SectionRect | null`
 
 Binary search over an array of `{ offsetTop, offsetHeight }` section measurements to find which section contains `centerY`.
 
@@ -40,8 +40,7 @@ export interface SectionRect {
 
 /**
  * Binary search through section positions to find which section contains
- * the given vertical position. Returns the section and its index, or null
- * if no sections exist.
+ * the given vertical position. Returns the section, or null if no sections exist.
  *
  * Boundary behavior:
  * - Position before first section → returns first section (preamble area)
@@ -51,18 +50,18 @@ export interface SectionRect {
 export function findSectionAtPosition(
   sections: SectionRect[],
   centerY: number,
-): { section: SectionRect; index: number } | null {
+): SectionRect | null {
   if (sections.length === 0) return null;
 
   // Before first section (preamble area)
   if (centerY < sections[0].offsetTop) {
-    return { section: sections[0], index: 0 };
+    return sections[0];
   }
 
   // After last section
   const last = sections[sections.length - 1];
   if (centerY >= last.offsetTop + last.offsetHeight) {
-    return { section: last, index: sections.length - 1 };
+    return last;
   }
 
   // Binary search
@@ -76,13 +75,12 @@ export function findSectionAtPosition(
     } else if (centerY >= s.offsetTop + s.offsetHeight) {
       lo = mid + 1;
     } else {
-      return { section: s, index: mid };
+      return s;
     }
   }
 
   // Fallback: gap between sections — snap to nearest
-  const idx = lo < sections.length ? lo : hi;
-  return { section: sections[idx], index: idx };
+  return sections[lo] ?? sections[hi];
 }
 ```
 
@@ -110,7 +108,7 @@ Target `scrollTop` for the other panel.
 /**
  * Compute the scrollTop value that places the matching section's proportional
  * position at the center of the container viewport.
- * May return negative values — the browser clamps scrollTop on assignment.
+ * Clamps to 0 minimum; the browser clamps the upper bound on assignment.
  */
 export function computeTargetScrollTop(
   matchingSection: SectionRect,
@@ -118,7 +116,7 @@ export function computeTargetScrollTop(
   containerHeight: number,
 ): number {
   const targetCenterY = matchingSection.offsetTop + ratio * matchingSection.offsetHeight;
-  return targetCenterY - containerHeight / 2;
+  return Math.max(0, targetCenterY - containerHeight / 2);
 }
 ```
 
@@ -155,7 +153,7 @@ User scrolls Panel A
   → requestAnimationFrame gates the handler (debounce)
   → centerY = container.scrollTop + container.clientHeight / 2
   → sections = getSectionRects(panelA)
-  → { section, index } = findSectionAtPosition(sections, centerY)
+  → section = findSectionAtPosition(sections, centerY)
   → ratio = computeRatio(section, centerY)
   → targetSections = getSectionRects(panelB)
   → find matching section in targetSections by ID
@@ -164,8 +162,7 @@ User scrolls Panel A
       → set isProgrammaticScroll = true
       → panelB.scrollTop = targetScrollTop
   → if NOT found (section missing in Panel B):
-      → fallback: use global ratio (scrollTop / scrollHeight) to set panelB.scrollTop
-      → this keeps panels roughly aligned even without a section match
+      → no-op (skip sync — avoids scrolling to a potentially wrong position)
 ```
 
 ## 3. Hook Signature
@@ -229,28 +226,21 @@ export function useSyncedScroll(
 
           if (!result) return; // No sections loaded yet
 
-          const ratio = computeRatio(result.section, centerY);
+          const ratio = computeRatio(result, centerY);
           const targetSections = getSectionRects(target);
 
           // Find matching section by ID
           const matchingSection = targetSections.find(
-            (s) => s.id === result.section.id,
+            (s) => s.id === result.id,
           );
 
-          let targetScrollTop: number;
-          if (matchingSection) {
-            targetScrollTop = computeTargetScrollTop(
-              matchingSection,
-              ratio,
-              target.clientHeight,
-            );
-          } else {
-            // Fallback: global proportional scroll
-            const globalRatio = source.scrollHeight > 0
-              ? source.scrollTop / source.scrollHeight
-              : 0;
-            targetScrollTop = globalRatio * target.scrollHeight;
-          }
+          if (!matchingSection) return; // Section not in target — no-op
+
+          const targetScrollTop = computeTargetScrollTop(
+            matchingSection,
+            ratio,
+            target.clientHeight,
+          );
 
           isProgrammaticScrollRef.current = true;
           target.scrollTop = targetScrollTop;
@@ -304,7 +294,7 @@ This means Panel B receives at most one programmatic scroll per user scroll fram
 
 ### Section exists in A but not B (added/removed sections)
 
-When `findSectionAtPosition` returns a section whose ID has no match in the target panel, fall back to **global proportional scrolling**: `targetScrollTop = (source.scrollTop / source.scrollHeight) * target.scrollHeight`. This keeps the panels roughly aligned even without a section match. As soon as the user scrolls to a section that exists in both panels, section-based proportional sync resumes.
+When `findSectionAtPosition` returns a section whose ID has no match in the target panel, the handler returns early (no-op). This avoids scrolling to a potentially wrong position — a global ratio could land in a completely unrelated section. The target panel stays at its current position until the user scrolls to a section that exists in both panels.
 
 ### No sections loaded yet
 
@@ -340,9 +330,9 @@ When the user disables sync, the `useEffect` cleanup runs immediately, removing 
 
 Pure functions with zero React dependencies (operate on plain numbers):
 - `SectionRect` interface
-- `findSectionAtPosition()` — binary search, returns `{ section: SectionRect; index: number } | null`
+- `findSectionAtPosition()` — binary search, returns `SectionRect | null`
 - `computeRatio()` — position-to-ratio mapping, clamped to [0, 1]
-- `computeTargetScrollTop()` — ratio-to-scrollTop mapping (may return negative; browser clamps)
+- `computeTargetScrollTop()` — ratio-to-scrollTop mapping, clamps to >= 0 (browser clamps upper bound)
 - `getSectionRects()` — reads section layout from a container element (the only function touching the DOM)
 
 ### New: `apps/web/src/hooks/useSyncedScroll.ts`
