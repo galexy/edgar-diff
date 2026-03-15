@@ -1,86 +1,116 @@
 # US-2.11: Synchronized Scrolling — Implementation Design (v3)
 
-## 1. Approach: Content-Aligned Scroll Sync via Anchor Maps
+## 1. Approach: Offset-Based Content Lookup
 
 ### Why v1 and v2 Failed
 
-**v1** used section-snapping via `scrollIntoView`: an `IntersectionObserver` detected the most-visible section and called `scrollIntoView({ block: 'start' })` on the matching section in the other panel. Result: huge jumps — panels showed the same section but at completely different scroll positions.
+**v1** used section-snapping via `scrollIntoView` — huge jumps.
 
-**v2** used proportional section-based alignment: computed a 0→1 ratio within the current section and mapped it to the same ratio in the other panel. Smoother than v1, but **fundamentally wrong**. If a section has 10 paragraphs in the old filing and 20 in the new (due to additions), 50% through the old section maps to paragraph 5, but 50% through the new section maps to paragraph 10 — completely different content. Proportional mapping ignores content correspondence.
+**v2** used proportional section-based ratios — fundamentally wrong when sections have different paragraph counts.
 
-### v3: Content-Aligned Mapping via Diff Data
+### Why Interpolation-Only Is Wrong
 
-v3 uses **diff data as a correspondence table** between documents. The diff engine already computed which paragraphs and tables correspond between old and new filings. v3 reuses these mappings to build **anchor points** — DOM elements that exist in both panels with known correspondence — and uses binary search + linear interpolation to translate scroll positions.
+An earlier v3 draft used anchor maps with linear interpolation between anchor points. This treats all content between anchors as a linear gradient — but it's not. Between anchors there are specific paragraphs that are either unchanged (identical in both panels), modified (with known source mappings), or added/removed. Interpolation blurs this structure.
 
-**Key advantages over v2:**
-- **Content-aware**: Aligns actual corresponding content, not proportional positions
-- **Uses diff data**: Reuses the correspondence already computed by the diff engine
-- **Precise at changes**: Modified paragraphs are anchor points, so content around changes (where users focus) is precisely aligned
-- **Graceful degradation**: Falls back to section-level alignment when no block-level anchors exist (sufficient for unchanged sections with identical content)
+### v3: Offset-Based Direct Lookup
+
+The key insight: **the HTML source offset is the bridge**. Every content block (paragraph, table) in a `StructuredDocument` has a `source: SourceLocation` giving its exact character offset in the filing HTML. The diff engine computes which blocks correspond between old and new filings via `sourceMapping: { old?: SourceLocation, new?: SourceLocation }`.
+
+v3 uses these source offsets as a **coordinate system for content correspondence**:
+
+1. **Annotate every block** in the DOM with its source offset (`data-source-start`)
+2. **Build an offset table** from ALL paragraph/table diffs (including unchanged) that maps old source offsets ↔ new source offsets
+3. **On scroll**: find the block at the viewport top → read its source offset → look up the corresponding offset in the other document → find the target element → scroll to it
+
+**Direct lookup, not interpolation:**
+- **Unchanged content** → same element exists in both panels → direct lookup → exact alignment
+- **Modified content** → diff's `sourceMapping` gives exact corresponding block → direct lookup
+- **Added/removed content** → no correspondence → interpolate between nearest known blocks (the ONLY case where interpolation is needed)
 
 ## 2. Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ Render Pipeline (one-time per data change)          │
+│ Diff Engine Change (one-time)                       │
 │                                                     │
-│  FilingContent → applyHighlightsToSection            │
-│       ↓ injects data-block-key="sectionId:pd:N"    │
-│  <section> elements with annotated changed blocks   │
+│  diff-engine.ts: include unchanged paragraphs       │
+│  and tables in paragraphDiffs / tableDiffs           │
+│  → every block has sourceMapping with both sides    │
+└──────────────────────┬──────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────────┐
+│ Render Pipeline (per data change)                   │
+│                                                     │
+│  applyHighlightsToSection: annotate ALL blocks      │
+│       ↓ injects data-source-start="<offset>"        │
+│  Every paragraph/table in DOM has its source offset │
 └──────────────────────┬──────────────────────────────┘
                        ↓
 ┌─────────────────────────────────────────────────────┐
 │ Scroll Sync (per scroll event, behind rAF)          │
 │                                                     │
-│  1. measureElements(panel) × 2                      │
-│     → queries sections + [data-block-key] elements  │
-│     → reads positions via getBoundingClientRect      │
-│     → returns Map<key, absoluteY>                   │
+│  1. findBlockAtViewportTop(sourcePanel)              │
+│     → walks [data-source-start] elements            │
+│     → returns { sourceOffset, pixelOffset }         │
 │                                                     │
-│  2. computeAnchors(oldPositions, newPositions)       │
-│     → matches keys across panels                    │
-│     → returns sorted Anchor[]                       │
+│  2. lookupCorrespondingOffset(table, offset, dir)   │
+│     → binary search in offset table                 │
+│     → direct match or interpolation for gaps        │
+│     → returns target source offset                  │
 │                                                     │
-│  3. translatePosition(anchors, scrollTop, direction) │
-│     → binary search for bracketing anchors          │
-│     → linear interpolation                          │
-│     → returns target scrollTop                      │
+│  3. findBlockBySourceOffset(targetPanel, offset)    │
+│     → queries [data-source-start="<offset>"]        │
+│     → returns element position                      │
 │                                                     │
-│  4. targetPanel.scrollTop = result                  │
+│  4. targetPanel.scrollTop = targetBlockTop + offset │
 └─────────────────────────────────────────────────────┘
 ```
 
-## 3. DOM Annotation
+## 3. Diff Engine Change
+
+### Problem
+
+The diff engine filters out unchanged paragraphs (`diff-engine.ts:62`) and tables (`diff-engine.ts:94`). These are the BEST anchors for scroll sync — they represent content that is identical in both panels with known source offset correspondence.
+
+### Change
+
+Remove the two filters:
+
+```diff
+ // diff-engine.ts:62
+-const paragraphDiffs = allParagraphDiffs.filter(pd => pd.changeType !== 'unchanged');
++const paragraphDiffs = allParagraphDiffs;
+
+ // diff-engine.ts:94
+-tableDiffs = tableDiffs.filter(td => td.changeType !== 'unchanged');
++// tableDiffs unfiltered — unchanged tables retained for scroll sync
+```
+
+**Why this is safe for existing consumers:**
+- `applyHighlightsToSection` already handles unchanged entries — the `else { continue; }` branch at line 274 skips them
+- `countChanges` in `App.tsx` already defensively filters: `paragraphDiffs.filter(p => p.changeType !== 'unchanged')`
+- The diff summary (`buildSummary`) counts section-level change types, not paragraph-level — unaffected
+- Unchanged `ParagraphDiff` entries have no `wordChanges` (lightweight — just `changeType` + `sourceMapping`)
+
+**Data impact**: For a typical 10-K with ~1000 paragraphs and ~10% changed, this adds ~900 entries with `{ changeType: 'unchanged', sourceMapping: { old: {start, end}, new: {start, end} } }` — approximately 18KB of additional JSON. Negligible.
+
+## 4. DOM Annotation
 
 ### Strategy
 
-Inject `data-block-key` attributes into changed paragraph and table elements during the existing highlight-injection pass in `applyHighlightsToSection`. Only blocks with counterparts in **both** panels are annotated (i.e., `sourceMapping` has both `old` and `new`), since only those can serve as anchor points.
+Annotate **ALL content blocks** (paragraphs and tables) with their source offset via `data-source-start` attributes. This creates a complete mapping from every DOM element back to its position in the filing HTML.
 
-Section boundaries use the existing `<section id="...">` elements — no extra annotation needed.
-
-### Key Format
+### Attribute
 
 ```
-data-block-key="{sectionId}:{blockType}:{diffIndex}"
+data-source-start="<absoluteSourceOffset>"
 ```
-
-- `blockType`: `pd` for paragraph diff, `td` for table diff
-- `diffIndex`: zero-based index within `sectionDiff.paragraphDiffs` or `sectionDiff.tableDiffs`
 
 Examples:
-- `data-block-key="item-1a:pd:0"` — first paragraph diff in section "item-1a"
-- `data-block-key="item-7:td:2"` — third table diff in section "item-7"
+- `<p data-source-start="1234">Risk factors include...</p>` — paragraph starting at offset 1234
+- `<table data-source-start="5678">...</table>` — table starting at offset 5678
 
-Both panels process the same `sectionDiff.paragraphDiffs` array, so the same key identifies corresponding elements across panels. A modified paragraph produces `data-block-key="item-1a:pd:0"` in **both** the old and new panels.
-
-### Which Blocks Get Annotated
-
-| changeType | Has both old/new sourceMapping? | Annotated? | Rationale |
-|---|---|---|---|
-| `modified` | Yes | Yes | Both panels have the element → anchor |
-| `moved` | Yes | Yes | Both panels have the element → anchor |
-| `added` | No (only `new`) | No | Only exists in new panel → no anchor |
-| `removed` | No (only `old`) | No | Only exists in old panel → no anchor |
+The offset is the **absolute character position** in the filing HTML (same value as `block.source.start` from the `StructuredDocument`).
 
 ### Injection Function
 
@@ -88,45 +118,39 @@ New function in `highlight-injector.ts`:
 
 ```typescript
 /**
- * Inject a data-block-key attribute into the first opening HTML tag.
+ * Inject a data-source-start attribute into the first opening HTML tag.
  * Falls back to wrapping in a <span> if no opening tag is found.
  */
-export function injectBlockKey(blockHtml: string, key: string): string {
+export function injectSourceOffset(blockHtml: string, sourceStart: number): string {
   const trimmed = blockHtml.trimStart();
   if (!trimmed.startsWith('<')) {
-    // Raw text without a wrapping element — add a span wrapper
-    return `<span data-block-key="${key}">${blockHtml}</span>`;
+    return `<span data-source-start="${sourceStart}">${blockHtml}</span>`;
   }
   const tagEnd = blockHtml.indexOf('>');
   if (tagEnd === -1) return blockHtml;
-  // Self-closing tags: insert before />. Strip trailing whitespace before /
-  // to avoid double spaces (e.g., "<br />" → "<br data-block-key="..." />").
+  // Self-closing tags: insert before />
   if (blockHtml[tagEnd - 1] === '/') {
     let pos = tagEnd - 1;
     while (pos > 0 && blockHtml[pos - 1] === ' ') pos--;
-    return blockHtml.slice(0, pos) + ` data-block-key="${key}" />` + blockHtml.slice(tagEnd + 1);
+    return blockHtml.slice(0, pos) + ` data-source-start="${sourceStart}" />` + blockHtml.slice(tagEnd + 1);
   }
-  return blockHtml.slice(0, tagEnd) + ` data-block-key="${key}"` + blockHtml.slice(tagEnd);
+  return blockHtml.slice(0, tagEnd) + ` data-source-start="${sourceStart}"` + blockHtml.slice(tagEnd);
 }
 ```
 
 ### Integration with `applyHighlightsToSection`
 
-The existing paragraph processing loop (lines 240–280 of `highlight-injector.ts`) has three branches:
-1. `added` and `side === 'new'` → wraps in `<ins>`
-2. `removed` and `side === 'old'` → wraps in `<del>`
-3. `modified` or `moved` → injects word-level highlights (but skips if `filteredChanges.length === 0`)
+Now that `paragraphDiffs` includes ALL paragraphs (unchanged + changed), the existing loop iterates every block. For each paragraph:
 
-For scroll sync annotation, we need to handle a fourth case: **blocks with both-side source mappings that don't produce highlights on the current side**. For example, a `modified` paragraph with no word changes on the `old` side currently hits `continue` at line 266. But we still need its `data-block-key` for the anchor map.
+1. Apply highlights (if changed) — existing logic, unchanged blocks hit `continue`
+2. Inject `data-source-start` — **always**, regardless of change type
 
 **Modified logic** (pseudocode for the paragraph loop):
 
 ```typescript
-for (let pdIdx = 0; pdIdx < sectionDiff.paragraphDiffs.length; pdIdx++) {
-  const pd = sectionDiff.paragraphDiffs[pdIdx];
-  const hasBothSides = pd.sourceMapping.old != null && pd.sourceMapping.new != null;
+for (const pd of sectionDiff.paragraphDiffs) {
   const sourceLoc = pd.sourceMapping[side];
-  if (!sourceLoc) continue;
+  if (!sourceLoc) continue; // block doesn't exist on this side (added/removed)
 
   const relStart = sourceLoc.start - sectionOffset;
   const relEnd = sourceLoc.end - sectionOffset;
@@ -135,7 +159,7 @@ for (let pdIdx = 0; pdIdx < sectionDiff.paragraphDiffs.length; pdIdx++) {
   const paragraphHtml = sectionHtml.slice(relStart, relEnd);
   let replacedHtml: string | undefined;
 
-  // Existing highlight logic (unchanged)
+  // Existing highlight logic (unchanged — only fires for changed blocks)
   if (pd.changeType === 'added' && side === 'new') {
     replacedHtml = wrapParagraph(paragraphHtml, 'added');
   } else if (pd.changeType === 'removed' && side === 'old') {
@@ -153,212 +177,258 @@ for (let pdIdx = 0; pdIdx < sectionDiff.paragraphDiffs.length; pdIdx++) {
     }
   }
 
-  // NEW: Inject sync annotation for blocks with both-side mappings
-  if (hasBothSides) {
-    const blockKey = `${sectionDiff.id}:pd:${pdIdx}`;
-    replacedHtml = injectBlockKey(replacedHtml ?? paragraphHtml, blockKey);
-  }
+  // NEW: Always inject source offset annotation
+  replacedHtml = injectSourceOffset(replacedHtml ?? paragraphHtml, sourceLoc.start);
 
-  // Push replacement if anything changed
-  if (replacedHtml) {
-    replacements.push({ relStart, relEnd, html: replacedHtml });
-  }
+  replacements.push({ relStart, relEnd, html: replacedHtml });
 }
 ```
 
-The same pattern applies to the table diff loop — inject `data-block-key` on table elements with both-side source mappings.
+The same pattern applies to the table diff loop.
 
-**Note**: `applyHighlightsToSection` needs to receive the `sectionDiff.id` to construct the block key. Currently it receives `sectionDiff` directly, so `sectionDiff.id` is available. However, the function signature should be extended to accept `sectionId`:
-
-```typescript
-export function applyHighlightsToSection(
-  sectionHtml: string,
-  sectionOffset: number,
-  sectionDiff: SectionDiff,
-  paragraphIndex: Map<string, Paragraph>,
-  side: Side,
-  tableIndex?: Map<string, Table>,
-): string;
-```
-
-No signature change needed — `sectionDiff.id` is already accessible from the existing `sectionDiff` parameter.
-
-## 4. Anchor Map Construction
+## 5. Offset Correspondence Table
 
 ### Data Types
 
 In `apps/web/src/lib/sync-scroll.ts`:
 
 ```typescript
-/** A corresponding position pair between old and new panels. */
-export interface Anchor {
-  oldY: number;  // absolute Y in old panel's scrollable content
-  newY: number;  // absolute Y in new panel's scrollable content
+/** A source offset correspondence between old and new documents. */
+export interface OffsetEntry {
+  oldStart: number;
+  newStart: number;
 }
 
 export type SyncDirection = 'oldToNew' | 'newToOld';
 ```
 
-### `measureElements(panel): Map<string, number>`
+### `buildOffsetTable(sectionDiffs): OffsetEntry[]`
 
-Reads element positions from a single panel. Returns a map from key → absolute Y position within the scrollable content.
+Pure function — extracts all paragraph and table source mappings from the diff data, returns entries sorted by `oldStart`.
 
 ```typescript
+import type { SectionDiff } from '@edgar-diff/lib';
+
 /**
- * Query all section elements and data-block-key annotated elements in a panel,
- * returning their absolute Y positions within the scrollable content.
+ * Build a sorted offset correspondence table from diff data.
+ * Each entry maps a source offset in the old document to the
+ * corresponding offset in the new document.
  *
- * Keys use a prefix to distinguish sections from blocks:
- * - Sections: "section:{id}" (e.g., "section:item-1a")
- * - Blocks: the raw data-block-key value (e.g., "item-1a:pd:0")
+ * Includes ALL blocks: unchanged (direct correspondence),
+ * modified/moved (sourceMapping), added/removed (single-sided, excluded).
  */
-export function measureElements(panel: HTMLDivElement): Map<string, number> {
-  const positions = new Map<string, number>();
-  const panelRect = panel.getBoundingClientRect();
-  const scrollTop = panel.scrollTop;
+export function buildOffsetTable(sectionDiffs: SectionDiff[]): OffsetEntry[] {
+  const entries: OffsetEntry[] = [];
 
-  // Section elements (by ID)
-  for (const el of panel.querySelectorAll<HTMLElement>('section[id]')) {
-    const y = el.getBoundingClientRect().top - panelRect.top + scrollTop;
-    positions.set(`section:${el.id}`, y);
-  }
+  function collectEntries(sections: SectionDiff[]): void {
+    for (const sd of sections) {
+      // Section boundaries as entries
+      if (sd.sourceMapping.old && sd.sourceMapping.new) {
+        entries.push({
+          oldStart: sd.sourceMapping.old.start,
+          newStart: sd.sourceMapping.new.start,
+        });
+      }
 
-  // Annotated block elements (by data-block-key)
-  for (const el of panel.querySelectorAll<HTMLElement>('[data-block-key]')) {
-    const key = el.dataset.blockKey!;
-    const y = el.getBoundingClientRect().top - panelRect.top + scrollTop;
-    positions.set(key, y);
-  }
+      // Paragraph mappings
+      for (const pd of sd.paragraphDiffs) {
+        if (pd.sourceMapping.old && pd.sourceMapping.new) {
+          entries.push({
+            oldStart: pd.sourceMapping.old.start,
+            newStart: pd.sourceMapping.new.start,
+          });
+        }
+      }
 
-  return positions;
-}
-```
+      // Table mappings
+      for (const td of sd.tableDiffs) {
+        if (td.sourceMapping.old && td.sourceMapping.new) {
+          entries.push({
+            oldStart: td.sourceMapping.old.start,
+            newStart: td.sourceMapping.new.start,
+          });
+        }
+      }
 
-### `computeAnchors(oldPositions, newPositions): Anchor[]`
-
-Pure function — matches keys across panels, returns sorted anchor array.
-
-```typescript
-/**
- * Build anchor points by matching keys that exist in both panels.
- * Returns anchors sorted by oldY for efficient binary search.
- */
-export function computeAnchors(
-  oldPositions: Map<string, number>,
-  newPositions: Map<string, number>,
-): Anchor[] {
-  const anchors: Anchor[] = [];
-  for (const [key, oldY] of oldPositions) {
-    const newY = newPositions.get(key);
-    if (newY !== undefined) {
-      anchors.push({ oldY, newY });
+      // Recurse into subsections
+      if (sd.subsectionDiffs.length > 0) {
+        collectEntries(sd.subsectionDiffs);
+      }
     }
   }
-  anchors.sort((a, b) => a.oldY - b.oldY);
-  return anchors;
+
+  collectEntries(sectionDiffs);
+  entries.sort((a, b) => a.oldStart - b.oldStart);
+  return entries;
 }
 ```
 
-### `buildAnchorMap(oldPanel, newPanel): Anchor[]`
-
-Convenience function combining measurement and pairing.
-
-```typescript
-/**
- * Build a complete anchor map from two panel DOM elements.
- * Measures positions and pairs corresponding elements.
- */
-export function buildAnchorMap(
-  oldPanel: HTMLDivElement,
-  newPanel: HTMLDivElement,
-): Anchor[] {
-  return computeAnchors(
-    measureElements(oldPanel),
-    measureElements(newPanel),
-  );
-}
-```
-
-### Typical Anchor Counts
+### Typical Entry Counts
 
 | Source | Count | Notes |
 |---|---|---|
-| Matched section boundaries | ~15-25 | One per section present in both filings |
+| Section boundaries | ~15-25 | One per matched section |
+| Unchanged paragraphs | ~500-900 | Every unchanged paragraph (bulk of content) |
 | Modified/moved paragraphs | ~30-100 | Changed paragraphs with both-side mappings |
-| Modified tables | ~5-20 | Changed tables with both-side mappings |
-| **Total** | **~50-145** | Sufficient for smooth interpolation |
+| Tables | ~20-50 | All tables with both-side mappings |
+| **Total** | **~565-1075** | Dense coverage — most content has direct mapping |
 
-## 5. Scroll Translation
+## 6. Scroll Translation
 
-### `translatePosition(anchors, sourceY, direction): number`
+### `findBlockAtViewportTop(panel): { sourceStart, pixelOffset } | null`
 
-Pure function — binary search for bracketing anchors, then linear interpolation.
+Finds the annotated block element at or just above the viewport top.
 
 ```typescript
 /**
- * Translate a scroll position from one panel to the other using the anchor map.
- *
- * Uses binary search to find the two anchors bracketing the source position,
- * then linearly interpolates the target position between them.
- *
- * Edge behavior:
- * - No anchors → returns sourceY unchanged (passthrough)
- * - Before first anchor → offset translation from first anchor
- * - After last anchor → offset translation from last anchor
- * - Between anchors → linear interpolation
+ * Find the block element whose top edge is at or just above the
+ * panel's current viewport top. Returns the element's source offset
+ * and the pixel distance from the element's top to the viewport top
+ * (for sub-block alignment).
  */
-export function translatePosition(
-  anchors: Anchor[],
-  sourceY: number,
+export function findBlockAtViewportTop(
+  panel: HTMLDivElement,
+): { sourceStart: number; pixelOffset: number } | null {
+  const elements = panel.querySelectorAll<HTMLElement>('[data-source-start]');
+  if (elements.length === 0) return null;
+
+  const panelRect = panel.getBoundingClientRect();
+  const viewportTop = panel.scrollTop;
+
+  let bestElement: HTMLElement | null = null;
+  let bestAbsTop = -Infinity;
+
+  for (const el of elements) {
+    const absTop = el.getBoundingClientRect().top - panelRect.top + panel.scrollTop;
+    if (absTop <= viewportTop && absTop > bestAbsTop) {
+      bestAbsTop = absTop;
+      bestElement = el;
+    }
+  }
+
+  if (!bestElement) {
+    // All elements below viewport top — use the first element
+    const first = elements[0];
+    const absTop = first.getBoundingClientRect().top - panelRect.top + panel.scrollTop;
+    return {
+      sourceStart: parseInt(first.dataset.sourceStart!, 10),
+      pixelOffset: viewportTop - absTop,
+    };
+  }
+
+  return {
+    sourceStart: parseInt(bestElement.dataset.sourceStart!, 10),
+    pixelOffset: viewportTop - bestAbsTop,
+  };
+}
+```
+
+### `lookupCorrespondingOffset(table, sourceOffset, direction): number`
+
+Pure function — binary search for the corresponding source offset.
+
+```typescript
+/**
+ * Look up a source offset in the correspondence table and return
+ * the corresponding offset in the other document.
+ *
+ * Lookup behavior:
+ * - Exact match → returns corresponding offset directly
+ * - Between entries → linear interpolation (only for gaps in added/removed content)
+ * - Before first entry → offset translation from first
+ * - After last entry → offset translation from last
+ */
+export function lookupCorrespondingOffset(
+  table: OffsetEntry[],
+  sourceOffset: number,
   direction: SyncDirection,
 ): number {
-  if (anchors.length === 0) return sourceY;
+  if (table.length === 0) return sourceOffset; // passthrough
 
-  // For newToOld direction, we need anchors sorted by newY
+  // For newToOld: sort by newStart
   const sorted = direction === 'oldToNew'
-    ? anchors
-    : [...anchors].sort((a, b) => a.newY - b.newY);
+    ? table
+    : [...table].sort((a, b) => a.newStart - b.newStart);
 
-  const srcKey = direction === 'oldToNew' ? 'oldY' : 'newY';
-  const tgtKey = direction === 'oldToNew' ? 'newY' : 'oldY';
+  const srcKey = direction === 'oldToNew' ? 'oldStart' : 'newStart';
+  const tgtKey = direction === 'oldToNew' ? 'newStart' : 'oldStart';
 
-  // Single anchor — offset translation
+  // Single entry — offset translation
   if (sorted.length === 1) {
-    return sourceY - sorted[0][srcKey] + sorted[0][tgtKey];
+    return sourceOffset - sorted[0][srcKey] + sorted[0][tgtKey];
   }
 
-  // Before first anchor — offset from first
-  if (sourceY <= sorted[0][srcKey]) {
-    return sourceY - sorted[0][srcKey] + sorted[0][tgtKey];
+  // Before first entry
+  if (sourceOffset <= sorted[0][srcKey]) {
+    return sourceOffset - sorted[0][srcKey] + sorted[0][tgtKey];
   }
 
-  // After last anchor — offset from last
+  // After last entry
   const last = sorted[sorted.length - 1];
-  if (sourceY >= last[srcKey]) {
-    return sourceY - last[srcKey] + last[tgtKey];
+  if (sourceOffset >= last[srcKey]) {
+    return sourceOffset - last[srcKey] + last[tgtKey];
   }
 
-  // Binary search for bracketing anchors
+  // Binary search for exact match or bracketing entries
   let lo = 0;
   let hi = sorted.length - 1;
   while (lo < hi - 1) {
     const mid = (lo + hi) >>> 1;
-    if (sorted[mid][srcKey] <= sourceY) {
+    if (sorted[mid][srcKey] <= sourceOffset) {
       lo = mid;
     } else {
       hi = mid;
     }
   }
 
-  // Linear interpolation between sorted[lo] and sorted[hi]
+  // Exact match on lo bracket — direct lookup
+  if (sorted[lo][srcKey] === sourceOffset) {
+    return sorted[lo][tgtKey];
+  }
+
+  // Between entries — linear interpolation (gap: added/removed content)
   const a = sorted[lo];
   const b = sorted[hi];
   const srcSpan = b[srcKey] - a[srcKey];
-  // Defensive guard: the binary search invariant (a[srcKey] <= sourceY < b[srcKey])
-  // guarantees srcSpan > 0, but we guard against it for safety.
+  // Defensive guard: binary search invariant guarantees srcSpan > 0
   if (srcSpan === 0) return a[tgtKey];
-  const t = (sourceY - a[srcKey]) / srcSpan;
+  const t = (sourceOffset - a[srcKey]) / srcSpan;
   return a[tgtKey] + t * (b[tgtKey] - a[tgtKey]);
+}
+```
+
+### `findBlockBySourceOffset(panel, targetOffset): number | null`
+
+Finds the element closest to the target source offset and returns its pixel position.
+
+```typescript
+/**
+ * Find the annotated element in a panel whose source offset is closest
+ * to the target offset. Returns its absolute Y position in the scrollable content.
+ */
+export function findBlockBySourceOffset(
+  panel: HTMLDivElement,
+  targetOffset: number,
+): number | null {
+  const elements = panel.querySelectorAll<HTMLElement>('[data-source-start]');
+  if (elements.length === 0) return null;
+
+  const panelRect = panel.getBoundingClientRect();
+  let bestElement: HTMLElement | null = null;
+  let bestDistance = Infinity;
+
+  for (const el of elements) {
+    const elOffset = parseInt(el.dataset.sourceStart!, 10);
+    const distance = Math.abs(elOffset - targetOffset);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestElement = el;
+    }
+  }
+
+  if (!bestElement) return null;
+
+  return bestElement.getBoundingClientRect().top - panelRect.top + panel.scrollTop;
 }
 ```
 
@@ -367,45 +437,66 @@ export function translatePosition(
 ```
 User scrolls Panel A (old panel)
   → scroll event fires
-  → check isProgrammaticScroll ref → if true, clear flag and return (loop prevention)
+  → check isProgrammaticScroll ref → if true, clear and return
   → cancelAnimationFrame(rafId)
   → requestAnimationFrame:
-      → anchors = buildAnchorMap(oldPanel, newPanel)
-      → targetScrollTop = translatePosition(anchors, oldPanel.scrollTop, 'oldToNew')
+      → block = findBlockAtViewportTop(oldPanel)
+      → if (!block) return
+      → targetOffset = lookupCorrespondingOffset(offsetTable, block.sourceStart, 'oldToNew')
+      → targetY = findBlockBySourceOffset(newPanel, targetOffset)
+      → if (targetY == null) return
       → set isProgrammaticScroll = true
-      → newPanel.scrollTop = targetScrollTop
+      → newPanel.scrollTop = targetY + block.pixelOffset
 ```
 
-## 6. Hook Signature
+**The `pixelOffset` carry-over**: When the viewport top is partway through a block, `findBlockAtViewportTop` records the pixel distance from the block's top edge to the viewport top. This is added to the target block's position so that the same relative position within the block is aligned. For unchanged blocks (identical content), this gives exact sub-block alignment.
+
+## 7. Hook Signature
 
 ```typescript
 /**
- * Synchronize scroll position between two panels using content-aligned
- * anchor mapping. When enabled, scrolling one panel translates the position
- * using diff-annotated DOM elements to find corresponding content in the
- * other panel.
+ * Synchronize scroll position between two panels using offset-based
+ * content lookup. When enabled, scrolling one panel identifies the
+ * content at the viewport top via source offsets, looks up the
+ * corresponding content in the other document via diff data,
+ * and scrolls to align it.
  */
 export function useSyncedScroll(
   panelARef: RefObject<HTMLDivElement | null>,
   panelBRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
+  sectionDiffs?: SectionDiff[],
 ): void;
 ```
 
-Same signature as v1/v2 — no API changes for consumers. Panel A is the old panel, Panel B is the new panel.
+**Change from previous drafts**: The hook now receives `sectionDiffs` to build the offset table. The offset table is rebuilt when `sectionDiffs` changes (via `useMemo`).
 
 ### Implementation Sketch
 
 ```typescript
-import { useEffect, useRef, type RefObject } from 'react';
-import { buildAnchorMap, translatePosition, type SyncDirection } from '../lib/sync-scroll';
+import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import type { SectionDiff } from '@edgar-diff/lib';
+import {
+  buildOffsetTable,
+  findBlockAtViewportTop,
+  lookupCorrespondingOffset,
+  findBlockBySourceOffset,
+  type SyncDirection,
+} from '../lib/sync-scroll';
 
 export function useSyncedScroll(
   panelARef: RefObject<HTMLDivElement | null>,
   panelBRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
+  sectionDiffs?: SectionDiff[],
 ): void {
   const isProgrammaticScrollRef = useRef(false);
+
+  // Build offset table once when diff data changes
+  const offsetTable = useMemo(
+    () => (sectionDiffs ? buildOffsetTable(sectionDiffs) : []),
+    [sectionDiffs],
+  );
 
   useEffect(() => {
     const panelA = panelARef.current;
@@ -419,7 +510,6 @@ export function useSyncedScroll(
     ) => {
       let rafId = 0;
       return () => {
-        // Check loop guard BEFORE rAF to avoid queuing unnecessary frames
         if (isProgrammaticScrollRef.current) {
           isProgrammaticScrollRef.current = false;
           return;
@@ -427,19 +517,20 @@ export function useSyncedScroll(
 
         cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
-          const anchors = buildAnchorMap(
-            direction === 'oldToNew' ? source : target,
-            direction === 'oldToNew' ? target : source,
-          );
+          const block = findBlockAtViewportTop(source);
+          if (!block) return;
 
-          const targetScrollTop = translatePosition(
-            anchors,
-            source.scrollTop,
+          const targetOffset = lookupCorrespondingOffset(
+            offsetTable,
+            block.sourceStart,
             direction,
           );
 
+          const targetY = findBlockBySourceOffset(target, targetOffset);
+          if (targetY == null) return;
+
           isProgrammaticScrollRef.current = true;
-          target.scrollTop = targetScrollTop;
+          target.scrollTop = targetY + block.pixelOffset;
         });
       };
     };
@@ -455,17 +546,13 @@ export function useSyncedScroll(
       panelB.removeEventListener('scroll', handleScrollB);
       isProgrammaticScrollRef.current = false;
     };
-  }, [panelARef, panelBRef, enabled]);
+  }, [panelARef, panelBRef, enabled, offsetTable]);
 }
 ```
 
-## 7. Loop Prevention
+## 8. Loop Prevention
 
 Same as v2: single boolean ref `isProgrammaticScrollRef`.
-
-```typescript
-const isProgrammaticScrollRef = useRef(false);
-```
 
 **How it works:**
 1. User scrolls Panel A → handler fires, `isProgrammaticScrollRef` is `false` → proceed
@@ -474,79 +561,76 @@ const isProgrammaticScrollRef = useRef(false);
 4. No further scroll events propagate → loop broken
 
 **Why no timeout is needed:**
-- `scrollTop` assignment is synchronous — Panel B's scroll event fires synchronously (or on the next microtask) after assignment
-- Unlike `scrollIntoView({ behavior: 'smooth' })` which produces a stream of scroll events over ~300ms, direct `scrollTop` assignment produces exactly one scroll event
+- `scrollTop` assignment is synchronous — one scroll event per assignment
 - The boolean is checked and cleared atomically in the handler
 
 **Edge case — rapid user scrolling:**
-If the user scrolls Panel A very rapidly (multiple frames), each scroll event:
-1. Cancels the previous `rAF` callback (via `cancelAnimationFrame`)
-2. Queues a new one
-3. Only the last frame actually executes and sets `scrollTop` on Panel B
+`cancelAnimationFrame` discards stale rAF callbacks. At most one handler executes per frame. Panel B receives at most one programmatic scroll per frame.
 
-This means Panel B receives at most one programmatic scroll per user scroll frame — the boolean ref handles this correctly.
+## 9. Edge Cases
 
-## 8. Edge Cases
+### Unchanged content → exact alignment
 
-### Section exists in one panel but not the other (added/removed sections)
+For unchanged paragraphs, `lookupCorrespondingOffset` finds an exact match in the offset table → `findBlockBySourceOffset` finds the identical element in the other panel → `pixelOffset` carry-over provides sub-block precision. Result: pixel-perfect alignment for unchanged content.
 
-Added/removed sections have no matching `<section id>` in the other panel. No anchor is created. When the user scrolls through an added section in one panel, the scroll position falls between surrounding anchors and is interpolated. The other panel stays at a reasonable position near the boundary.
+### Modified content → direct mapping
 
-### No anchors at all
+Modified paragraphs have `sourceMapping` with both old and new offsets. The offset table has an entry for the modification → direct lookup. The `pixelOffset` carry-over may be approximate (modified blocks can have different heights), but the correct block is always targeted.
 
-`translatePosition` returns `sourceY` unchanged (passthrough). This handles the case where both panels have completely different content (no matching sections). The panels scroll independently.
+### Added content (only in new panel)
 
-### Reordered sections
+Added paragraphs have only `sourceMapping.new` (no `old`). The source offset on the new side has no entry in the offset table. `lookupCorrespondingOffset` interpolates between the surrounding entries — the offset falls in a "gap" between the block before and after the addition. The old panel scrolls to the estimated position near the insertion point.
 
-Anchors are sorted by source-panel position. If section order differs between panels, the anchor map produces non-monotonic target positions — e.g., scrolling down in Panel A might cause Panel B to jump backwards. This is correct behavior: the content at that position in Panel A corresponds to earlier content in Panel B.
+### Removed content (only in old panel)
+
+Same pattern: removed paragraphs have only `sourceMapping.old`. The source offset on the old side has no entry mapping to the new side. Interpolation between surrounding entries provides reasonable alignment.
 
 ### No sections loaded yet (pipeline states)
 
-During `fetching`/`parsing`/`diffing`, `FilingPanel` renders spinners. No `<section>` elements exist → `measureElements` returns empty map → `computeAnchors` returns `[]` → `translatePosition` returns passthrough → no-op. Sync starts automatically once content renders.
+No `[data-source-start]` elements → `findBlockAtViewportTop` returns `null` → handler returns early. Sync starts automatically once content renders.
 
-### One panel shorter than the other
+### Section exists in one panel but not the other
 
-Before-first and after-last anchor cases use offset translation (not interpolation). If Panel A is much longer, scrolling past the last anchor produces reasonable target positions that follow the offset pattern established by the last anchor.
+Section boundary entries only exist for matched sections. Added/removed sections have no entries in the offset table. Content within them falls into interpolation gaps.
 
-### Scroll position in preamble area (before first section)
+### Reordered sections
 
-The preamble section (`id="preamble"`) is rendered in `FilingContent` but is not part of the diff's `sectionDiffs`. If both panels have a preamble section (typical — boilerplate headers), `measureElements` picks it up by its `id`. If only one panel has it, the first matched section serves as the anchor boundary.
-
-### Zero-height sections
-
-If a section has zero height, its anchor coincides with the next section's anchor. `translatePosition` handles this via the `srcSpan === 0` guard, returning the target position of the first anchor.
+Entries are sorted by source offset, which reflects document order. Reordered sections produce entries where `oldStart` order differs from `newStart` order. The lookup correctly maps to the moved position.
 
 ### Toggle during scroll
 
-When the user disables sync, the `useEffect` cleanup runs immediately, removing listeners. Any in-flight `rAF` callback from a removed listener is harmless — if it fires, it sets `scrollTop` once (no crash, just one extra frame).
+`useEffect` cleanup removes listeners. In-flight rAF fires harmlessly.
 
-### `getBoundingClientRect` during scroll
+### Scroll past last annotated block
 
-`getBoundingClientRect` returns viewport-relative positions that change during scroll. The formula `el.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop` compensates by adding back the scroll offset, giving stable content-absolute positions regardless of current scroll position.
+`lookupCorrespondingOffset` handles the "after last" case with offset translation from the last entry.
 
-## 9. Files to Create / Modify
+## 10. Files to Create / Modify
 
 ### New: `apps/web/src/lib/sync-scroll.ts`
 
-Pure functions with zero React dependencies:
-- `Anchor` interface
+Pure functions:
+- `OffsetEntry` interface
 - `SyncDirection` type
-- `measureElements()` — reads element positions from a panel (only function touching the DOM)
-- `computeAnchors()` — matches keys across panels, returns sorted anchors (pure)
-- `buildAnchorMap()` — convenience combining measure + compute
-- `translatePosition()` — binary search + interpolation (pure)
+- `buildOffsetTable()` — extracts offset correspondences from diff data (pure)
+- `lookupCorrespondingOffset()` — binary search + direct match or interpolation (pure)
+- `findBlockAtViewportTop()` — finds block at viewport top (DOM reads)
+- `findBlockBySourceOffset()` — finds element by source offset (DOM reads)
 
 ### New: `apps/web/src/hooks/useSyncedScroll.ts`
 
-React hook orchestrating the sync:
-- `useSyncedScroll()` — attaches scroll listeners, builds anchor maps, translates positions
-- Imports functions from `../lib/sync-scroll`
+React hook:
+- `useSyncedScroll()` — orchestrates offset-based sync with `useMemo` for offset table
+
+### Modify: `libs/edgar-diff-lib/src/diff/diff-engine.ts`
+
+- **Remove** unchanged paragraph filter at line 62
+- **Remove** unchanged table filter at line 94
 
 ### Modify: `apps/web/src/lib/highlight-injector.ts`
 
-- **Add** `injectBlockKey()` — injects `data-block-key` attribute into an HTML opening tag
-- **Extend** `applyHighlightsToSection()` paragraph loop — inject `data-block-key` on changed blocks with both-side source mappings (modified/moved paragraphs)
-- **Extend** `applyHighlightsToSection()` table diff loop — inject `data-block-key` on changed tables with both-side source mappings
+- **Add** `injectSourceOffset()` — injects `data-source-start` attribute into an HTML opening tag
+- **Extend** `applyHighlightsToSection()` — inject `data-source-start` on ALL blocks (unchanged, modified, moved, added, removed)
 
 ### Modify: `apps/web/src/App.tsx`
 
@@ -557,8 +641,8 @@ import { useSyncedScroll } from './hooks/useSyncedScroll';
 // New state (after line 76)
 const [syncEnabled, setSyncEnabled] = useState(true);
 
-// Wire the hook (after ref declarations, lines 73-74)
-useSyncedScroll(oldPanelRef, newPanelRef, syncEnabled);
+// Wire the hook — now receives sectionDiffs for offset table
+useSyncedScroll(oldPanelRef, newPanelRef, syncEnabled, diff?.sectionDiffs);
 
 // Toggle callback
 const handleSyncToggle = useCallback(() => {
@@ -603,73 +687,52 @@ export function Header({ syncEnabled, onSyncToggle }: HeaderProps) {
 }
 ```
 
-Props are optional so Header remains backwards-compatible and testable in isolation.
+## 11. What Changed from Anchor Map Draft
 
-## 10. What's Removed from v2
+| Anchor Map Draft | Offset-Based Design | Why |
+|---|---|---|
+| `data-block-key` (diff index) | `data-source-start` (source offset) | Source offsets are the natural coordinate system; enable direct lookup |
+| Only changed blocks annotated | ALL blocks annotated | Unchanged blocks are the best anchors |
+| `computeAnchors()` matches by key | `buildOffsetTable()` from diff data | Offset table is built once, not per-scroll |
+| `measureElements()` per scroll | `findBlockAtViewportTop()` per scroll | Only measures one element, not all |
+| `translatePosition()` always interpolates | `lookupCorrespondingOffset()` direct match first | Interpolation only for gaps (added/removed) |
+| Pixel-space anchor map | Source-offset correspondence table | Source offsets are stable, don't depend on layout |
+| No diff engine changes | Remove unchanged filters | Complete coverage requires ALL block mappings |
+| Hook takes 3 args | Hook takes 4 args (+ sectionDiffs) | Offset table built from diff data, cached via useMemo |
 
-| v2 Concept | Why Removed |
-|---|---|
-| `SectionRect` interface | Replaced by `Anchor` — content-level, not section-level |
-| `findSectionAtPosition()` (binary search over sections) | Replaced by `translatePosition()` binary search over anchors |
-| `computeRatio()` (position-to-ratio) | No ratio concept — direct position mapping via anchors |
-| `computeTargetScrollTop()` (ratio-to-scrollTop) | Replaced by interpolation in `translatePosition()` |
-| `getSectionRects()` (section layout reads) | Replaced by `measureElements()` (reads sections + annotated blocks) |
-| Section ID matching in scroll handler | Replaced by key matching in `computeAnchors()` |
+**Retained:** Loop prevention (boolean ref), rAF debouncing, Header toggle, App.tsx wiring (extended).
 
-**Retained from v2:** Loop prevention (boolean ref), rAF debouncing, hook signature, Header toggle, App.tsx wiring.
+## 12. Dependencies
 
-## 11. Dependencies
+React built-ins:
+- `useEffect`, `useRef`, `useMemo`, `useCallback`, `useState`, `RefObject`
 
-Only React built-ins — no external libraries:
-
-- `useEffect` — lifecycle for listeners
-- `useRef` — mutable boolean for loop prevention
-- `useCallback` — toggle handler in App.tsx
-- `useState` — `syncEnabled` in App.tsx
-- `RefObject` — type import for panel refs
-
-Browser APIs used:
+Browser APIs:
 - `getBoundingClientRect()` — element positioning
-- `querySelectorAll()` — element discovery (already used throughout the app)
+- `querySelectorAll()` — element discovery
 - `requestAnimationFrame` / `cancelAnimationFrame` — debouncing
-- `scrollTop` / `clientHeight` — scroll position
-- `dataset` — reading `data-block-key` attribute values
+- `scrollTop` — scroll position
+- `dataset` — reading `data-source-start` attribute values
 
-## 12. Performance Considerations
+## 13. Performance Considerations
 
-- **Anchor map build per frame**: `querySelectorAll` for ~40 sections + ~200 blocks across 2 panels, `getBoundingClientRect` on ~120 matched elements. Browser batches rect reads if no reflow occurred. Expected cost: ~0.3–0.5ms. Well within the 16ms rAF budget.
-- **Binary search**: O(log n) for ~120 anchors = ~7 comparisons. Negligible.
-- **rAF debouncing**: At most one handler execution per frame. Rapid scrolling cancels prior rAF callbacks.
-- **No forced reflows**: All reads (`getBoundingClientRect`, `scrollTop`) happen before the single write (`target.scrollTop`). No read-write-read interleaving.
-- **No smooth scrolling overhead**: Direct `scrollTop` assignment is synchronous.
-- **`newToOld` re-sort**: `translatePosition` creates a copy sorted by `newY` for the reverse direction. With ~120 elements, this is ~0.01ms. If perf-sensitive, pre-sort both directions in `buildAnchorMap`.
+- **Offset table build**: `useMemo` — computed once when `sectionDiffs` changes. Iterates all diffs, builds and sorts ~500-1000 entries. ~0.1ms.
+- **findBlockAtViewportTop**: Iterates all `[data-source-start]` elements (~500-1000). For each, reads `getBoundingClientRect` (batched by browser). ~0.5ms. Could optimize with binary search if elements are sorted in DOM order (they are — `querySelectorAll` returns document order).
+- **lookupCorrespondingOffset**: Binary search O(log n) on ~500-1000 entries. ~10 comparisons. Negligible.
+- **findBlockBySourceOffset**: Iterates elements, compares offsets. ~0.3ms. Could optimize with a pre-built Map<sourceStart, element> if needed.
+- **Total per scroll frame**: ~1ms. Well within 16ms rAF budget.
+- **No forced reflows**: All reads before single write (`target.scrollTop`).
+- **Optimization opportunity**: Cache a sorted array of `{ sourceStart, absY }` per panel, rebuild on resize/data change instead of per-scroll.
 
-## 13. Testability
-
-The architecture separates pure functions from DOM interaction:
+## 14. Testability
 
 | Function | Pure? | Testable with |
 |---|---|---|
-| `computeAnchors()` | Yes | Plain unit tests with mock maps |
-| `translatePosition()` | Yes | Plain unit tests with mock anchors |
-| `injectBlockKey()` | Yes | String-based unit tests |
-| `measureElements()` | No (DOM reads) | jsdom / happy-dom with mock elements |
-| `buildAnchorMap()` | No (DOM reads) | jsdom / happy-dom |
+| `buildOffsetTable()` | Yes | Unit tests with mock SectionDiff[] |
+| `lookupCorrespondingOffset()` | Yes | Unit tests with mock OffsetEntry[] |
+| `injectSourceOffset()` | Yes | String-based unit tests |
+| `findBlockAtViewportTop()` | No (DOM) | jsdom with mock elements |
+| `findBlockBySourceOffset()` | No (DOM) | jsdom with mock elements |
 | `useSyncedScroll()` | No (React + DOM) | React Testing Library |
 
-`computeAnchors` and `translatePosition` are the core algorithms and have the highest test coverage value.
-
-## 14. Future Enhancement: Unchanged Block Anchors
-
-The current design uses **section boundaries + changed blocks** as anchors. For sections with sparse changes (e.g., 50 paragraphs with only 2 modified), the interpolation between anchor points covers large content stretches.
-
-For even smoother alignment, unchanged paragraphs can be added as anchors:
-
-1. **Diff engine change**: Remove the filter at `diff-engine.ts:62` or add a separate `blockMappings: DiffRange[]` field to `SectionDiff` with the source mappings of ALL paragraphs (including unchanged)
-2. **Annotation**: Inject `data-block-key` on all blocks, not just changed ones
-3. **Impact**: Anchor count increases from ~100 to ~500-1000 (every paragraph becomes an anchor)
-
-This is deferred because:
-- The current anchor coverage is sufficient for a good user experience — unchanged sections have identical content (proportional is fine), and changed sections have anchors precisely at the changes (where users focus)
-- Adding unchanged anchors increases the `querySelectorAll`/`getBoundingClientRect` cost proportionally
-- It requires either a diff engine API change or a separate data path
+`buildOffsetTable` and `lookupCorrespondingOffset` are the core algorithms and have the highest test coverage value.
