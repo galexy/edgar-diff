@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { WordChange, ParagraphDiff, SectionDiff, Paragraph, CellDiff, RowDiff, TableDiff, Table, TableRow, TableCell } from '@edgar-diff/lib';
-import { wrapParagraph, injectWordHighlights, applyHighlightsToSection, injectClass, escapeHtml, highlightCell } from './highlight-injector';
+import { wrapParagraph, injectWordHighlights, applyHighlightsToSection, injectClass, escapeHtml, highlightCell, injectSourceOffset } from './highlight-injector';
 
 // ─── 2.7 wrapParagraph ──────────────────────────────────────────
 
@@ -273,11 +273,12 @@ describe('applyHighlightsToSection', () => {
     paragraphIndex.set('100:118', makeParagraph('Hello world', 100, 118));
 
     const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
-    expect(result).toContain('<ins class="diff-paragraph-added">');
+    expect(result).toContain('<ins class="diff-paragraph-added"');
+    expect(result).toContain('data-source-start="100"');
     expect(result).toContain('Hello world');
   });
 
-  it('AS-U2: unchanged paragraphs pass through unmodified', () => {
+  it('AS-U2: unchanged paragraphs get data-source-start annotation', () => {
     const sectionHtml = '<p>Unchanged text</p>';
     const sectionOffset = 0;
 
@@ -293,7 +294,10 @@ describe('applyHighlightsToSection', () => {
     paragraphIndex.set('0:21', makeParagraph('Unchanged text', 0, 21));
 
     const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
-    expect(result).toBe(sectionHtml);
+    expect(result).toContain('data-source-start="0"');
+    expect(result).toContain('Unchanged text');
+    expect(result).not.toContain('<ins');
+    expect(result).not.toContain('<del');
   });
 
   it('AS-U3: multiple paragraphs in section processed correctly', () => {
@@ -314,13 +318,13 @@ describe('applyHighlightsToSection', () => {
     paragraphIndex.set(`${p1End}:${sectionHtml.length}`, makeParagraph('Second para', p1End, sectionHtml.length));
 
     const resultOld = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
-    expect(resultOld).toContain('<del class="diff-paragraph-removed">');
+    expect(resultOld).toContain('<del class="diff-paragraph-removed"');
     expect(resultOld).toContain('First para');
     // Added paragraph should not show on old side (no old source)
     expect(resultOld).not.toContain('<ins');
 
     const resultNew = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
-    expect(resultNew).toContain('<ins class="diff-paragraph-added">');
+    expect(resultNew).toContain('<ins class="diff-paragraph-added"');
     expect(resultNew).toContain('Second para');
     // Removed paragraph should not show on new side (no new source)
     expect(resultNew).not.toContain('<del');
@@ -342,7 +346,8 @@ describe('applyHighlightsToSection', () => {
     paragraphIndex.set('500:519', makeParagraph('Content here', 500, 519));
 
     const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'old');
-    expect(result).toContain('<del class="diff-paragraph-removed">');
+    expect(result).toContain('<del class="diff-paragraph-removed"');
+    expect(result).toContain('data-source-start="500"');
   });
 
   it('AS-U5: WordChanges filtered by side — old shows removed, new shows added', () => {
@@ -564,7 +569,7 @@ describe('applyHighlightsToSection — backward compatibility (MX-U)', () => {
 
     // Call with 5 args (no tableIndex) — should still work
     const result = applyHighlightsToSection(sectionHtml, sectionOffset, sectionDiff, paragraphIndex, 'new');
-    expect(result).toContain('<ins class="diff-paragraph-added">');
+    expect(result).toContain('<ins class="diff-paragraph-added"');
     expect(result).toContain('Hello world');
   });
 });
@@ -861,10 +866,13 @@ describe('applyHighlightsToSection — table processing', () => {
     const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
 
     const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
-    expect(result).toBe(html);
+    // Table gets data-source-start annotation but no diff classes
+    expect(result).toContain('data-source-start="0"');
+    expect(result).not.toContain('diff-row');
+    expect(result).not.toContain('diff-cell');
   });
 
-  it('AT-U11: tableIndex lookup failure — table diff skipped gracefully', () => {
+  it('AT-U11: tableIndex lookup failure — table diff skipped gracefully (table tag still annotated)', () => {
     const html = '<table><tr><td>Val</td></tr></table>';
     const cd = makeCellDiff('modified', {
       oldValue: 'X', newValue: 'Val',
@@ -877,13 +885,14 @@ describe('applyHighlightsToSection — table processing', () => {
     );
     const sd = makeSectionDiffWithTables('s1', [], [td]);
 
-    // Empty tableIndex — lookup will fail
+    // Empty tableIndex — lookup will fail but table tag still gets annotated
     const tableIndex = new Map<string, Table>();
     const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
-    expect(result).toBe(html);
+    expect(result).toContain('data-source-start="0"');
+    expect(result).not.toContain('diff-cell');
   });
 
-  it('AT-U12: rowIndex out of bounds — row diff skipped gracefully', () => {
+  it('AT-U12: rowIndex out of bounds — row diff skipped gracefully (table tag annotated)', () => {
     const html = '<table><tr><td>Val</td></tr></table>';
     const rd = makeRowDiff('added', [], undefined, 99);
     const td = makeTableDiff('modified', [rd],
@@ -899,6 +908,257 @@ describe('applyHighlightsToSection — table processing', () => {
     const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
 
     const result = applyHighlightsToSection(html, 0, sd, new Map(), 'new', tableIndex);
-    expect(result).toBe(html);
+    // Table tag gets annotated but out-of-bounds row is skipped
+    expect(result).toContain('data-source-start="0"');
+  });
+});
+
+// ─── SS-IO: injectSourceOffset ──────────────────────────────────
+
+describe('injectSourceOffset', () => {
+  // SS-IO1: Normal HTML tag
+  it('injects data-source-start into a normal HTML tag', () => {
+    const result = injectSourceOffset('<p class="text">', 1234);
+    expect(result).toBe('<p class="text" data-source-start="1234">');
+  });
+
+  // SS-IO2: Full element with content
+  it('injects into opening tag of element with content', () => {
+    const result = injectSourceOffset('<p>Hello world</p>', 5678);
+    expect(result).toBe('<p data-source-start="5678">Hello world</p>');
+  });
+
+  // SS-IO3: Self-closing tag
+  it('injects into self-closing tag before />', () => {
+    const result = injectSourceOffset('<br />', 100);
+    expect(result).toBe('<br data-source-start="100" />');
+  });
+
+  // SS-IO4: Raw text (no tag) → wrapped in <span>
+  it('wraps raw text in a span with data-source-start', () => {
+    const result = injectSourceOffset('Just some text', 200);
+    expect(result).toBe('<span data-source-start="200">Just some text</span>');
+  });
+
+  // SS-IO5: No closing > → returns unchanged
+  it('returns unchanged when no closing > found', () => {
+    const result = injectSourceOffset('<p class="broken', 300);
+    expect(result).toBe('<p class="broken');
+  });
+
+  // SS-IO6: Tag with existing attributes
+  it('injects alongside existing attributes', () => {
+    const result = injectSourceOffset(
+      '<div class="highlight" style="color:red">content</div>',
+      4000,
+    );
+    expect(result).toBe(
+      '<div class="highlight" style="color:red" data-source-start="4000">content</div>',
+    );
+  });
+
+  // SS-IO7: Leading whitespace before tag
+  it('handles leading whitespace before the tag', () => {
+    const result = injectSourceOffset('  <p>text</p>', 500);
+    expect(result).toBe('  <p data-source-start="500">text</p>');
+  });
+
+  // SS-IO8: Leading whitespace with no tag → span wrapper
+  it('wraps in span when leading whitespace has no tag', () => {
+    const result = injectSourceOffset('  plain text', 600);
+    expect(result).toBe('<span data-source-start="600">  plain text</span>');
+  });
+
+  // SS-IO9: Table element
+  it('injects into table element', () => {
+    const result = injectSourceOffset('<table class="data">', 7000);
+    expect(result).toBe('<table class="data" data-source-start="7000">');
+  });
+
+  // SS-IO10: Self-closing without space before />
+  it('handles self-closing tag without space before />', () => {
+    const result = injectSourceOffset('<img/>', 800);
+    expect(result).toBe('<img data-source-start="800" />');
+  });
+
+  // SS-IO11: Offset 0
+  it('handles offset 0', () => {
+    const result = injectSourceOffset('<p>text</p>', 0);
+    expect(result).toBe('<p data-source-start="0">text</p>');
+  });
+});
+
+// ─── SS-I4: Integration — applyHighlightsToSection injects data-source-start ──
+
+describe('applyHighlightsToSection — source offset annotation', () => {
+  // SS-I4: ALL blocks that exist on the current side get data-source-start
+  it('injects data-source-start on unchanged, modified, added, and removed paragraphs', () => {
+    // Section HTML with 4 paragraphs at known offsets
+    // '<p>unchanged</p>' = 16 chars (0-16)
+    // '<p>modified old</p>' = 19 chars (16-35)
+    // '<p>removed para</p>' = 19 chars (35-54)
+    // '<p>added para</p>' = 17 chars (54-71)
+    const html = '<p>unchanged</p><p>modified old</p><p>removed para</p><p>added para</p>';
+
+    const sd: SectionDiff = {
+      id: 'item-1',
+      heading: 'Item 1',
+      changeType: 'modified',
+      sourceMapping: { old: { start: 0, end: 71 }, new: { start: 0, end: 71 } },
+      paragraphDiffs: [
+        {
+          changeType: 'unchanged',
+          sourceMapping: {
+            old: { start: 0, end: 16 },
+            new: { start: 0, end: 16 },
+          },
+        },
+        {
+          changeType: 'modified',
+          sourceMapping: {
+            old: { start: 16, end: 35 },
+            new: { start: 16, end: 35 },
+          },
+          wordChanges: [
+            { type: 'removed', start: 0, end: 8 },
+          ],
+        },
+        {
+          changeType: 'removed',
+          sourceMapping: {
+            old: { start: 35, end: 54 },
+          },
+        },
+        {
+          changeType: 'added',
+          sourceMapping: {
+            new: { start: 54, end: 71 },
+          },
+        },
+      ] as SectionDiff['paragraphDiffs'],
+      tableDiffs: [],
+      subsectionDiffs: [],
+    };
+
+    // Test old side
+    const resultOld = applyHighlightsToSection(html, 0, sd, new Map(), 'old');
+    // Unchanged paragraph should have data-source-start="0"
+    expect(resultOld).toContain('data-source-start="0"');
+    // Modified paragraph should have data-source-start="16"
+    expect(resultOld).toContain('data-source-start="16"');
+    // Removed paragraph should have data-source-start="35"
+    expect(resultOld).toContain('data-source-start="35"');
+    // Added paragraph should NOT appear on old side (no old sourceMapping)
+    expect(resultOld).not.toContain('data-source-start="54"');
+
+    // Test new side
+    const resultNew = applyHighlightsToSection(html, 0, sd, new Map(), 'new');
+    // Unchanged: data-source-start="0"
+    expect(resultNew).toContain('data-source-start="0"');
+    // Modified: data-source-start="16"
+    expect(resultNew).toContain('data-source-start="16"');
+    // Removed: NOT on new side
+    expect(resultNew).not.toContain('data-source-start="35"');
+    // Added: data-source-start="54"
+    expect(resultNew).toContain('data-source-start="54"');
+  });
+
+  // SS-I4b: Unchanged paragraph gets data-source-start without highlights
+  it('injects data-source-start on unchanged paragraph without highlight wrappers', () => {
+    const html = '<p>unchanged text</p>';
+    const sd: SectionDiff = {
+      id: 'item-1',
+      heading: 'Item 1',
+      changeType: 'modified',
+      sourceMapping: { old: { start: 0, end: 21 }, new: { start: 0, end: 21 } },
+      paragraphDiffs: [
+        {
+          changeType: 'unchanged',
+          sourceMapping: {
+            old: { start: 0, end: 21 },
+            new: { start: 0, end: 21 },
+          },
+        },
+      ] as SectionDiff['paragraphDiffs'],
+      tableDiffs: [],
+      subsectionDiffs: [],
+    };
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'old');
+    expect(result).toContain('data-source-start="0"');
+    expect(result).not.toContain('<ins');
+    expect(result).not.toContain('<del');
+  });
+
+  // SS-I4c: Modified paragraph with no highlights on current side still gets data-source-start
+  it('injects data-source-start on modified paragraph even when no highlights on this side', () => {
+    const html = '<p>some text here</p>';
+    const sd: SectionDiff = {
+      id: 'item-1',
+      heading: 'Item 1',
+      changeType: 'modified',
+      sourceMapping: { old: { start: 0, end: 21 }, new: { start: 0, end: 21 } },
+      paragraphDiffs: [
+        {
+          changeType: 'modified',
+          sourceMapping: {
+            old: { start: 0, end: 21 },
+            new: { start: 0, end: 21 },
+          },
+          // Word changes only on 'new' side
+          wordChanges: [
+            { type: 'added', start: 0, end: 4 },
+          ],
+        },
+      ] as SectionDiff['paragraphDiffs'],
+      tableDiffs: [],
+      subsectionDiffs: [],
+    };
+
+    // Old side: no 'removed' word changes, so no highlights, but should still get data-source-start
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'old');
+    expect(result).toContain('data-source-start="0"');
+    expect(result).not.toContain('<del');
+  });
+
+  // SS-I4 tables: table elements get data-source-start
+  it('injects data-source-start on table elements', () => {
+    const html = '<table><tr><td>cell</td></tr></table>';
+    const table: Table = {
+      type: 'table',
+      source: { start: 0, end: html.length },
+      rows: [{
+        source: { start: 7, end: 29 },
+        cells: [{
+          source: { start: 11, end: 24 },
+          text: 'cell',
+          colspan: 1,
+          rowspan: 1,
+        }],
+        isHeader: false,
+      }],
+    };
+    const sd: SectionDiff = {
+      id: 'item-1',
+      heading: 'Item 1',
+      changeType: 'modified',
+      sourceMapping: { old: { start: 0, end: html.length }, new: { start: 0, end: html.length } },
+      paragraphDiffs: [],
+      tableDiffs: [{
+        changeType: 'unchanged',
+        sourceMapping: {
+          old: { start: 0, end: html.length },
+          new: { start: 0, end: html.length },
+        },
+        rowDiffs: [],
+        cellDiffs: [],
+        summary: { rowsAdded: 0, rowsRemoved: 0, rowsModified: 0, rowsUnchanged: 1, cellsChanged: 0 },
+      }] as TableDiff[],
+      subsectionDiffs: [],
+    };
+    const tableIndex = new Map<string, Table>([[`0:${html.length}`, table]]);
+
+    const result = applyHighlightsToSection(html, 0, sd, new Map(), 'old', tableIndex);
+    expect(result).toContain('data-source-start="0"');
   });
 });

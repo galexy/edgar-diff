@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { useSyncedScroll } from './hooks/useSyncedScroll';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { SectionNav } from './components/SectionNav';
@@ -73,6 +74,13 @@ export function App() {
   const oldPanelRef = useRef<HTMLDivElement>(null);
   const newPanelRef = useRef<HTMLDivElement>(null);
 
+  const [syncEnabled, setSyncEnabled] = useState(true);
+  useSyncedScroll(oldPanelRef, newPanelRef, syncEnabled, diff?.sectionDiffs);
+
+  const handleSyncToggle = useCallback(() => {
+    setSyncEnabled((prev) => !prev);
+  }, []);
+
   const activeSectionId = useActiveSection(oldPanelRef);
 
   const handleSectionClick = useCallback((sectionId: string) => {
@@ -86,7 +94,7 @@ export function App() {
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
-      <Header />
+      <Header syncEnabled={syncEnabled} onSyncToggle={handleSyncToggle} />
       <SearchBar onCompanySelect={handleCompanySelect} />
       <main className="flex-1 flex overflow-hidden">
         <SectionNav

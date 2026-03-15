@@ -185,14 +185,14 @@ describe('PA-A6: diff entry count lower bound', () => {
 
     const paragraphDiffs = result.sectionDiffs.flatMap((sd) => sd.paragraphDiffs);
 
-    // With unchanged filtering, only changed entries remain
-    // The count should be <= max(base, target) — no more entries than inputs
+    // US-2.11: unchanged entries are now retained for scroll sync.
+    // Total entries should not exceed base + target (each paragraph appears at most once)
     expect(paragraphDiffs.length).toBeLessThanOrEqual(
       base.length + target.length,
     );
-    // All entries should be non-unchanged
+    // Entries may include unchanged paragraphs — all changeTypes are valid
     for (const pd of paragraphDiffs) {
-      expect(pd.changeType).not.toBe('unchanged');
+      expect(['added', 'removed', 'modified', 'unchanged', 'moved']).toContain(pd.changeType);
     }
   });
 });

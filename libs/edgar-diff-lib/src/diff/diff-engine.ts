@@ -57,9 +57,9 @@ function makeSectionDiff(
   if (options.oldSection) sourceMapping.old = options.oldSection.source;
   if (options.newSection) sourceMapping.new = options.newSection.source;
 
-  // Compute paragraph-level diffs for matched sections, then filter unchanged
-  const allParagraphDiffs = options.match ? diffParagraphs(options.match) : [];
-  const paragraphDiffs = allParagraphDiffs.filter(pd => pd.changeType !== 'unchanged');
+  // Compute paragraph-level diffs for matched sections
+  // Unchanged paragraphs retained for scroll sync offset table (US-2.11)
+  const paragraphDiffs = options.match ? diffParagraphs(options.match) : [];
 
   // Compute table diffs
   let tableDiffs: TableDiff[];
@@ -90,8 +90,7 @@ function makeSectionDiff(
     tableDiffs = [];
   }
 
-  // Filter unchanged tables
-  tableDiffs = tableDiffs.filter(td => td.changeType !== 'unchanged');
+  // Unchanged tables retained for scroll sync offset table (US-2.11)
 
   return {
     id: section.id,
