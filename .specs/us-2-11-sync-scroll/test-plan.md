@@ -1032,7 +1032,7 @@ function flushRAF(): void {
 | SS-U6 | Unit | Uses requestAnimationFrame for debouncing |
 | SS-U7 | Unit | Coalesces rapid scroll events via cancelAnimationFrame |
 | SS-U8 | Unit | Handles null refs (early return) |
-| SS-U9 | Unit | Missing section in target panel — silent no-op |
+| SS-U9 | Unit | Missing section — falls back to global proportional scroll |
 | SS-U10 | Unit | Toggle removes/adds listeners dynamically |
 | SS-U11 | Unit | Sections queried fresh on each scroll (dynamic DOM) |
 | SS-U12 | Unit | No sections loaded — handler no-ops |
