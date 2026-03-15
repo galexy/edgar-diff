@@ -167,6 +167,13 @@ export function useDiffPipeline(
     };
   }, []);
 
+  // Synchronously return idle when filings are deselected.
+  // The effect will clear internal state later, but this prevents
+  // stale documents from being rendered in the intervening frame.
+  if (!filingA || !filingB) {
+    return { status: 'idle', error: null, oldDocument: null, newDocument: null, diff: null };
+  }
+
   return { status, error, oldDocument, newDocument, diff };
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { SectionNav } from './components/SectionNav';
@@ -25,10 +25,14 @@ export function App() {
   const [selectedFilingA, setSelectedFilingA] = useState<AvailableFiling | null>(null);
   const [selectedFilingB, setSelectedFilingB] = useState<AvailableFiling | null>(null);
 
-  useEffect(() => {
+  // Batch company change with filing clearing so React renders once,
+  // not twice (useEffect would defer clearing to the next render cycle,
+  // leaving stale documents visible and blocking the main thread).
+  const handleCompanySelect = useCallback((company: Company | null) => {
+    setSelectedCompany(company);
     setSelectedFilingA(null);
     setSelectedFilingB(null);
-  }, [selectedCompany]);
+  }, []);
 
   // Live pipeline replaces sample data
   const {
@@ -83,7 +87,7 @@ export function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <Header />
-      <SearchBar onCompanySelect={setSelectedCompany} />
+      <SearchBar onCompanySelect={handleCompanySelect} />
       <main className="flex-1 flex overflow-hidden">
         <SectionNav
           sections={sections}
