@@ -1,6 +1,6 @@
 import { useEffect, useRef, type RefObject } from 'react';
 
-/** Settling window for smooth scroll animations (ms). Exported for test use. */
+/** Settling window for scroll guard reset (ms). Exported for test use. */
 export const SCROLL_SETTLE_MS = 150;
 
 function createSectionObserver(
@@ -91,7 +91,7 @@ export function useSyncedScroll(
 
           scrollSourceRef.current = sourcePanel;
           lastSyncedSectionRef.current = activeId;
-          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          target.scrollIntoView({ behavior: 'instant', block: 'start' });
 
           clearTimeout(scrollTimeoutRef.current);
           scrollTimeoutRef.current = setTimeout(() => {

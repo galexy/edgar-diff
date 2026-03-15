@@ -201,7 +201,7 @@ describe('useSyncedScroll', () => {
 
     const targetSection = containerB.querySelector('#s2');
     expect(targetSection?.scrollIntoView).toHaveBeenCalledWith(
-      expect.objectContaining({ behavior: 'smooth', block: 'start' }),
+      expect.objectContaining({ behavior: 'instant', block: 'start' }),
     );
   });
 
