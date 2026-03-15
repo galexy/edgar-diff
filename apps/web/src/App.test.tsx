@@ -5,7 +5,7 @@ import type { SectionDiff, ParagraphDiff, TableDiff, ChangeType } from '@edgar-d
 // --- Mock the heavy AAPL fixture with a tiny inline document ---
 // The real fixture parses a ~2MB HTML file; this avoids OOM in CI.
 
-const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock } = vi.hoisted(() => {
+const { mockFilingListState, resetFilingListMock, mockDiffPipelineState, resetDiffPipelineMock, setDiffPipelineDone } = vi.hoisted(() => {
   const tinyHtml = [
     '<div>Preamble content</div>',
     '<h2>Item 1. Business</h2><p>Business paragraph one.</p><p>Second paragraph.</p>',
@@ -121,15 +121,35 @@ const { tinyDocument, tinySectionDiffs, mockFilingListState, resetFilingListMock
     mockFilingListState.error = null;
   }
 
-  return { tinyDocument: doc, tinySectionDiffs: diffs, mockFilingListState, resetFilingListMock };
+  const mockDiffPipelineState = {
+    status: 'idle' as string,
+    error: null as string | null,
+    oldDocument: null as typeof doc | null,
+    newDocument: null as typeof doc | null,
+    diff: null as { sectionDiffs: typeof diffs } | null,
+  };
+
+  function resetDiffPipelineMock() {
+    mockDiffPipelineState.status = 'idle';
+    mockDiffPipelineState.error = null;
+    mockDiffPipelineState.oldDocument = null;
+    mockDiffPipelineState.newDocument = null;
+    mockDiffPipelineState.diff = null;
+  }
+
+  function setDiffPipelineDone() {
+    mockDiffPipelineState.status = 'done';
+    mockDiffPipelineState.error = null;
+    mockDiffPipelineState.oldDocument = doc;
+    mockDiffPipelineState.newDocument = doc;
+    mockDiffPipelineState.diff = { sectionDiffs: diffs };
+  }
+
+  return { tinyDocument: doc, tinySectionDiffs: diffs, mockFilingListState, resetFilingListMock, mockDiffPipelineState, resetDiffPipelineMock, setDiffPipelineDone };
 });
 
-vi.mock('./fixtures/sample-filing', () => ({
-  sampleDocument: tinyDocument,
-}));
-
-vi.mock('./fixtures/sample-diff', () => ({
-  buildSampleDiffs: () => tinySectionDiffs,
+vi.mock('./hooks/useDiffPipeline', () => ({
+  useDiffPipeline: () => mockDiffPipelineState,
 }));
 
 vi.mock('./hooks/useCompanySearch', () => ({
@@ -161,6 +181,7 @@ let mockIODisconnect: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
   resetFilingListMock();
+  resetDiffPipelineMock();
   mockIOObserve = vi.fn();
   mockIODisconnect = vi.fn();
 
@@ -266,7 +287,8 @@ describe('App', () => {
 
   // --- US-2.3: Integration tests ---
 
-  it('Filing A renders filing content from fixture (not placeholder)', () => {
+  it('Filing A renders filing content when pipeline is done', () => {
+    setDiffPipelineDone();
     const { container } = render(<App />);
     // The real AAPL 10-K fixture should produce section containers
     expect(container.querySelector('#item-1')).not.toBeNull();
@@ -276,9 +298,10 @@ describe('App', () => {
     expect(container.querySelector('.filing-content-root')).not.toBeNull();
   });
 
-  it('Filing B renders filing content from fixture (not placeholder)', () => {
+  it('Filing B renders filing content when pipeline is done', () => {
+    setDiffPipelineDone();
     const { container } = render(<App />);
-    // Both panels now render content — Filing B has the same fixture with side="new"
+    // Both panels now render content — Filing B has the same document with side="new"
     const contentRoots = container.querySelectorAll('.filing-content-root');
     expect(contentRoots.length).toBe(2);
     // No placeholder text
@@ -286,6 +309,7 @@ describe('App', () => {
   });
 
   it('Filing A renders preamble content before sections', () => {
+    setDiffPipelineDone();
     const { container } = render(<App />);
     expect(container.querySelector('#preamble')).not.toBeNull();
     // Preamble should appear before the first section in DOM order
@@ -341,8 +365,12 @@ describe('Accessibility', () => {
 // --- US-2.4: Integration Tests ---
 
 describe('US-2.4: Section Navigation Integration', () => {
-  // APP-I1: SectionNav receives section headings derived from sampleDiffs
-  it('SectionNav buttons match section headings from sampleDiffs', () => {
+  beforeEach(() => {
+    setDiffPipelineDone();
+  });
+
+  // APP-I1: SectionNav receives section headings derived from diff data
+  it('SectionNav buttons match section headings from diff data', () => {
     const { container } = render(<App />);
     // The nav should contain buttons for each section in the diff data
     const nav = screen.getByRole('navigation');
@@ -857,6 +885,10 @@ describe('US-2.7: Diff summary computation (DS-I1–I2)', () => {
 });
 
 describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
+  beforeEach(() => {
+    setDiffPipelineDone();
+  });
+
   it('E2E-I1: App renders section nav items with change count badges', () => {
     render(<App />);
 
@@ -883,5 +915,90 @@ describe('US-2.7: End-to-end data flow (E2E-I1–I2)', () => {
 
     expect(summaryBar).not.toHaveTextContent(/\d+ added/);
     expect(summaryBar).not.toHaveTextContent(/\d+ removed/);
+  });
+});
+
+// --- US-2.10: Pipeline Integration Tests ---
+
+describe('US-2.10: Pipeline Integration (APP-P)', () => {
+  it('APP-P1: idle pipeline → both panels show placeholder', () => {
+    render(<App />);
+    const placeholders = screen.getAllByText(/filing content will appear here/i);
+    expect(placeholders).toHaveLength(2);
+  });
+
+  it('APP-P2: fetching pipeline → both panels show fetching text', () => {
+    mockDiffPipelineState.status = 'fetching';
+    render(<App />);
+    expect(screen.getAllByText(/fetching filings/i)).toHaveLength(2);
+  });
+
+  it('APP-P3: parsing pipeline → both panels show parsing text', () => {
+    mockDiffPipelineState.status = 'parsing';
+    render(<App />);
+    expect(screen.getAllByText(/parsing filings/i)).toHaveLength(2);
+  });
+
+  it('APP-P4: diffing pipeline → both panels show diffing text', () => {
+    mockDiffPipelineState.status = 'diffing';
+    render(<App />);
+    expect(screen.getAllByText(/computing diff/i)).toHaveLength(2);
+  });
+
+  it('APP-P5: done pipeline → content rendered, no placeholders', () => {
+    setDiffPipelineDone();
+    const { container } = render(<App />);
+    expect(container.querySelectorAll('.filing-content-root')).toHaveLength(2);
+    expect(screen.queryByText(/filing content will appear here/i)).toBeNull();
+  });
+
+  it('APP-P6: error pipeline → error alerts in both panels', () => {
+    mockDiffPipelineState.status = 'error';
+    mockDiffPipelineState.error = 'Filing not available';
+    render(<App />);
+    expect(screen.getAllByRole('alert')).toHaveLength(2);
+    expect(screen.getAllByText('Filing not available')).toHaveLength(2);
+  });
+
+  it('APP-P7: section nav populated when pipeline done', () => {
+    setDiffPipelineDone();
+    render(<App />);
+    const nav = screen.getByRole('navigation');
+    const buttons = nav.querySelectorAll('button');
+    expect(buttons.length).toBe(3);
+  });
+
+  it('APP-P8: section nav empty when pipeline not done', () => {
+    mockDiffPipelineState.status = 'fetching';
+    render(<App />);
+    const nav = screen.getByRole('navigation');
+    expect(nav.querySelectorAll('button')).toHaveLength(0);
+  });
+
+  it('APP-P9: loading state does not show error or placeholder', () => {
+    mockDiffPipelineState.status = 'fetching';
+    render(<App />);
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/filing content will appear here/i)).toBeNull();
+  });
+
+  it('APP-P10: error state does not show content', () => {
+    mockDiffPipelineState.status = 'error';
+    mockDiffPipelineState.error = 'Test error';
+    const { container } = render(<App />);
+    expect(container.querySelectorAll('.filing-content-root')).toHaveLength(0);
+  });
+
+  it('APP-P11: diff summary not rendered when pipeline idle', () => {
+    render(<App />);
+    expect(screen.queryByRole('status', { name: /diff summary/i })).toBeNull();
+  });
+
+  it('APP-P12: diff summary rendered when pipeline done', () => {
+    setDiffPipelineDone();
+    render(<App />);
+    const summaryBar = screen.getByRole('status', { name: /diff summary/i });
+    expect(summaryBar).toHaveTextContent('2 modified');
+    expect(summaryBar).toHaveTextContent('1 unchanged');
   });
 });

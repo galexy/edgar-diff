@@ -33,3 +33,6 @@ export interface AvailableFiling {
 
 /** States the filing list fetch can be in. */
 export type FilingListStatus = 'idle' | 'loading' | 'loaded' | 'error';
+
+/** Overall pipeline status for fetch→parse→diff. */
+export type PipelineStatus = 'idle' | 'fetching' | 'parsing' | 'diffing' | 'done' | 'error';

@@ -86,6 +86,77 @@ describe('Worker: Route Matching', () => {
     const response = await worker.fetch(makeRequest('/'), env, {} as ExecutionContext);
     expect(response.status).toBe(404);
   });
+
+  it('WP-R1: routes /api/sec/efts/search-index to EFTS handler', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(new Response(JSON.stringify({ hits: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    ));
+
+    const response = await worker.fetch(
+      makeRequest('/api/sec/efts/search-index?q=apple'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it('WP-R2: routes /api/sec/archives/edgar/data/... to Archives handler', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(new Response('<html>filing</html>', { status: 200, headers: { 'Content-Type': 'text/html' } })),
+    ));
+
+    const response = await worker.fetch(
+      makeRequest('/api/sec/archives/edgar/data/320193/000032019323000106/aapl.htm'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it('WP-R3: /api/sec/efts/ prefix matches any sub-path', async () => {
+    vi.stubGlobal('fetch', vi.fn(() =>
+      Promise.resolve(new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })),
+    ));
+
+    const response = await worker.fetch(
+      makeRequest('/api/sec/efts/some/deep/path'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(200);
+  });
+
+  it('WP-R4: /api/sec/archives/ prefix matches any sub-path', async () => {
+    // Invalid path still routes to Archives handler (returns 400 from validation)
+    const response = await worker.fetch(
+      makeRequest('/api/sec/archives/some/random/path'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it('WP-R5: POST to /api/sec/efts/ returns 405', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/efts/search-index?q=apple', 'POST'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error).toBe('Method not allowed');
+  });
+
+  it('WP-R6: POST to /api/sec/archives/ returns 405', async () => {
+    const response = await worker.fetch(
+      makeRequest('/api/sec/archives/edgar/data/320193/000032019323000106/aapl.htm', 'POST'),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(response.status).toBe(405);
+    const body = await response.json();
+    expect(body.error).toBe('Method not allowed');
+  });
 });
 
 // ─── CORS Headers ─────────────────────────────────────────────────────────────

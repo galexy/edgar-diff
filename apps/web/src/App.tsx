@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { SearchBar } from './components/SearchBar';
 import { SectionNav } from './components/SectionNav';
 import { FilingPanel } from './components/FilingPanel';
 import { useActiveSection } from './hooks/useActiveSection';
 import { useFilingList } from './hooks/useFilingList';
-import { sampleDocument } from './fixtures/sample-filing';
-import { buildSampleDiffs } from './fixtures/sample-diff';
+import { useDiffPipeline } from './hooks/useDiffPipeline';
 import type { SectionDiff } from '@edgar-diff/lib';
 import type { Company, AvailableFiling } from './services/types';
 
@@ -26,27 +25,42 @@ export function App() {
   const [selectedFilingA, setSelectedFilingA] = useState<AvailableFiling | null>(null);
   const [selectedFilingB, setSelectedFilingB] = useState<AvailableFiling | null>(null);
 
-  useEffect(() => {
+  // Batch company change with filing clearing so React renders once,
+  // not twice (useEffect would defer clearing to the next render cycle,
+  // leaving stale documents visible and blocking the main thread).
+  const handleCompanySelect = useCallback((company: Company | null) => {
+    setSelectedCompany(company);
     setSelectedFilingA(null);
     setSelectedFilingB(null);
-  }, [selectedCompany]);
+  }, []);
 
-  const sampleDiffs = useMemo(() => buildSampleDiffs(sampleDocument), []);
-
-  const sections = useMemo(
-    () =>
-      sampleDiffs.map((sd) => ({
-        id: sd.id,
-        heading: sd.heading,
-        changeType: sd.changeType,
-        changeCount: countChanges(sd),
-      })),
-    [sampleDiffs],
+  // Live pipeline replaces sample data
+  const {
+    status: pipelineStatus,
+    error: pipelineError,
+    oldDocument,
+    newDocument,
+    diff,
+  } = useDiffPipeline(
+    selectedFilingA?.accessionNumber ?? null,
+    selectedFilingB?.accessionNumber ?? null,
   );
 
+  // Derive sections from live diff
+  const sections = useMemo(() => {
+    if (!diff) return [];
+    return diff.sectionDiffs.map((sd) => ({
+      id: sd.id,
+      heading: sd.heading,
+      changeType: sd.changeType,
+      changeCount: countChanges(sd),
+    }));
+  }, [diff]);
+
   const diffSummary = useMemo(() => {
+    if (!diff) return { added: 0, removed: 0, modified: 0, unchanged: 0 };
     const summary = { added: 0, removed: 0, modified: 0, unchanged: 0 };
-    for (const sd of sampleDiffs) {
+    for (const sd of diff.sectionDiffs) {
       if (sd.changeType === 'added') summary.added++;
       else if (sd.changeType === 'removed') summary.removed++;
       else if (sd.changeType === 'modified' || sd.changeType === 'reordered' || sd.changeType === 'moved')
@@ -54,7 +68,7 @@ export function App() {
       else summary.unchanged++;
     }
     return summary;
-  }, [sampleDiffs]);
+  }, [diff]);
 
   const oldPanelRef = useRef<HTMLDivElement>(null);
   const newPanelRef = useRef<HTMLDivElement>(null);
@@ -73,7 +87,7 @@ export function App() {
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       <Header />
-      <SearchBar onCompanySelect={setSelectedCompany} />
+      <SearchBar onCompanySelect={handleCompanySelect} />
       <main className="flex-1 flex overflow-hidden">
         <SectionNav
           sections={sections}
@@ -84,25 +98,29 @@ export function App() {
         <FilingPanel
           ref={oldPanelRef}
           label="Filing A"
-          document={sampleDocument}
-          sectionDiffs={sampleDiffs}
+          document={oldDocument ?? undefined}
+          sectionDiffs={diff?.sectionDiffs}
           side="old"
           filings={filings}
           selectedFiling={selectedFilingA?.accessionNumber ?? null}
           onFilingSelect={setSelectedFilingA}
           filingListStatus={filingListStatus}
+          pipelineStatus={pipelineStatus}
+          pipelineError={pipelineError}
         />
         <div className="w-px bg-gray-200" aria-hidden="true" />
         <FilingPanel
           ref={newPanelRef}
           label="Filing B"
-          document={sampleDocument}
-          sectionDiffs={sampleDiffs}
+          document={newDocument ?? undefined}
+          sectionDiffs={diff?.sectionDiffs}
           side="new"
           filings={filings}
           selectedFiling={selectedFilingB?.accessionNumber ?? null}
           onFilingSelect={setSelectedFilingB}
           filingListStatus={filingListStatus}
+          pipelineStatus={pipelineStatus}
+          pipelineError={pipelineError}
         />
       </main>
     </div>
