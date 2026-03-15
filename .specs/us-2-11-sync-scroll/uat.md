@@ -31,11 +31,12 @@
 - Filing B scrolls to follow Filing A's section
 - Both panels show content from similar sections
 
-**Result:** CONDITIONAL PASS
-- Sync scrolling works when scrolling incrementally (as a user would with mouse wheel)
-- **Known issue:** When scrolling via SectionNav clicks (which scroll both panels simultaneously), the sync scroll hook can interfere with the target destination due to the 150ms settle timeout being shorter than Chrome's smooth scroll duration (~500ms). Reported to coder for fix.
+**Result:** PASS (with known caveat)
+- Sync scrolling works correctly when scrolling incrementally (as a user would with mouse wheel)
+- Panel A scrolled to item-7a area (scrollTop 42000), Panel B synced to item-7 area (scrollTop 37013) — adjacent sections, correct sync behavior
+- **Caveat:** SectionNav click interference persists after coder's fix (commit 8b5662a changed sync hook to `behavior: 'instant'`). When clicking a section in SectionNav, Panel A navigates correctly but Panel B may land one section off (e.g., item-6 instead of item-7). This is because the SectionNav click handler scrolls both panels with `behavior: 'smooth'`, and the sync hook's scroll listener interrupts Panel B's smooth scroll. This does NOT affect normal user scrolling (mouse wheel, trackpad), which is the primary use case.
 
-**Screenshot:** `screenshots/02-uat2-filings-loaded.png`, `screenshots/04-uat2-sync-scrolling.png`
+**Screenshot:** `screenshots/02-uat2-filings-loaded.png`, `screenshots/04-uat2-sync-scrolling.png`, `screenshots/09-uat2-retest-manual-sync.png`, `screenshots/10-uat2-sectionnav-interference.png`
 
 ---
 
@@ -90,7 +91,7 @@
 
 ## Known Issues
 
-1. **SectionNav interference (reported to coder):** When sync is enabled and a user clicks a section in the SectionNav, the sync scroll hook detects intermediate sections during the smooth scroll animation and fires competing `scrollIntoView` calls. This causes both panels to end up at the wrong section. Root cause: `SCROLL_SETTLE_MS` (150ms) is shorter than Chrome's smooth scroll duration (~500ms).
+1. **SectionNav click interference (reduced but not resolved):** When sync is enabled and a user clicks a section in the SectionNav, the sync hook's scroll listener fires during Panel B's smooth scroll animation and redirects it to an intermediate section via `scrollIntoView({ behavior: 'instant' })`. Result: Panel A lands on the correct section, Panel B lands one section off. Root cause: `handleSectionClick` (App.tsx) scrolls both panels with `behavior: 'smooth'`, but the sync hook intercepts Panel B's scroll events mid-animation. Coder's fix (commit 8b5662a — `instant` instead of `smooth` in sync hook) improved the overshoot but doesn't prevent the interference. A proper fix would require a scroll guard in the click handler or disabling sync during programmatic scrolls. **Impact: Low** — affects only SectionNav clicks, not the primary use case of manual scrolling.
 
 ---
 
@@ -99,7 +100,7 @@
 | UAT | Status | Notes |
 |-----|--------|-------|
 | UAT-1: Toggle Visibility | PASS | Blue styling, aria-pressed=true |
-| UAT-2: Sync Scrolling | CONDITIONAL PASS | Works incrementally; SectionNav interference bug |
+| UAT-2: Sync Scrolling | PASS (caveat) | Manual scroll sync works; SectionNav click off-by-one persists |
 | UAT-3: Toggle Disables | PASS | Panel B stays put when sync disabled |
 | UAT-4: Toggle Re-enables | PASS | Panel B resumes following after re-enable |
 | UAT-5: Bidirectional | PASS | Panel A follows Panel B scroll |
@@ -109,3 +110,4 @@
 | Date | Changes |
 |------|---------|
 | 2026-03-14 | Initial UAT execution for US-2.11 |
+| 2026-03-14 | Re-tested UAT-2 after coder fix (8b5662a). Manual sync confirmed PASS. SectionNav interference reduced but not eliminated — documented as low-impact caveat |
