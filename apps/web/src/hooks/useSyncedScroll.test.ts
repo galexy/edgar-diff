@@ -285,4 +285,197 @@ describe('useSyncedScroll', () => {
       expect(section.scrollIntoView).not.toHaveBeenCalled();
     }
   });
+
+  // SS-U9: Toggling enabled removes/adds listeners dynamically
+  it('removes listeners and observers when toggled from enabled to disabled', () => {
+    const containerA = makeContainer('s1');
+    const containerB = makeContainer('s1');
+    const spyA = vi.spyOn(containerA, 'removeEventListener');
+
+    const { rerender } = renderHook(
+      ({ enabled }) => useSyncedScroll(makeRef(containerA), makeRef(containerB), enabled),
+      { initialProps: { enabled: true } },
+    );
+
+    rerender({ enabled: false });
+
+    expect(spyA).toHaveBeenCalledWith('scroll', expect.any(Function));
+    expect(mockDisconnect).toHaveBeenCalled();
+  });
+
+  it('re-attaches listeners when toggled from disabled to enabled', () => {
+    const containerA = makeContainer('s1');
+    const containerB = makeContainer('s1');
+    const spyA = vi.spyOn(containerA, 'addEventListener');
+
+    const { rerender } = renderHook(
+      ({ enabled }) => useSyncedScroll(makeRef(containerA), makeRef(containerB), enabled),
+      { initialProps: { enabled: false } },
+    );
+
+    rerender({ enabled: true });
+
+    expect(spyA).toHaveBeenCalledWith('scroll', expect.any(Function), { passive: true });
+  });
+
+  // SS-U10: Handles rapid successive scroll events (coalesces via rAF)
+  it('coalesces rapid scroll events via cancelAnimationFrame + requestAnimationFrame', () => {
+    const containerA = makeContainer('s1', 's2');
+    const containerB = makeContainer('s1', 's2');
+    const cancelSpy = vi.fn();
+    let localRafCount = 0;
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => ++localRafCount),
+    );
+    vi.stubGlobal('cancelAnimationFrame', cancelSpy);
+
+    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+    act(() => {
+      for (let i = 0; i < 5; i++) fireScroll(containerA);
+    });
+
+    expect(cancelSpy.mock.calls.length).toBeGreaterThanOrEqual(4);
+  });
+
+  // SS-U11: Does not sync when active section hasn't changed (lastSyncedSectionRef)
+  it('does not call scrollIntoView when the active section is unchanged', () => {
+    const containerA = makeContainer('s1', 's2');
+    const containerB = makeContainer('s1', 's2');
+
+    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+    const sectionsA = containerA.querySelectorAll('section');
+    act(() => {
+      mockCallbacks[0]([makeEntry(sectionsA[0], 0.9) as IntersectionObserverEntry]);
+    });
+
+    act(() => {
+      fireScroll(containerA);
+    });
+    act(() => {
+      flushRAF();
+    });
+    const targetB = containerB.querySelector('#s1');
+    expect(targetB?.scrollIntoView).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      fireScroll(containerA);
+    });
+    act(() => {
+      flushRAF();
+    });
+    expect(targetB?.scrollIntoView).toHaveBeenCalledTimes(1);
+  });
+
+  // SS-U12: Full cleanup on unmount
+  it('disconnects IntersectionObservers, MutationObserver, and clears timeout on unmount', () => {
+    const containerA = makeContainer('s1');
+    const containerB = makeContainer('s1');
+
+    const { unmount } = renderHook(() =>
+      useSyncedScroll(makeRef(containerA), makeRef(containerB), true),
+    );
+    unmount();
+
+    expect(mockDisconnect).toHaveBeenCalledTimes(2);
+    expect(mockMutationDisconnect).toHaveBeenCalled();
+  });
+
+  // SS-U13: Settling timeout resets scrollSourceRef after SCROLL_SETTLE_MS
+  it('resets scroll source flag after SCROLL_SETTLE_MS settling timeout', () => {
+    vi.useFakeTimers();
+    // Re-stub rAF after fake timers (fake timers override it)
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((cb: FrameRequestCallback) => {
+        rafCallback = cb;
+        return ++rafIdCounter;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    const containerA = makeContainer('s1', 's2');
+    const containerB = makeContainer('s1', 's2');
+
+    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+    const sectionsA = containerA.querySelectorAll('section');
+    act(() => {
+      mockCallbacks[0]([makeEntry(sectionsA[1], 0.9) as IntersectionObserverEntry]);
+    });
+
+    act(() => {
+      fireScroll(containerA);
+    });
+    act(() => {
+      flushRAF();
+    });
+
+    // Before timeout: panel B scroll should be suppressed
+    const sectionsB = containerB.querySelectorAll('section');
+    act(() => {
+      mockCallbacks[1]([makeEntry(sectionsB[0], 0.9) as IntersectionObserverEntry]);
+    });
+    act(() => {
+      fireScroll(containerB);
+    });
+    act(() => {
+      flushRAF();
+    });
+    expect(containerA.querySelector('#s1')?.scrollIntoView).not.toHaveBeenCalled();
+
+    // After SCROLL_SETTLE_MS: scrollSourceRef resets to 'none'
+    act(() => {
+      vi.advanceTimersByTime(SCROLL_SETTLE_MS);
+    });
+    act(() => {
+      fireScroll(containerB);
+    });
+    act(() => {
+      flushRAF();
+    });
+    expect(containerA.querySelector('#s1')?.scrollIntoView).toHaveBeenCalled();
+  });
+
+  // SS-U14: MutationObserver re-registers sections when DOM changes
+  it('MutationObserver observes both panels with correct options', () => {
+    const containerA = makeContainer('s1');
+    const containerB = makeContainer('s1');
+
+    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+    expect(mockMutationObserve).toHaveBeenCalledWith(
+      containerA,
+      expect.objectContaining({ childList: true, subtree: true }),
+    );
+    expect(mockMutationObserve).toHaveBeenCalledWith(
+      containerB,
+      expect.objectContaining({ childList: true, subtree: true }),
+    );
+  });
+
+  // SS-U15: Uses CSS.escape for section ID lookup
+  it('uses CSS.escape when looking up sections in the target panel', () => {
+    const containerA = makeContainer('item-1a', 'item.2');
+    const containerB = makeContainer('item-1a', 'item.2');
+    const cssEscapeSpy = vi.spyOn(CSS, 'escape');
+
+    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+    const sectionsA = containerA.querySelectorAll('section');
+    act(() => {
+      mockCallbacks[0]([makeEntry(sectionsA[1], 0.9) as IntersectionObserverEntry]);
+    });
+
+    act(() => {
+      fireScroll(containerA);
+    });
+    act(() => {
+      flushRAF();
+    });
+
+    expect(cssEscapeSpy).toHaveBeenCalledWith('item.2');
+  });
 });
