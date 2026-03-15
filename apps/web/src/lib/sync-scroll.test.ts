@@ -481,6 +481,24 @@ describe('findBlockAtViewportTop', () => {
     const result = findBlockAtViewportTop(panel);
     expect(result).toEqual({ sourceStart: 1234, pixelOffset: 500 });
   });
+
+  // SS-FV7: NaN guard — element with missing data-source-start value
+  it('returns null when best element has empty data-source-start', () => {
+    const panel = document.createElement('div');
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 600,
+      width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    Object.defineProperty(panel, 'scrollTop', { value: 0, writable: true, configurable: true });
+    const el = document.createElement('p');
+    el.dataset.sourceStart = '';
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 50,
+      width: 800, height: 50, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    panel.appendChild(el);
+    expect(findBlockAtViewportTop(panel)).toBeNull();
+  });
 });
 
 // ─── 2d. findBlockBySourceOffset ──────────────────────────────────
@@ -569,5 +587,55 @@ describe('findBlockBySourceOffset', () => {
       0,
     );
     expect(findBlockBySourceOffset(panel, 99999)).toBe(50);
+  });
+
+  // SS-FB6: NaN guard — skips elements with invalid data-source-start
+  it('skips elements with empty data-source-start and finds valid ones', () => {
+    const panel = document.createElement('div');
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 600,
+      width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    Object.defineProperty(panel, 'scrollTop', { value: 0, writable: true, configurable: true });
+
+    // Element with invalid sourceStart
+    const badEl = document.createElement('p');
+    badEl.dataset.sourceStart = '';
+    vi.spyOn(badEl, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 50,
+      width: 800, height: 50, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    panel.appendChild(badEl);
+
+    // Element with valid sourceStart
+    const goodEl = document.createElement('p');
+    goodEl.dataset.sourceStart = '500';
+    vi.spyOn(goodEl, 'getBoundingClientRect').mockReturnValue({
+      top: 100, left: 0, right: 800, bottom: 150,
+      width: 800, height: 50, x: 0, y: 100, toJSON: () => ({}) as DOMRect,
+    });
+    panel.appendChild(goodEl);
+
+    expect(findBlockBySourceOffset(panel, 500)).toBe(100);
+  });
+
+  // SS-FB7: NaN guard — returns null when ALL elements have invalid sourceStart
+  it('returns null when all elements have invalid data-source-start', () => {
+    const panel = document.createElement('div');
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 600,
+      width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    Object.defineProperty(panel, 'scrollTop', { value: 0, writable: true, configurable: true });
+
+    const el = document.createElement('p');
+    el.dataset.sourceStart = '';
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 50,
+      width: 800, height: 50, x: 0, y: 0, toJSON: () => ({}) as DOMRect,
+    });
+    panel.appendChild(el);
+
+    expect(findBlockBySourceOffset(panel, 500)).toBeNull();
   });
 });

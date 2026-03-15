@@ -151,15 +151,20 @@ export function findBlockAtViewportTop(
   if (!bestElement) {
     // All elements below viewport top — use the first element
     const first = elements[0];
+    const sourceStart = parseInt(first.dataset.sourceStart ?? '', 10);
+    if (Number.isNaN(sourceStart)) return null;
     const absTop = first.getBoundingClientRect().top - panelRect.top + panel.scrollTop;
     return {
-      sourceStart: parseInt(first.dataset.sourceStart!, 10),
+      sourceStart,
       pixelOffset: viewportTop - absTop,
     };
   }
 
+  const sourceStart = parseInt(bestElement.dataset.sourceStart ?? '', 10);
+  if (Number.isNaN(sourceStart)) return null;
+
   return {
-    sourceStart: parseInt(bestElement.dataset.sourceStart!, 10),
+    sourceStart,
     pixelOffset: viewportTop - bestAbsTop,
   };
 }
@@ -180,7 +185,8 @@ export function findBlockBySourceOffset(
   let bestDistance = Infinity;
 
   for (const el of elements) {
-    const elOffset = parseInt(el.dataset.sourceStart!, 10);
+    const elOffset = parseInt(el.dataset.sourceStart ?? '', 10);
+    if (Number.isNaN(elOffset)) continue;
     const distance = Math.abs(elOffset - targetOffset);
     if (distance < bestDistance) {
       bestDistance = distance;
