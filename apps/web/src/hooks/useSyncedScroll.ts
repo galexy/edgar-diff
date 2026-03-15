@@ -49,7 +49,7 @@ export function useSyncedScroll(
   enabled: boolean,
 ): void {
   const scrollSourceRef = useRef<'none' | 'panelA' | 'panelB'>('none');
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const lastSyncedSectionRef = useRef<string>('');
 
   useEffect(() => {
