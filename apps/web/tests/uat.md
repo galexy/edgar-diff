@@ -90,13 +90,37 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 **Action:** If content overflows, scroll within each panel
 
 **Verify:**
-- Each panel scrolls independently
+- Each panel scrolls independently (when sync scroll is disabled)
 - Header and search bar stay fixed
 - No page-level scrollbar
 
 ---
 
-## 8. Responsive — Narrow Viewport (640x800)
+## 8. Sync Scroll Toggle
+
+**Action:** Inspect the Header bar
+
+**Verify:**
+- "Sync Scroll" toggle button visible in Header (right side)
+- Button shows blue/enabled styling when sync is on (default)
+- Clicking toggle changes to gray/disabled styling
+- Button has appropriate `aria-pressed` state
+
+---
+
+## 9. Synchronized Scrolling
+
+**Action:** With two filings loaded and sync enabled, scroll Filing A
+
+**Verify:**
+- Filing B scrolls to match Filing A's section
+- Scrolling Filing B also syncs Filing A (bidirectional)
+- Disabling sync toggle stops panels from syncing
+- Re-enabling sync toggle resumes syncing
+
+---
+
+## 10. Responsive — Narrow Viewport (640x800)
 
 **Action:** Resize viewport to 640x800
 
@@ -113,3 +137,4 @@ Cumulative manual acceptance tests for the full app. Run by a tester agent via C
 |-------|---------|
 | US-2.2 | Initial suite: page load, header, search, 3-column layout, section nav, filing panels, scroll, responsive |
 | US-2.7 | Added: diff summary bar, change count badges, badge singular/plural, badge visibility on scroll. Updated: search input is enabled (was disabled) |
+| US-2.11 | Added: sync scroll toggle in header, synchronized scrolling checks. Updated: independent scrolling note (when sync disabled) |
