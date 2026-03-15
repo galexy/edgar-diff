@@ -1,178 +1,389 @@
-# US-2.11: Synchronized Scrolling — Implementation Design (v2)
+# US-2.11: Synchronized Scrolling — Implementation Design (v3)
 
-## 1. Approach: Proportional Section-Based Alignment
+## 1. Approach: Content-Aligned Scroll Sync via Anchor Maps
 
-### Why v1 Failed
+### Why v1 and v2 Failed
 
-The v1 implementation used **section-snapping via `scrollIntoView`**:
-- An `IntersectionObserver` detected which section was "most visible" in the source panel
-- Called `scrollIntoView({ block: 'start' })` on the matching section in the target panel
-- **Result**: Huge jumps. When a section became visible at the bottom of one panel, the other panel snapped that section to the top. The panels showed the same section but at completely different scroll positions within it — never visually aligned.
+**v1** used section-snapping via `scrollIntoView`: an `IntersectionObserver` detected the most-visible section and called `scrollIntoView({ block: 'start' })` on the matching section in the other panel. Result: huge jumps — panels showed the same section but at completely different scroll positions.
 
-### v2: Proportional Alignment via `scrollTop` Computation
+**v2** used proportional section-based alignment: computed a 0→1 ratio within the current section and mapped it to the same ratio in the other panel. Smoother than v1, but **fundamentally wrong**. If a section has 10 paragraphs in the old filing and 20 in the new (due to additions), 50% through the old section maps to paragraph 5, but 50% through the new section maps to paragraph 10 — completely different content. Proportional mapping ignores content correspondence.
 
-Instead of snapping to section tops, v2 computes a **proportional position** within the current section and maps it to the corresponding section in the other panel. This keeps content aligned *within* sections, not just at section boundaries.
+### v3: Content-Aligned Mapping via Diff Data
 
-**Key advantages over v1:**
-- **No `IntersectionObserver`** — simpler; binary search over `offsetTop` values replaces observer-based detection
-- **No `MutationObserver`** — sections are queried fresh via `querySelectorAll` on each scroll event (cheap — typically 10-30 elements)
-- **No settling timeout** — direct `scrollTop` assignment is synchronous, unlike `scrollIntoView` which is async
-- **No `lastSyncedSectionRef`** — proportional mapping naturally handles scrolling within the same section (different ratios produce different scroll positions)
-- **Proportional** — aligns content *within* sections, not just section tops
-- **Handles asymmetric section sizes** — a section that's 3x taller in Panel A than Panel B still maps correctly via the 0→1 ratio
+v3 uses **diff data as a correspondence table** between documents. The diff engine already computed which paragraphs and tables correspond between old and new filings. v3 reuses these mappings to build **anchor points** — DOM elements that exist in both panels with known correspondence — and uses binary search + linear interpolation to translate scroll positions.
 
-## 2. Algorithm Detail
+**Key advantages over v2:**
+- **Content-aware**: Aligns actual corresponding content, not proportional positions
+- **Uses diff data**: Reuses the correspondence already computed by the diff engine
+- **Precise at changes**: Modified paragraphs are anchor points, so content around changes (where users focus) is precisely aligned
+- **Graceful degradation**: Falls back to section-level alignment when no block-level anchors exist (sufficient for unchanged sections with identical content)
 
-### Core Pure Functions
+## 2. Architecture Overview
 
-These live in `apps/web/src/lib/sync-scroll.ts` — a standalone module with zero React or DOM dependencies (operates on plain numbers). The hook in `apps/web/src/hooks/useSyncedScroll.ts` imports and orchestrates them.
+```
+┌─────────────────────────────────────────────────────┐
+│ Render Pipeline (one-time per data change)          │
+│                                                     │
+│  FilingContent → applyHighlightsToSection            │
+│       ↓ injects data-block-key="sectionId:pd:N"    │
+│  <section> elements with annotated changed blocks   │
+└──────────────────────┬──────────────────────────────┘
+                       ↓
+┌─────────────────────────────────────────────────────┐
+│ Scroll Sync (per scroll event, behind rAF)          │
+│                                                     │
+│  1. measureElements(panel) × 2                      │
+│     → queries sections + [data-block-key] elements  │
+│     → reads positions via getBoundingClientRect      │
+│     → returns Map<key, absoluteY>                   │
+│                                                     │
+│  2. computeAnchors(oldPositions, newPositions)       │
+│     → matches keys across panels                    │
+│     → returns sorted Anchor[]                       │
+│                                                     │
+│  3. translatePosition(anchors, scrollTop, direction) │
+│     → binary search for bracketing anchors          │
+│     → linear interpolation                          │
+│     → returns target scrollTop                      │
+│                                                     │
+│  4. targetPanel.scrollTop = result                  │
+└─────────────────────────────────────────────────────┘
+```
 
-#### `findSectionAtPosition(sections, centerY): SectionRect | null`
+## 3. DOM Annotation
 
-Binary search over an array of `{ offsetTop, offsetHeight }` section measurements to find which section contains `centerY`.
+### Strategy
+
+Inject `data-block-key` attributes into changed paragraph and table elements during the existing highlight-injection pass in `applyHighlightsToSection`. Only blocks with counterparts in **both** panels are annotated (i.e., `sourceMapping` has both `old` and `new`), since only those can serve as anchor points.
+
+Section boundaries use the existing `<section id="...">` elements — no extra annotation needed.
+
+### Key Format
+
+```
+data-block-key="{sectionId}:{blockType}:{diffIndex}"
+```
+
+- `blockType`: `pd` for paragraph diff, `td` for table diff
+- `diffIndex`: zero-based index within `sectionDiff.paragraphDiffs` or `sectionDiff.tableDiffs`
+
+Examples:
+- `data-block-key="item-1a:pd:0"` — first paragraph diff in section "item-1a"
+- `data-block-key="item-7:td:2"` — third table diff in section "item-7"
+
+Both panels process the same `sectionDiff.paragraphDiffs` array, so the same key identifies corresponding elements across panels. A modified paragraph produces `data-block-key="item-1a:pd:0"` in **both** the old and new panels.
+
+### Which Blocks Get Annotated
+
+| changeType | Has both old/new sourceMapping? | Annotated? | Rationale |
+|---|---|---|---|
+| `modified` | Yes | Yes | Both panels have the element → anchor |
+| `moved` | Yes | Yes | Both panels have the element → anchor |
+| `added` | No (only `new`) | No | Only exists in new panel → no anchor |
+| `removed` | No (only `old`) | No | Only exists in old panel → no anchor |
+
+### Injection Function
+
+New function in `highlight-injector.ts`:
 
 ```typescript
-export interface SectionRect {
-  id: string;
-  offsetTop: number;
-  offsetHeight: number;
-}
-
 /**
- * Binary search through section positions to find which section contains
- * the given vertical position. Returns the section, or null if no sections exist.
- *
- * Boundary behavior:
- * - Position before first section → returns first section (preamble area)
- * - Position after last section → returns last section
- * - Position in gap between sections → snaps to nearest
+ * Inject a data-block-key attribute into the first opening HTML tag.
+ * Falls back to wrapping in a <span> if no opening tag is found.
  */
-export function findSectionAtPosition(
-  sections: SectionRect[],
-  centerY: number,
-): SectionRect | null {
-  if (sections.length === 0) return null;
-
-  // Before first section (preamble area)
-  if (centerY < sections[0].offsetTop) {
-    return sections[0];
+export function injectBlockKey(blockHtml: string, key: string): string {
+  const trimmed = blockHtml.trimStart();
+  if (!trimmed.startsWith('<')) {
+    // Raw text without a wrapping element — add a span wrapper
+    return `<span data-block-key="${key}">${blockHtml}</span>`;
   }
-
-  // After last section
-  const last = sections[sections.length - 1];
-  if (centerY >= last.offsetTop + last.offsetHeight) {
-    return last;
+  const tagEnd = blockHtml.indexOf('>');
+  if (tagEnd === -1) return blockHtml;
+  // Self-closing tags: insert before />. Strip trailing whitespace before /
+  // to avoid double spaces (e.g., "<br />" → "<br data-block-key="..." />").
+  if (blockHtml[tagEnd - 1] === '/') {
+    let pos = tagEnd - 1;
+    while (pos > 0 && blockHtml[pos - 1] === ' ') pos--;
+    return blockHtml.slice(0, pos) + ` data-block-key="${key}" />` + blockHtml.slice(tagEnd + 1);
   }
+  return blockHtml.slice(0, tagEnd) + ` data-block-key="${key}"` + blockHtml.slice(tagEnd);
+}
+```
 
-  // Binary search
-  let lo = 0;
-  let hi = sections.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >>> 1;
-    const s = sections[mid];
-    if (centerY < s.offsetTop) {
-      hi = mid - 1;
-    } else if (centerY >= s.offsetTop + s.offsetHeight) {
-      lo = mid + 1;
-    } else {
-      return s;
+### Integration with `applyHighlightsToSection`
+
+The existing paragraph processing loop (lines 240–280 of `highlight-injector.ts`) has three branches:
+1. `added` and `side === 'new'` → wraps in `<ins>`
+2. `removed` and `side === 'old'` → wraps in `<del>`
+3. `modified` or `moved` → injects word-level highlights (but skips if `filteredChanges.length === 0`)
+
+For scroll sync annotation, we need to handle a fourth case: **blocks with both-side source mappings that don't produce highlights on the current side**. For example, a `modified` paragraph with no word changes on the `old` side currently hits `continue` at line 266. But we still need its `data-block-key` for the anchor map.
+
+**Modified logic** (pseudocode for the paragraph loop):
+
+```typescript
+for (let pdIdx = 0; pdIdx < sectionDiff.paragraphDiffs.length; pdIdx++) {
+  const pd = sectionDiff.paragraphDiffs[pdIdx];
+  const hasBothSides = pd.sourceMapping.old != null && pd.sourceMapping.new != null;
+  const sourceLoc = pd.sourceMapping[side];
+  if (!sourceLoc) continue;
+
+  const relStart = sourceLoc.start - sectionOffset;
+  const relEnd = sourceLoc.end - sectionOffset;
+  if (relStart < 0 || relEnd > sectionHtml.length || relStart >= relEnd) continue;
+
+  const paragraphHtml = sectionHtml.slice(relStart, relEnd);
+  let replacedHtml: string | undefined;
+
+  // Existing highlight logic (unchanged)
+  if (pd.changeType === 'added' && side === 'new') {
+    replacedHtml = wrapParagraph(paragraphHtml, 'added');
+  } else if (pd.changeType === 'removed' && side === 'old') {
+    replacedHtml = wrapParagraph(paragraphHtml, 'removed');
+  } else if (pd.changeType === 'modified' || pd.changeType === 'moved') {
+    const filteredChanges = (pd.wordChanges ?? []).filter((wc) =>
+      side === 'old' ? wc.type === 'removed' : wc.type === 'added',
+    );
+    if (filteredChanges.length > 0) {
+      const paraKey = `${sourceLoc.start}:${sourceLoc.end}`;
+      const paragraph = paragraphIndex.get(paraKey);
+      if (paragraph) {
+        replacedHtml = injectWordHighlights(paragraphHtml, filteredChanges, paragraph.text);
+      }
     }
   }
 
-  // Fallback: gap between sections — snap to nearest
-  return sections[lo] ?? sections[hi];
-}
-```
-
-#### `computeRatio(section, centerY): number`
-
-Position within a section as a 0→1 ratio.
-
-```typescript
-/**
- * Compute how far centerY is within the section, as a ratio from 0 (top) to 1 (bottom).
- * Clamps to [0, 1] for positions outside the section bounds.
- */
-export function computeRatio(section: SectionRect, centerY: number): number {
-  if (section.offsetHeight === 0) return 0;
-  const raw = (centerY - section.offsetTop) / section.offsetHeight;
-  return Math.max(0, Math.min(1, raw));
-}
-```
-
-#### `computeTargetScrollTop(matchingSection, ratio, containerHeight): number`
-
-Target `scrollTop` for the other panel.
-
-```typescript
-/**
- * Compute the scrollTop value that places the matching section's proportional
- * position at the center of the container viewport.
- * Clamps to 0 minimum; the browser clamps the upper bound on assignment.
- */
-export function computeTargetScrollTop(
-  matchingSection: SectionRect,
-  ratio: number,
-  containerHeight: number,
-): number {
-  const targetCenterY = matchingSection.offsetTop + ratio * matchingSection.offsetHeight;
-  return Math.max(0, targetCenterY - containerHeight / 2);
-}
-```
-
-#### `getSectionRects(container): SectionRect[]`
-
-Reads section layout from the DOM. Called on each scroll event (not cached, since layout can change).
-
-```typescript
-/**
- * Query all <section id="..."> elements in the container and return their
- * layout measurements. Results are naturally sorted by document order
- * (which matches visual top-to-bottom order).
- */
-export function getSectionRects(container: HTMLDivElement): SectionRect[] {
-  const elements = container.querySelectorAll<HTMLElement>('section[id]');
-  const rects: SectionRect[] = [];
-  for (const el of elements) {
-    rects.push({
-      id: el.id,
-      offsetTop: el.offsetTop,
-      offsetHeight: el.offsetHeight,
-    });
+  // NEW: Inject sync annotation for blocks with both-side mappings
+  if (hasBothSides) {
+    const blockKey = `${sectionDiff.id}:pd:${pdIdx}`;
+    replacedHtml = injectBlockKey(replacedHtml ?? paragraphHtml, blockKey);
   }
-  return rects;
+
+  // Push replacement if anything changed
+  if (replacedHtml) {
+    replacements.push({ relStart, relEnd, html: replacedHtml });
+  }
+}
+```
+
+The same pattern applies to the table diff loop — inject `data-block-key` on table elements with both-side source mappings.
+
+**Note**: `applyHighlightsToSection` needs to receive the `sectionDiff.id` to construct the block key. Currently it receives `sectionDiff` directly, so `sectionDiff.id` is available. However, the function signature should be extended to accept `sectionId`:
+
+```typescript
+export function applyHighlightsToSection(
+  sectionHtml: string,
+  sectionOffset: number,
+  sectionDiff: SectionDiff,
+  paragraphIndex: Map<string, Paragraph>,
+  side: Side,
+  tableIndex?: Map<string, Table>,
+): string;
+```
+
+No signature change needed — `sectionDiff.id` is already accessible from the existing `sectionDiff` parameter.
+
+## 4. Anchor Map Construction
+
+### Data Types
+
+In `apps/web/src/lib/sync-scroll.ts`:
+
+```typescript
+/** A corresponding position pair between old and new panels. */
+export interface Anchor {
+  oldY: number;  // absolute Y in old panel's scrollable content
+  newY: number;  // absolute Y in new panel's scrollable content
+}
+
+export type SyncDirection = 'oldToNew' | 'newToOld';
+```
+
+### `measureElements(panel): Map<string, number>`
+
+Reads element positions from a single panel. Returns a map from key → absolute Y position within the scrollable content.
+
+```typescript
+/**
+ * Query all section elements and data-block-key annotated elements in a panel,
+ * returning their absolute Y positions within the scrollable content.
+ *
+ * Keys use a prefix to distinguish sections from blocks:
+ * - Sections: "section:{id}" (e.g., "section:item-1a")
+ * - Blocks: the raw data-block-key value (e.g., "item-1a:pd:0")
+ */
+export function measureElements(panel: HTMLDivElement): Map<string, number> {
+  const positions = new Map<string, number>();
+  const panelRect = panel.getBoundingClientRect();
+  const scrollTop = panel.scrollTop;
+
+  // Section elements (by ID)
+  for (const el of panel.querySelectorAll<HTMLElement>('section[id]')) {
+    const y = el.getBoundingClientRect().top - panelRect.top + scrollTop;
+    positions.set(`section:${el.id}`, y);
+  }
+
+  // Annotated block elements (by data-block-key)
+  for (const el of panel.querySelectorAll<HTMLElement>('[data-block-key]')) {
+    const key = el.dataset.blockKey!;
+    const y = el.getBoundingClientRect().top - panelRect.top + scrollTop;
+    positions.set(key, y);
+  }
+
+  return positions;
+}
+```
+
+### `computeAnchors(oldPositions, newPositions): Anchor[]`
+
+Pure function — matches keys across panels, returns sorted anchor array.
+
+```typescript
+/**
+ * Build anchor points by matching keys that exist in both panels.
+ * Returns anchors sorted by oldY for efficient binary search.
+ */
+export function computeAnchors(
+  oldPositions: Map<string, number>,
+  newPositions: Map<string, number>,
+): Anchor[] {
+  const anchors: Anchor[] = [];
+  for (const [key, oldY] of oldPositions) {
+    const newY = newPositions.get(key);
+    if (newY !== undefined) {
+      anchors.push({ oldY, newY });
+    }
+  }
+  anchors.sort((a, b) => a.oldY - b.oldY);
+  return anchors;
+}
+```
+
+### `buildAnchorMap(oldPanel, newPanel): Anchor[]`
+
+Convenience function combining measurement and pairing.
+
+```typescript
+/**
+ * Build a complete anchor map from two panel DOM elements.
+ * Measures positions and pairs corresponding elements.
+ */
+export function buildAnchorMap(
+  oldPanel: HTMLDivElement,
+  newPanel: HTMLDivElement,
+): Anchor[] {
+  return computeAnchors(
+    measureElements(oldPanel),
+    measureElements(newPanel),
+  );
+}
+```
+
+### Typical Anchor Counts
+
+| Source | Count | Notes |
+|---|---|---|
+| Matched section boundaries | ~15-25 | One per section present in both filings |
+| Modified/moved paragraphs | ~30-100 | Changed paragraphs with both-side mappings |
+| Modified tables | ~5-20 | Changed tables with both-side mappings |
+| **Total** | **~50-145** | Sufficient for smooth interpolation |
+
+## 5. Scroll Translation
+
+### `translatePosition(anchors, sourceY, direction): number`
+
+Pure function — binary search for bracketing anchors, then linear interpolation.
+
+```typescript
+/**
+ * Translate a scroll position from one panel to the other using the anchor map.
+ *
+ * Uses binary search to find the two anchors bracketing the source position,
+ * then linearly interpolates the target position between them.
+ *
+ * Edge behavior:
+ * - No anchors → returns sourceY unchanged (passthrough)
+ * - Before first anchor → offset translation from first anchor
+ * - After last anchor → offset translation from last anchor
+ * - Between anchors → linear interpolation
+ */
+export function translatePosition(
+  anchors: Anchor[],
+  sourceY: number,
+  direction: SyncDirection,
+): number {
+  if (anchors.length === 0) return sourceY;
+
+  // For newToOld direction, we need anchors sorted by newY
+  const sorted = direction === 'oldToNew'
+    ? anchors
+    : [...anchors].sort((a, b) => a.newY - b.newY);
+
+  const srcKey = direction === 'oldToNew' ? 'oldY' : 'newY';
+  const tgtKey = direction === 'oldToNew' ? 'newY' : 'oldY';
+
+  // Single anchor — offset translation
+  if (sorted.length === 1) {
+    return sourceY - sorted[0][srcKey] + sorted[0][tgtKey];
+  }
+
+  // Before first anchor — offset from first
+  if (sourceY <= sorted[0][srcKey]) {
+    return sourceY - sorted[0][srcKey] + sorted[0][tgtKey];
+  }
+
+  // After last anchor — offset from last
+  const last = sorted[sorted.length - 1];
+  if (sourceY >= last[srcKey]) {
+    return sourceY - last[srcKey] + last[tgtKey];
+  }
+
+  // Binary search for bracketing anchors
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid][srcKey] <= sourceY) {
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  // Linear interpolation between sorted[lo] and sorted[hi]
+  const a = sorted[lo];
+  const b = sorted[hi];
+  const srcSpan = b[srcKey] - a[srcKey];
+  // Defensive guard: the binary search invariant (a[srcKey] <= sourceY < b[srcKey])
+  // guarantees srcSpan > 0, but we guard against it for safety.
+  if (srcSpan === 0) return a[tgtKey];
+  const t = (sourceY - a[srcKey]) / srcSpan;
+  return a[tgtKey] + t * (b[tgtKey] - a[tgtKey]);
 }
 ```
 
 ### Scroll Sync Flow
 
 ```
-User scrolls Panel A
+User scrolls Panel A (old panel)
   → scroll event fires
   → check isProgrammaticScroll ref → if true, clear flag and return (loop prevention)
-  → requestAnimationFrame gates the handler (debounce)
-  → centerY = container.scrollTop + container.clientHeight / 2
-  → sections = getSectionRects(panelA)
-  → section = findSectionAtPosition(sections, centerY)
-  → ratio = computeRatio(section, centerY)
-  → targetSections = getSectionRects(panelB)
-  → find matching section in targetSections by ID
-  → if found:
-      → targetScrollTop = computeTargetScrollTop(matchingSection, ratio, panelB.clientHeight)
+  → cancelAnimationFrame(rafId)
+  → requestAnimationFrame:
+      → anchors = buildAnchorMap(oldPanel, newPanel)
+      → targetScrollTop = translatePosition(anchors, oldPanel.scrollTop, 'oldToNew')
       → set isProgrammaticScroll = true
-      → panelB.scrollTop = targetScrollTop
-  → if NOT found (section missing in Panel B):
-      → no-op (skip sync — avoids scrolling to a potentially wrong position)
+      → newPanel.scrollTop = targetScrollTop
 ```
 
-## 3. Hook Signature
+## 6. Hook Signature
 
 ```typescript
 /**
- * Synchronize scroll position between two panels using proportional
- * section-based alignment. When enabled, scrolling one panel computes
- * the viewport center's position within the current section and maps
- * it to the corresponding section in the other panel.
+ * Synchronize scroll position between two panels using content-aligned
+ * anchor mapping. When enabled, scrolling one panel translates the position
+ * using diff-annotated DOM elements to find corresponding content in the
+ * other panel.
  */
 export function useSyncedScroll(
   panelARef: RefObject<HTMLDivElement | null>,
@@ -181,18 +392,13 @@ export function useSyncedScroll(
 ): void;
 ```
 
-Same signature as v1 — no API changes for consumers.
+Same signature as v1/v2 — no API changes for consumers. Panel A is the old panel, Panel B is the new panel.
 
 ### Implementation Sketch
 
 ```typescript
 import { useEffect, useRef, type RefObject } from 'react';
-import {
-  findSectionAtPosition,
-  computeRatio,
-  computeTargetScrollTop,
-  getSectionRects,
-} from '../lib/sync-scroll';
+import { buildAnchorMap, translatePosition, type SyncDirection } from '../lib/sync-scroll';
 
 export function useSyncedScroll(
   panelARef: RefObject<HTMLDivElement | null>,
@@ -209,6 +415,7 @@ export function useSyncedScroll(
     const makeSyncHandler = (
       source: HTMLDivElement,
       target: HTMLDivElement,
+      direction: SyncDirection,
     ) => {
       let rafId = 0;
       return () => {
@@ -220,26 +427,15 @@ export function useSyncedScroll(
 
         cancelAnimationFrame(rafId);
         rafId = requestAnimationFrame(() => {
-          const centerY = source.scrollTop + source.clientHeight / 2;
-          const sourceSections = getSectionRects(source);
-          const result = findSectionAtPosition(sourceSections, centerY);
-
-          if (!result) return; // No sections loaded yet
-
-          const ratio = computeRatio(result, centerY);
-          const targetSections = getSectionRects(target);
-
-          // Find matching section by ID
-          const matchingSection = targetSections.find(
-            (s) => s.id === result.id,
+          const anchors = buildAnchorMap(
+            direction === 'oldToNew' ? source : target,
+            direction === 'oldToNew' ? target : source,
           );
 
-          if (!matchingSection) return; // Section not in target — no-op
-
-          const targetScrollTop = computeTargetScrollTop(
-            matchingSection,
-            ratio,
-            target.clientHeight,
+          const targetScrollTop = translatePosition(
+            anchors,
+            source.scrollTop,
+            direction,
           );
 
           isProgrammaticScrollRef.current = true;
@@ -248,8 +444,8 @@ export function useSyncedScroll(
       };
     };
 
-    const handleScrollA = makeSyncHandler(panelA, panelB);
-    const handleScrollB = makeSyncHandler(panelB, panelA);
+    const handleScrollA = makeSyncHandler(panelA, panelB, 'oldToNew');
+    const handleScrollB = makeSyncHandler(panelB, panelA, 'newToOld');
 
     panelA.addEventListener('scroll', handleScrollA, { passive: true });
     panelB.addEventListener('scroll', handleScrollB, { passive: true });
@@ -263,9 +459,9 @@ export function useSyncedScroll(
 }
 ```
 
-## 4. Loop Prevention
+## 7. Loop Prevention
 
-v2 uses a **single boolean ref** — dramatically simpler than v1's 3-state `scrollSourceRef` + settling timeout.
+Same as v2: single boolean ref `isProgrammaticScrollRef`.
 
 ```typescript
 const isProgrammaticScrollRef = useRef(false);
@@ -290,61 +486,72 @@ If the user scrolls Panel A very rapidly (multiple frames), each scroll event:
 
 This means Panel B receives at most one programmatic scroll per user scroll frame — the boolean ref handles this correctly.
 
-## 5. Edge Cases
+## 8. Edge Cases
 
-### Section exists in A but not B (added/removed sections)
+### Section exists in one panel but not the other (added/removed sections)
 
-When `findSectionAtPosition` returns a section whose ID has no match in the target panel, the handler returns early (no-op). This avoids scrolling to a potentially wrong position — a global ratio could land in a completely unrelated section. The target panel stays at its current position until the user scrolls to a section that exists in both panels.
+Added/removed sections have no matching `<section id>` in the other panel. No anchor is created. When the user scrolls through an added section in one panel, the scroll position falls between surrounding anchors and is interpolated. The other panel stays at a reasonable position near the boundary.
 
-### No sections loaded yet
+### No anchors at all
 
-`getSectionRects` returns an empty array → `findSectionAtPosition` returns `null` → handler returns early. No sync attempted.
+`translatePosition` returns `sourceY` unchanged (passthrough). This handles the case where both panels have completely different content (no matching sections). The panels scroll independently.
+
+### Reordered sections
+
+Anchors are sorted by source-panel position. If section order differs between panels, the anchor map produces non-monotonic target positions — e.g., scrolling down in Panel A might cause Panel B to jump backwards. This is correct behavior: the content at that position in Panel A corresponds to earlier content in Panel B.
+
+### No sections loaded yet (pipeline states)
+
+During `fetching`/`parsing`/`diffing`, `FilingPanel` renders spinners. No `<section>` elements exist → `measureElements` returns empty map → `computeAnchors` returns `[]` → `translatePosition` returns passthrough → no-op. Sync starts automatically once content renders.
 
 ### One panel shorter than the other
 
-The proportional mapping handles this naturally. If Panel A's "Item 7" is 2000px tall and Panel B's is 500px, a ratio of 0.5 in Panel A maps to the midpoint of Panel B's "Item 7" — which is exactly the right behavior. The panels show corresponding content, not matching pixel offsets.
+Before-first and after-last anchor cases use offset translation (not interpolation). If Panel A is much longer, scrolling past the last anchor produces reasonable target positions that follow the offset pattern established by the last anchor.
 
 ### Scroll position in preamble area (before first section)
 
-`findSectionAtPosition` handles this: if `centerY < sections[0].offsetTop`, it returns the first section with the position clamped. `computeRatio` clamps to 0, so the target panel scrolls to the top of its first section. This is correct — the preamble (boilerplate headers, TOC) is typically identical between filings.
+The preamble section (`id="preamble"`) is rendered in `FilingContent` but is not part of the diff's `sectionDiffs`. If both panels have a preamble section (typical — boilerplate headers), `measureElements` picks it up by its `id`. If only one panel has it, the first matched section serves as the anchor boundary.
 
-### Scroll position after last section
+### Zero-height sections
 
-Similarly handled: `findSectionAtPosition` returns the last section, `computeRatio` clamps to 1, target panel scrolls to the bottom of its last section.
-
-### Section has zero height
-
-`computeRatio` returns 0 when `offsetHeight === 0`, preventing division by zero. The target panel scrolls to the top of the matching section.
-
-### Sections loading asynchronously (pipeline states)
-
-During `fetching`/`parsing`/`diffing`, `FilingPanel` renders spinners instead of `FilingContent` (see `FilingPanel.tsx:49-59`). No `<section>` elements exist in the DOM, so `getSectionRects` returns `[]` and the handler no-ops. Once content loads, sections appear and the next scroll event picks them up automatically — no MutationObserver needed because sections are queried fresh on every scroll.
+If a section has zero height, its anchor coincides with the next section's anchor. `translatePosition` handles this via the `srcSpan === 0` guard, returning the target position of the first anchor.
 
 ### Toggle during scroll
 
-When the user disables sync, the `useEffect` cleanup runs immediately, removing listeners. Any in-flight `rAF` callback will be a no-op if the listener is removed before it fires. If it fires after cleanup, it harmlessly sets `scrollTop` on the target (no crash, just one extra frame of sync — acceptable).
+When the user disables sync, the `useEffect` cleanup runs immediately, removing listeners. Any in-flight `rAF` callback from a removed listener is harmless — if it fires, it sets `scrollTop` once (no crash, just one extra frame).
 
-## 6. Files to Create / Modify
+### `getBoundingClientRect` during scroll
+
+`getBoundingClientRect` returns viewport-relative positions that change during scroll. The formula `el.getBoundingClientRect().top - panel.getBoundingClientRect().top + panel.scrollTop` compensates by adding back the scroll offset, giving stable content-absolute positions regardless of current scroll position.
+
+## 9. Files to Create / Modify
 
 ### New: `apps/web/src/lib/sync-scroll.ts`
 
-Pure functions with zero React dependencies (operate on plain numbers):
-- `SectionRect` interface
-- `findSectionAtPosition()` — binary search, returns `SectionRect | null`
-- `computeRatio()` — position-to-ratio mapping, clamped to [0, 1]
-- `computeTargetScrollTop()` — ratio-to-scrollTop mapping, clamps to >= 0 (browser clamps upper bound)
-- `getSectionRects()` — reads section layout from a container element (the only function touching the DOM)
+Pure functions with zero React dependencies:
+- `Anchor` interface
+- `SyncDirection` type
+- `measureElements()` — reads element positions from a panel (only function touching the DOM)
+- `computeAnchors()` — matches keys across panels, returns sorted anchors (pure)
+- `buildAnchorMap()` — convenience combining measure + compute
+- `translatePosition()` — binary search + interpolation (pure)
 
 ### New: `apps/web/src/hooks/useSyncedScroll.ts`
 
-React hook orchestrating the pure functions with DOM interaction:
-- `useSyncedScroll()` — attaches scroll listeners, computes proportional positions, sets `scrollTop`
-- Imports pure functions from `../lib/sync-scroll`
+React hook orchestrating the sync:
+- `useSyncedScroll()` — attaches scroll listeners, builds anchor maps, translates positions
+- Imports functions from `../lib/sync-scroll`
+
+### Modify: `apps/web/src/lib/highlight-injector.ts`
+
+- **Add** `injectBlockKey()` — injects `data-block-key` attribute into an HTML opening tag
+- **Extend** `applyHighlightsToSection()` paragraph loop — inject `data-block-key` on changed blocks with both-side source mappings (modified/moved paragraphs)
+- **Extend** `applyHighlightsToSection()` table diff loop — inject `data-block-key` on changed tables with both-side source mappings
 
 ### Modify: `apps/web/src/App.tsx`
 
 ```typescript
-// New import
+// New imports
 import { useSyncedScroll } from './hooks/useSyncedScroll';
 
 // New state (after line 76)
@@ -398,20 +605,20 @@ export function Header({ syncEnabled, onSyncToggle }: HeaderProps) {
 
 Props are optional so Header remains backwards-compatible and testable in isolation.
 
-## 7. What's Removed from v1
+## 10. What's Removed from v2
 
-| v1 Concept | Why Removed |
+| v2 Concept | Why Removed |
 |---|---|
-| `IntersectionObserver` (2 instances) | Replaced by binary search over `offsetTop` — simpler, no async callbacks |
-| `MutationObserver` | Sections queried fresh on each scroll via `querySelectorAll` — no need to watch for DOM changes |
-| `SCROLL_SETTLE_MS` (150ms timeout) | `scrollTop` assignment is synchronous — no settling window needed |
-| `lastSyncedSectionRef` | Proportional mapping naturally handles same-section scrolling (different ratios = different positions) |
-| `scrollSourceRef` (3-state: 'none' / 'panelA' / 'panelB') | Replaced by single boolean `isProgrammaticScrollRef` |
-| `scrollIntoView()` | Replaced by direct `scrollTop` assignment — no animation, no async behavior |
-| `createSectionObserver()` factory | Not needed without IntersectionObserver |
-| `observeSections()` helper | Not needed without IntersectionObserver |
+| `SectionRect` interface | Replaced by `Anchor` — content-level, not section-level |
+| `findSectionAtPosition()` (binary search over sections) | Replaced by `translatePosition()` binary search over anchors |
+| `computeRatio()` (position-to-ratio) | No ratio concept — direct position mapping via anchors |
+| `computeTargetScrollTop()` (ratio-to-scrollTop) | Replaced by interpolation in `translatePosition()` |
+| `getSectionRects()` (section layout reads) | Replaced by `measureElements()` (reads sections + annotated blocks) |
+| Section ID matching in scroll handler | Replaced by key matching in `computeAnchors()` |
 
-## 8. Dependencies
+**Retained from v2:** Loop prevention (boolean ref), rAF debouncing, hook signature, Header toggle, App.tsx wiring.
+
+## 11. Dependencies
 
 Only React built-ins — no external libraries:
 
@@ -422,15 +629,47 @@ Only React built-ins — no external libraries:
 - `RefObject` — type import for panel refs
 
 Browser APIs used:
+- `getBoundingClientRect()` — element positioning
+- `querySelectorAll()` — element discovery (already used throughout the app)
 - `requestAnimationFrame` / `cancelAnimationFrame` — debouncing
-- `querySelectorAll` — section discovery in `getSectionRects()` (already used throughout the app)
-- `offsetTop` / `offsetHeight` / `scrollTop` / `clientHeight` / `scrollHeight` — layout measurements
-- `CSS.escape` is **not needed** in v2 — sections are matched by ID via JS array `find()`, not `querySelector`
+- `scrollTop` / `clientHeight` — scroll position
+- `dataset` — reading `data-block-key` attribute values
 
-## 9. Performance Considerations
+## 12. Performance Considerations
 
-- **Scroll handler cost**: `getSectionRects` calls `querySelectorAll('section[id]')` and reads `offsetTop`/`offsetHeight` for ~10-30 elements. This is fast — layout values are cached by the browser until the next reflow, and `querySelectorAll` on a small set is O(n) with n < 50.
-- **Binary search**: O(log n) for section lookup. With 30 sections, that's ~5 comparisons. Negligible.
-- **rAF debouncing**: Ensures at most one handler execution per frame (16ms budget). The handler itself is sub-millisecond (DOM reads + arithmetic).
-- **No forced reflows**: Reading `offsetTop`/`offsetHeight` can trigger reflow if the DOM was recently modified. In practice, scroll events don't modify the DOM, so these reads hit the browser's cached layout. The only write is `target.scrollTop`, which happens after all reads — no read-write-read interleaving.
-- **No smooth scrolling overhead**: Direct `scrollTop` assignment is synchronous and doesn't trigger the browser's smooth scroll animation engine.
+- **Anchor map build per frame**: `querySelectorAll` for ~40 sections + ~200 blocks across 2 panels, `getBoundingClientRect` on ~120 matched elements. Browser batches rect reads if no reflow occurred. Expected cost: ~0.3–0.5ms. Well within the 16ms rAF budget.
+- **Binary search**: O(log n) for ~120 anchors = ~7 comparisons. Negligible.
+- **rAF debouncing**: At most one handler execution per frame. Rapid scrolling cancels prior rAF callbacks.
+- **No forced reflows**: All reads (`getBoundingClientRect`, `scrollTop`) happen before the single write (`target.scrollTop`). No read-write-read interleaving.
+- **No smooth scrolling overhead**: Direct `scrollTop` assignment is synchronous.
+- **`newToOld` re-sort**: `translatePosition` creates a copy sorted by `newY` for the reverse direction. With ~120 elements, this is ~0.01ms. If perf-sensitive, pre-sort both directions in `buildAnchorMap`.
+
+## 13. Testability
+
+The architecture separates pure functions from DOM interaction:
+
+| Function | Pure? | Testable with |
+|---|---|---|
+| `computeAnchors()` | Yes | Plain unit tests with mock maps |
+| `translatePosition()` | Yes | Plain unit tests with mock anchors |
+| `injectBlockKey()` | Yes | String-based unit tests |
+| `measureElements()` | No (DOM reads) | jsdom / happy-dom with mock elements |
+| `buildAnchorMap()` | No (DOM reads) | jsdom / happy-dom |
+| `useSyncedScroll()` | No (React + DOM) | React Testing Library |
+
+`computeAnchors` and `translatePosition` are the core algorithms and have the highest test coverage value.
+
+## 14. Future Enhancement: Unchanged Block Anchors
+
+The current design uses **section boundaries + changed blocks** as anchors. For sections with sparse changes (e.g., 50 paragraphs with only 2 modified), the interpolation between anchor points covers large content stretches.
+
+For even smoother alignment, unchanged paragraphs can be added as anchors:
+
+1. **Diff engine change**: Remove the filter at `diff-engine.ts:62` or add a separate `blockMappings: DiffRange[]` field to `SectionDiff` with the source mappings of ALL paragraphs (including unchanged)
+2. **Annotation**: Inject `data-block-key` on all blocks, not just changed ones
+3. **Impact**: Anchor count increases from ~100 to ~500-1000 (every paragraph becomes an anchor)
+
+This is deferred because:
+- The current anchor coverage is sufficient for a good user experience — unchanged sections have identical content (proportional is fine), and changed sections have anchors precisely at the changes (where users focus)
+- Adding unchanged anchors increases the `querySelectorAll`/`getBoundingClientRect` cost proportionally
+- It requires either a diff engine API change or a separate data path
