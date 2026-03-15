@@ -70,15 +70,19 @@ export function useSyncedScroll(
     observeSections(panelA, observerA);
     observeSections(panelB, observerB);
 
+    let rafIdA = 0;
+    let rafIdB = 0;
+
     const makeScrollHandler = (
       sourcePanel: 'panelA' | 'panelB',
       getActiveSection: () => string,
       targetContainer: HTMLDivElement,
+      getRafId: () => number,
+      setRafId: (id: number) => void,
     ) => {
-      let rafId = 0;
       return () => {
-        cancelAnimationFrame(rafId);
-        rafId = requestAnimationFrame(() => {
+        cancelAnimationFrame(getRafId());
+        setRafId(requestAnimationFrame(() => {
           if (scrollSourceRef.current !== 'none' && scrollSourceRef.current !== sourcePanel) {
             return;
           }
@@ -97,12 +101,18 @@ export function useSyncedScroll(
           scrollTimeoutRef.current = setTimeout(() => {
             scrollSourceRef.current = 'none';
           }, SCROLL_SETTLE_MS);
-        });
+        }));
       };
     };
 
-    const handleScrollA = makeScrollHandler('panelA', () => activeSectionA, panelB);
-    const handleScrollB = makeScrollHandler('panelB', () => activeSectionB, panelA);
+    const handleScrollA = makeScrollHandler(
+      'panelA', () => activeSectionA, panelB,
+      () => rafIdA, (id) => { rafIdA = id; },
+    );
+    const handleScrollB = makeScrollHandler(
+      'panelB', () => activeSectionB, panelA,
+      () => rafIdB, (id) => { rafIdB = id; },
+    );
 
     panelA.addEventListener('scroll', handleScrollA, { passive: true });
     panelB.addEventListener('scroll', handleScrollB, { passive: true });
@@ -120,6 +130,8 @@ export function useSyncedScroll(
     return () => {
       panelA.removeEventListener('scroll', handleScrollA);
       panelB.removeEventListener('scroll', handleScrollB);
+      cancelAnimationFrame(rafIdA);
+      cancelAnimationFrame(rafIdB);
       observerA.disconnect();
       observerB.disconnect();
       mutationObserver.disconnect();

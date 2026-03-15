@@ -399,7 +399,7 @@ describe('useSyncedScroll', () => {
     const containerA = makeContainer('s1', 's2');
     const containerB = makeContainer('s1', 's2');
 
-    renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+    const { unmount } = renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
 
     const sectionsA = containerA.querySelectorAll('section');
     act(() => {
@@ -437,6 +437,9 @@ describe('useSyncedScroll', () => {
       flushRAF();
     });
     expect(containerA.querySelector('#s1')?.scrollIntoView).toHaveBeenCalled();
+
+    // Unmount before afterEach restores globals (cancelAnimationFrame)
+    unmount();
   });
 
   // SS-U14: MutationObserver re-registers sections when DOM changes
