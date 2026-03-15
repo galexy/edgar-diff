@@ -343,6 +343,40 @@ describe('buildOffsetTable', () => {
       expect(result[i].oldStart).toBeGreaterThanOrEqual(result[i - 1].oldStart);
     }
   });
+
+  // SS-OT10: Includes entries from nested subsectionDiffs
+  it('recursively includes entries from nested subsectionDiffs', () => {
+    const sd = makeSectionDiff({
+      sourceMapping: {
+        old: { start: 0, end: 5000 },
+        new: { start: 0, end: 6000 },
+      },
+      subsectionDiffs: [
+        makeSectionDiff({
+          id: 'sub-1',
+          sourceMapping: {
+            old: { start: 1000, end: 2000 },
+            new: { start: 1200, end: 2400 },
+          },
+          paragraphDiffs: [
+            {
+              changeType: 'unchanged',
+              sourceMapping: {
+                old: { start: 1100, end: 1200 },
+                new: { start: 1300, end: 1400 },
+              },
+            },
+          ] as SectionDiff['paragraphDiffs'],
+        }),
+      ] as SectionDiff[],
+    });
+    const result = buildOffsetTable([sd]);
+    // Should include: section boundary {0,0}, subsection boundary {1000,1200},
+    // paragraph in subsection {1100,1300}
+    expect(result).toContainEqual({ oldStart: 0, newStart: 0 });
+    expect(result).toContainEqual({ oldStart: 1000, newStart: 1200 });
+    expect(result).toContainEqual({ oldStart: 1100, newStart: 1300 });
+  });
 });
 ```
 
@@ -1499,6 +1533,7 @@ function flushRAF(): void {
 | SS-OT7 | Pure fn | `buildOffsetTable` — output sorted by oldStart |
 | SS-OT8 | Pure fn | `buildOffsetTable` — multiple sections combined |
 | SS-OT9 | Pure fn | `buildOffsetTable` — 1000 entries |
+| SS-OT10 | Pure fn | `buildOffsetTable` — nested subsectionDiffs |
 | SS-LO1 | Pure fn | `lookupCorrespondingOffset` — empty → passthrough |
 | SS-LO2 | Pure fn | `lookupCorrespondingOffset` — single entry → offset |
 | SS-LO3 | Pure fn | `lookupCorrespondingOffset` — exact match → direct |
