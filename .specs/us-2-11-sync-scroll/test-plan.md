@@ -1,78 +1,71 @@
-# US-2.11 Synchronized Scrolling — Test Plan (v2)
+# US-2.11 Synchronized Scrolling — Test Plan (v3)
 
-> **v2 rationale**: v1 used section-snapping via `scrollIntoView` + `IntersectionObserver`.
-> This caused huge jumps — a section appearing at the bottom of Panel A would snap the
-> other panel to the top of that section. The panels never visually aligned.
+> **v3 rationale**: v1 used section-snapping via `scrollIntoView` — huge jumps.
+> v2 used proportional section-based ratios — fundamentally wrong when sections
+> have different paragraph counts (50% through old ≠ 50% through new).
 >
-> v2 uses **proportional section-based alignment** with direct `scrollTop` computation.
-> Pure functions for binary search and ratio mapping make the core logic highly testable.
+> v3 uses **content-aligned anchor maps** built from diff data. Section boundaries
+> and changed blocks (modified/moved paragraphs and tables with `data-block-key`
+> attributes) form anchor points. Scroll positions are translated via binary search
+> + linear interpolation on the anchor array. No ratio computation, no section-snapping.
 
 ---
 
 ## 1. BDD Acceptance Criteria
 
-### AC-1: Scrolling Filing A automatically scrolls Filing B to the corresponding position
+### AC-1: Scrolling Filing A aligns Filing B at corresponding content
 
 ```gherkin
-Scenario: SS-AC1-1 — Scroll Filing A syncs Filing B proportionally
-  Given both panels have filings loaded with matching sections [s1, s2, s3]
+Scenario: SS-AC1-1 — Scroll Filing A syncs Filing B at corresponding content
+  Given both panels have filings loaded with matching sections and annotated blocks
   And sync scrolling is enabled (default)
-  When the user scrolls Filing A so that section "s2" is at the viewport center
-  Then Filing B sets scrollTop so that section "s2" is at the same proportional position
+  When the user scrolls Filing A so that a modified paragraph is near the viewport top
+  Then Filing B sets scrollTop so the corresponding modified paragraph aligns
   And Filing B does NOT call scrollIntoView (scrollTop is set directly)
 
-Scenario: SS-AC1-2 — Scroll Filing B syncs Filing A proportionally
-  Given both panels have filings loaded with matching sections [s1, s2, s3]
+Scenario: SS-AC1-2 — Scroll Filing B syncs Filing A (bidirectional)
+  Given both panels have filings loaded
   And sync scrolling is enabled
-  When the user scrolls Filing B so that section "s3" is 40% through at viewport center
-  Then Filing A sets scrollTop so that section "s3" is at 40% through
+  When the user scrolls Filing B
+  Then Filing A sets scrollTop via translatePosition with direction 'newToOld'
 
-Scenario: SS-AC1-3 — Section not found in other panel (silent no-op)
-  Given Filing A has sections [s1, s2, s3] and Filing B has sections [s1, s3]
-  And sync scrolling is enabled
-  When the user scrolls Filing A so that section "s2" is at the viewport center
-  Then Filing B does NOT scroll (section "s2" does not exist in Filing B)
-  And no error is thrown
-
-Scenario: SS-AC1-4 — No filings loaded
+Scenario: SS-AC1-3 — No filings loaded
   Given no filings are loaded in either panel
   And sync scrolling is enabled
   When the user scrolls either panel
   Then nothing happens and no errors are thrown
 
-Scenario: SS-AC1-5 — One panel empty
-  Given Filing A has sections [s1, s2] and Filing B is empty (no document)
+Scenario: SS-AC1-4 — One panel empty
+  Given Filing A has sections and Filing B is empty (no document)
   And sync scrolling is enabled
   When the user scrolls Filing A
   Then no error is thrown (the hook early-returns when either ref is null)
 ```
 
-### AC-2: Scroll sync uses proportional section-based alignment
+### AC-2: Unchanged content aligns exactly; changed content aligns via nearest anchor
 
 ```gherkin
-Scenario: SS-AC2-1 — Proportional alignment within a section
-  Given Filing A has section "s2" that is 1000px tall
-  And Filing B has section "s2" that is 500px tall
+Scenario: SS-AC2-1 — Content-aligned sync within a section
+  Given Filing A has section "item-1a" with modified paragraphs at positions 200, 800
+  And Filing B has section "item-1a" with the same paragraphs at positions 150, 900
   And sync scrolling is enabled
-  When the user scrolls Filing A so the viewport center is 60% through section "s2"
-  Then Filing B's scrollTop is computed so its viewport center is 60% through its "s2"
+  When the user scrolls Filing A to position 500 (between the two anchors)
+  Then Filing B scrollTop is computed via linear interpolation between the anchors
+  And the alignment reflects content correspondence, not proportional ratio
 
-Scenario: SS-AC2-2 — Large sections stay proportionally aligned
-  Given Filing A section "s1" spans 3 viewports (3000px)
-  And Filing B section "s1" spans 1 viewport (800px)
-  When the user scrolls from the top to the bottom of "s1" in Filing A
-  Then Filing B tracks proportionally through its "s1" — no jumps, smooth tracking
+Scenario: SS-AC2-2 — Unchanged sections align via section boundary anchors
+  Given section "item-2" has no modified paragraphs (identical in both filings)
+  And section "item-2" boundaries exist as anchors in both panels
+  When the user scrolls to section "item-2" in Filing A
+  Then Filing B scrolls to section "item-2" using the section boundary anchor
+  And within the section, offset translation from the anchor provides alignment
 
-Scenario: SS-AC2-3 — Small sections are detected via binary search
-  Given Filing A has a section "s-tiny" that is < 50px tall
-  When "s-tiny" is at the viewport center (found by binary search on offsetTop)
-  Then Filing B scrolls to its matching "s-tiny" element proportionally
-
-Scenario: SS-AC2-4 — Different section sizes produce correct ratios
-  Given Filing A has section "s1" at offsetTop=0, height=2000px
-  And Filing B has section "s1" at offsetTop=0, height=400px
-  When the user scrolls Filing A so viewport center is at 1500px (ratio 0.75)
-  Then Filing B scrollTop positions its viewport center at 300px into "s1" (ratio 0.75)
+Scenario: SS-AC2-3 — Added/removed sections interpolate between surrounding anchors
+  Given Filing A has sections [s1, s2-added, s3] and Filing B has sections [s1, s3]
+  And s2-added has no matching anchor in Filing B
+  When the user scrolls Filing A into section s2-added
+  Then Filing B position is interpolated between the s1 and s3 anchors
+  And no error is thrown
 ```
 
 ### AC-3: A toggle button allows the user to enable/disable sync scrolling
@@ -101,278 +94,489 @@ Scenario: SS-AC3-3 — Toggle re-enables sync
 ```gherkin
 Scenario: SS-AC4-1 — Independent scrolling when disabled
   Given sync scrolling is disabled
-  When the user scrolls Filing A to section "s3"
+  When the user scrolls Filing A
   Then Filing B remains at its current scroll position
   And scrollTop on Filing B is NOT modified programmatically
 
 Scenario: SS-AC4-2 — Re-enabling syncs from current position
-  Given sync was disabled and user scrolled Filing A to "s3" and Filing B to "s1"
+  Given sync was disabled and user scrolled panels to different positions
   When the user re-enables sync
   And the user scrolls Filing A (triggering a new scroll event)
-  Then Filing B syncs to match Filing A's proportional position
+  Then Filing B syncs to the content-aligned position via anchor map
 ```
 
 ---
 
-## 2. Unit Tests — Pure Functions
+## 2. Unit Tests — Pure Functions (`lib/sync-scroll.ts`)
 
 File: `apps/web/src/lib/sync-scroll.test.ts`
 
 Pure functions are exported from `lib/sync-scroll.ts` — separate from the React hook.
-They operate on `SectionRect` values — no DOM or React dependencies.
+They operate on `Anchor[]` and `Map<string, number>` — no DOM or React dependencies
+(except `measureElements` which reads DOM positions).
 
 ### Types
 
 ```typescript
 // Exported from lib/sync-scroll.ts
-export interface SectionRect {
-  id: string;
-  offsetTop: number;
-  offsetHeight: number;
+export interface Anchor {
+  oldY: number;
+  newY: number;
 }
+
+export type SyncDirection = 'oldToNew' | 'newToOld';
 ```
 
-### 2a. `findSectionAtPosition(sections, centerY)` — Binary Search
+### 2a. `computeAnchors(oldPositions, newPositions)` — Anchor Matching
 
-Returns `SectionRect | null`.
+Returns `Anchor[]` sorted by `oldY`.
 
 ```typescript
 import { describe, it, expect } from 'vitest';
 import {
-  findSectionAtPosition,
-  computeRatio,
-  computeTargetScrollTop,
-  getSectionRects,
-  type SectionRect,
+  computeAnchors,
+  translatePosition,
+  measureElements,
+  type Anchor,
+  type SyncDirection,
 } from './sync-scroll';
 
-describe('findSectionAtPosition', () => {
-  // SS-PF1: Empty sections array returns null
-  it('returns null for empty sections array', () => {
-    expect(findSectionAtPosition([], 500)).toBeNull();
+describe('computeAnchors', () => {
+  // SS-CA1: Empty maps → empty anchors
+  it('returns empty array when both maps are empty', () => {
+    expect(computeAnchors(new Map(), new Map())).toEqual([]);
   });
 
-  // SS-PF2: Position before first section returns first section
-  it('returns first section when position is before all sections', () => {
-    const sections: SectionRect[] = [
-      { id: 's1', offsetTop: 100, offsetHeight: 200 },
-      { id: 's2', offsetTop: 300, offsetHeight: 200 },
-    ];
-    expect(findSectionAtPosition(sections, 50)).toEqual(sections[0]);
+  // SS-CA2: No matching keys → empty anchors
+  it('returns empty array when no keys match', () => {
+    const oldPos = new Map([['section:s1', 0], ['item-1a:pd:0', 100]]);
+    const newPos = new Map([['section:s2', 0], ['item-2:pd:0', 200]]);
+    expect(computeAnchors(oldPos, newPos)).toEqual([]);
   });
 
-  // SS-PF3: Position in middle of a section returns that section
-  it('returns the section containing the position', () => {
-    const sections: SectionRect[] = [
-      { id: 's1', offsetTop: 0, offsetHeight: 300 },
-      { id: 's2', offsetTop: 300, offsetHeight: 400 },
-      { id: 's3', offsetTop: 700, offsetHeight: 300 },
-    ];
-    expect(findSectionAtPosition(sections, 500)).toEqual(sections[1]); // 500 is within s2 (300-700)
-  });
-
-  // SS-PF4: Position at exact boundary between sections
-  it('returns the next section when position is at exact boundary', () => {
-    const sections: SectionRect[] = [
-      { id: 's1', offsetTop: 0, offsetHeight: 300 },
-      { id: 's2', offsetTop: 300, offsetHeight: 300 },
-    ];
-    // At 300: s1 ends (0+300), s2 begins. Binary search: centerY >= s.offsetTop + s.offsetHeight
-    // skips s1, lands on s2.
-    expect(findSectionAtPosition(sections, 300)).toEqual(sections[1]);
-  });
-
-  // SS-PF5: Position after last section returns last section
-  it('returns last section when position is beyond all sections', () => {
-    const sections: SectionRect[] = [
-      { id: 's1', offsetTop: 0, offsetHeight: 200 },
-      { id: 's2', offsetTop: 200, offsetHeight: 300 },
-    ];
-    expect(findSectionAtPosition(sections, 9999)).toEqual(sections[1]);
-  });
-
-  // SS-PF6: Single section
-  it('returns the only section regardless of position', () => {
-    const sections: SectionRect[] = [{ id: 's1', offsetTop: 0, offsetHeight: 1000 }];
-    expect(findSectionAtPosition(sections, 500)).toEqual(sections[0]);
-    expect(findSectionAtPosition(sections, 0)).toEqual(sections[0]);
-    expect(findSectionAtPosition(sections, 2000)).toEqual(sections[0]);
-  });
-
-  // SS-PF7: Many sections — binary search correctness
-  it('finds correct section among 25 sections via binary search', () => {
-    const sections: SectionRect[] = Array.from({ length: 25 }, (_, i) => ({
-      id: `s${i + 1}`,
-      offsetTop: i * 200,
-      offsetHeight: 200,
-    }));
-    // Position 2500 is in section 13 (offsetTop=2400, range 2400-2600)
-    expect(findSectionAtPosition(sections, 2500)).toEqual(sections[12]);
-  });
-
-  // SS-PF8: Gap between sections (preamble or padding) — snaps to nearest
-  it('handles gap between sections by snapping to nearest', () => {
-    const sections: SectionRect[] = [
-      { id: 's1', offsetTop: 0, offsetHeight: 100 },
-      // gap from 100 to 200
-      { id: 's2', offsetTop: 200, offsetHeight: 100 },
-    ];
-    const result = findSectionAtPosition(sections, 150); // in the gap
-    // Should return one of the adjacent sections (implementation-defined: nearest)
-    expect(result).not.toBeNull();
-    expect(result!.id).toMatch(/^s[12]$/);
-  });
-});
-```
-
-### 2b. `computeRatio(section, centerY)` — Ratio Computation
-
-```typescript
-describe('computeRatio', () => {
-  const section: SectionRect = { id: 's1', offsetTop: 100, offsetHeight: 400 };
-
-  // SS-PF9: Position at section start → ratio 0
-  it('returns 0 when position is at section start', () => {
-    expect(computeRatio(section, 100)).toBe(0);
-  });
-
-  // SS-PF10: Position at section end → ratio 1
-  it('returns 1 when position is at section end', () => {
-    expect(computeRatio(section, 500)).toBe(1);
-  });
-
-  // SS-PF11: Position at section midpoint → ratio 0.5
-  it('returns 0.5 when position is at section midpoint', () => {
-    expect(computeRatio(section, 300)).toBe(0.5);
-  });
-
-  // SS-PF12: Arbitrary position → correct ratio
-  it('returns correct ratio for arbitrary position', () => {
-    expect(computeRatio(section, 200)).toBeCloseTo(0.25);
-    expect(computeRatio(section, 400)).toBeCloseTo(0.75);
-  });
-
-  // SS-PF13: Zero-height section → ratio 0 (guard against division by zero)
-  it('returns 0 for zero-height section', () => {
-    const zeroSection: SectionRect = { id: 's1', offsetTop: 100, offsetHeight: 0 };
-    expect(computeRatio(zeroSection, 100)).toBe(0);
-  });
-
-  // SS-PF14: Position before section start → clamps to 0
-  it('clamps to 0 when position is before section start', () => {
-    expect(computeRatio(section, 50)).toBe(0);
-  });
-
-  // SS-PF15: Position after section end → clamps to 1
-  it('clamps to 1 when position is after section end', () => {
-    expect(computeRatio(section, 600)).toBe(1);
-  });
-});
-```
-
-### 2c. `computeTargetScrollTop(matchingSection, ratio, containerHeight)` — Target Scroll
-
-The function returns `Math.max(0, matchingSection.offsetTop + ratio * matchingSection.offsetHeight - containerHeight / 2)`.
-It clamps the lower bound to 0; the browser clamps the upper bound (`scrollHeight - clientHeight`) on assignment.
-
-```typescript
-describe('computeTargetScrollTop', () => {
-  // Section in target panel: starts at 200, height 600
-  const section: SectionRect = { id: 's1', offsetTop: 200, offsetHeight: 600 };
-  const containerHeight = 400; // viewport height
-
-  // SS-PF16: Ratio 0 → viewport center at section top
-  it('positions viewport center at section start for ratio 0', () => {
-    // Target: max(0, 200 + 0 * 600 - 200) = 0
-    expect(computeTargetScrollTop(section, 0, containerHeight)).toBe(0);
-  });
-
-  // SS-PF17: Ratio 1 → viewport center at section bottom
-  it('positions viewport center at section end for ratio 1', () => {
-    // Target: max(0, 200 + 1 * 600 - 200) = 600
-    expect(computeTargetScrollTop(section, 1, containerHeight)).toBe(600);
-  });
-
-  // SS-PF18: Ratio 0.5 → viewport center at section midpoint
-  it('positions viewport center at section midpoint for ratio 0.5', () => {
-    // Target: max(0, 200 + 0.5 * 600 - 200) = 300
-    expect(computeTargetScrollTop(section, 0.5, containerHeight)).toBe(300);
-  });
-
-  // SS-PF19: Clamps to 0 when computed value would be negative
-  it('clamps to 0 when section is near the top', () => {
-    const topSection: SectionRect = { id: 's1', offsetTop: 50, offsetHeight: 100 };
-    // Raw: 50 + 0 * 100 - 200 = -150 → clamped to 0
-    expect(computeTargetScrollTop(topSection, 0, containerHeight)).toBe(0);
-  });
-
-  // SS-PF20: Ratio 0.75 produces correct intermediate value
-  it('produces correct value for ratio 0.75', () => {
-    // Target: max(0, 200 + 0.75 * 600 - 200) = 450
-    expect(computeTargetScrollTop(section, 0.75, containerHeight)).toBe(450);
-  });
-});
-```
-
-### 2d. `getSectionRects(container)` — DOM Section Query
-
-```typescript
-describe('getSectionRects', () => {
-  // SS-PF21: Returns empty array for container with no sections
-  it('returns empty array when container has no section[id] elements', () => {
-    const container = document.createElement('div');
-    container.innerHTML = '<p>No sections here</p>';
-    expect(getSectionRects(container as HTMLDivElement)).toEqual([]);
-  });
-
-  // SS-PF22: Returns SectionRect for each section[id] element
-  it('returns id, offsetTop, offsetHeight for each section', () => {
-    const container = document.createElement('div');
-    const s1 = document.createElement('section');
-    s1.id = 'item-1';
-    Object.defineProperty(s1, 'offsetTop', { get: () => 0 });
-    Object.defineProperty(s1, 'offsetHeight', { get: () => 300 });
-    const s2 = document.createElement('section');
-    s2.id = 'item-2';
-    Object.defineProperty(s2, 'offsetTop', { get: () => 300 });
-    Object.defineProperty(s2, 'offsetHeight', { get: () => 500 });
-    container.append(s1, s2);
-
-    const rects = getSectionRects(container as HTMLDivElement);
-    expect(rects).toEqual([
-      { id: 'item-1', offsetTop: 0, offsetHeight: 300 },
-      { id: 'item-2', offsetTop: 300, offsetHeight: 500 },
+  // SS-CA3: All keys match → full anchor list sorted by oldY
+  it('returns anchors for all matching keys, sorted by oldY', () => {
+    const oldPos = new Map([
+      ['section:s1', 0],
+      ['section:s2', 500],
+      ['item-1a:pd:0', 200],
+    ]);
+    const newPos = new Map([
+      ['section:s1', 0],
+      ['section:s2', 600],
+      ['item-1a:pd:0', 150],
+    ]);
+    const result = computeAnchors(oldPos, newPos);
+    expect(result).toEqual([
+      { oldY: 0, newY: 0 },       // section:s1
+      { oldY: 200, newY: 150 },   // item-1a:pd:0
+      { oldY: 500, newY: 600 },   // section:s2
     ]);
   });
 
-  // SS-PF23: Ignores sections without an id attribute
-  it('ignores <section> elements without an id attribute', () => {
-    const container = document.createElement('div');
-    const withId = document.createElement('section');
-    withId.id = 's1';
-    Object.defineProperty(withId, 'offsetTop', { get: () => 0 });
-    Object.defineProperty(withId, 'offsetHeight', { get: () => 100 });
-    const noId = document.createElement('section'); // no id
-    container.append(withId, noId);
-
-    const rects = getSectionRects(container as HTMLDivElement);
-    expect(rects).toHaveLength(1);
-    expect(rects[0].id).toBe('s1');
+  // SS-CA4: Partial matches → only matched keys included
+  it('includes only keys that exist in both maps', () => {
+    const oldPos = new Map([
+      ['section:s1', 0],
+      ['section:s2', 500],
+      ['item-1a:pd:0', 200],
+    ]);
+    const newPos = new Map([
+      ['section:s1', 0],
+      ['section:s3', 700], // s3 not in old
+      ['item-1a:pd:0', 150],
+    ]);
+    const result = computeAnchors(oldPos, newPos);
+    expect(result).toHaveLength(2);
+    expect(result).toEqual([
+      { oldY: 0, newY: 0 },       // section:s1
+      { oldY: 200, newY: 150 },   // item-1a:pd:0
+    ]);
   });
 
-  // SS-PF24: Returns sections in document order (top to bottom)
-  it('returns sections in document order', () => {
-    const container = document.createElement('div');
-    for (const id of ['s3', 's1', 's2']) {
-      const s = document.createElement('section');
-      s.id = id;
-      Object.defineProperty(s, 'offsetTop', { get: () => 0 });
-      Object.defineProperty(s, 'offsetHeight', { get: () => 100 });
-      container.appendChild(s);
+  // SS-CA5: Unsorted input → output sorted by oldY
+  it('sorts output by oldY regardless of input order', () => {
+    const oldPos = new Map([
+      ['section:s2', 500],
+      ['section:s1', 0],
+      ['item-1a:pd:0', 200],
+    ]);
+    const newPos = new Map([
+      ['section:s2', 600],
+      ['item-1a:pd:0', 150],
+      ['section:s1', 0],
+    ]);
+    const result = computeAnchors(oldPos, newPos);
+    expect(result[0].oldY).toBeLessThanOrEqual(result[1].oldY);
+    expect(result[1].oldY).toBeLessThanOrEqual(result[2].oldY);
+  });
+
+  // SS-CA6: Duplicate oldY values — both included (no dedup)
+  it('handles multiple anchors at the same oldY position', () => {
+    const oldPos = new Map([
+      ['section:s1', 100],
+      ['item-1a:pd:0', 100], // same Y as section
+    ]);
+    const newPos = new Map([
+      ['section:s1', 50],
+      ['item-1a:pd:0', 120],
+    ]);
+    const result = computeAnchors(oldPos, newPos);
+    expect(result).toHaveLength(2);
+  });
+
+  // SS-CA7: Large map — all keys matched
+  it('handles 100+ matching keys', () => {
+    const oldPos = new Map<string, number>();
+    const newPos = new Map<string, number>();
+    for (let i = 0; i < 100; i++) {
+      oldPos.set(`key:${i}`, i * 10);
+      newPos.set(`key:${i}`, i * 12);
+    }
+    const result = computeAnchors(oldPos, newPos);
+    expect(result).toHaveLength(100);
+    // Verify sorted by oldY
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i].oldY).toBeGreaterThanOrEqual(result[i - 1].oldY);
+    }
+  });
+});
+```
+
+### 2b. `translatePosition(anchors, sourceY, direction)` — Scroll Translation
+
+Returns target scrollTop via binary search + linear interpolation.
+
+```typescript
+describe('translatePosition', () => {
+  // SS-TP1: Empty anchors → passthrough (returns sourceY)
+  it('returns sourceY unchanged when anchors array is empty', () => {
+    expect(translatePosition([], 500, 'oldToNew')).toBe(500);
+  });
+
+  // SS-TP2: Single anchor → offset translation
+  it('applies offset translation with a single anchor', () => {
+    const anchors: Anchor[] = [{ oldY: 100, newY: 150 }];
+    // offset = 150 - 100 = 50; result = 200 - 100 + 150 = 250
+    expect(translatePosition(anchors, 200, 'oldToNew')).toBe(250);
+  });
+
+  // SS-TP3: Before first anchor → offset from first
+  it('uses offset from first anchor when sourceY is before all anchors', () => {
+    const anchors: Anchor[] = [
+      { oldY: 200, newY: 300 },
+      { oldY: 600, newY: 700 },
+    ];
+    // sourceY=50, before first anchor (oldY=200)
+    // result = 50 - 200 + 300 = 150
+    expect(translatePosition(anchors, 50, 'oldToNew')).toBe(150);
+  });
+
+  // SS-TP4: After last anchor → offset from last
+  it('uses offset from last anchor when sourceY is after all anchors', () => {
+    const anchors: Anchor[] = [
+      { oldY: 100, newY: 150 },
+      { oldY: 400, newY: 500 },
+    ];
+    // sourceY=700, after last anchor (oldY=400)
+    // result = 700 - 400 + 500 = 800
+    expect(translatePosition(anchors, 700, 'oldToNew')).toBe(800);
+  });
+
+  // SS-TP5: Between two anchors → linear interpolation
+  it('linearly interpolates between bracketing anchors', () => {
+    const anchors: Anchor[] = [
+      { oldY: 100, newY: 200 },
+      { oldY: 300, newY: 600 },
+    ];
+    // sourceY=200 is midpoint (t = (200-100)/(300-100) = 0.5)
+    // result = 200 + 0.5 * (600-200) = 200 + 200 = 400
+    expect(translatePosition(anchors, 200, 'oldToNew')).toBe(400);
+  });
+
+  // SS-TP6: Exact match on anchor → returns target position exactly
+  it('returns exact target position when sourceY matches an anchor', () => {
+    const anchors: Anchor[] = [
+      { oldY: 100, newY: 200 },
+      { oldY: 300, newY: 600 },
+      { oldY: 500, newY: 700 },
+    ];
+    // sourceY=300 exactly matches second anchor
+    // Since sourceY <= sorted[0].srcKey won't trigger (300 > 100)
+    // and sourceY >= last.srcKey won't trigger (300 < 500)
+    // Binary search: lo=1 (sorted[1].oldY=300 <= 300), so bracket is [1,2]
+    // t = (300-300)/(500-300) = 0 → result = 600
+    expect(translatePosition(anchors, 300, 'oldToNew')).toBe(600);
+  });
+
+  // SS-TP7: Duplicate oldY at start — handled by before-first edge case
+  // Note: The srcSpan === 0 guard in translatePosition is defensive dead code.
+  // The binary search invariant (sorted[lo].srcKey <= sourceY < sorted[hi].srcKey)
+  // guarantees srcSpan > 0. Duplicate oldY values at the start are caught by the
+  // "before first anchor" branch (sourceY <= sorted[0].srcKey).
+  it('handles duplicate oldY at start via before-first offset', () => {
+    const anchors: Anchor[] = [
+      { oldY: 100, newY: 200 },
+      { oldY: 100, newY: 300 }, // same oldY as first
+      { oldY: 500, newY: 700 },
+    ];
+    // sourceY=100 <= sorted[0].oldY=100 → before-first branch
+    // result = 100 - 100 + 200 = 200
+    expect(translatePosition(anchors, 100, 'oldToNew')).toBe(200);
+  });
+
+  // SS-TP8: oldToNew direction — uses oldY as source, newY as target
+  it('translates oldToNew correctly', () => {
+    const anchors: Anchor[] = [
+      { oldY: 0, newY: 0 },
+      { oldY: 1000, newY: 500 },
+    ];
+    // sourceY=500, t = (500-0)/(1000-0) = 0.5
+    // result = 0 + 0.5 * (500-0) = 250
+    expect(translatePosition(anchors, 500, 'oldToNew')).toBe(250);
+  });
+
+  // SS-TP9: newToOld direction — uses newY as source, oldY as target
+  it('translates newToOld correctly (re-sorted by newY)', () => {
+    const anchors: Anchor[] = [
+      { oldY: 0, newY: 0 },
+      { oldY: 1000, newY: 500 },
+    ];
+    // For newToOld: sorted by newY → [{oldY:0,newY:0}, {oldY:1000,newY:500}]
+    // sourceY=250, srcKey=newY, tgtKey=oldY
+    // t = (250-0)/(500-0) = 0.5
+    // result = 0 + 0.5 * (1000-0) = 500
+    expect(translatePosition(anchors, 250, 'newToOld')).toBe(500);
+  });
+
+  // SS-TP10: Many anchors → correct binary search bracket
+  it('finds correct bracket among 50 anchors via binary search', () => {
+    const anchors: Anchor[] = Array.from({ length: 50 }, (_, i) => ({
+      oldY: i * 100,
+      newY: i * 120, // slightly different spacing
+    }));
+    // sourceY=2550 → between anchor 25 (oldY=2500) and anchor 26 (oldY=2600)
+    // t = (2550-2500)/(2600-2500) = 0.5
+    // newY range: 3000 to 3120
+    // result = 3000 + 0.5 * (3120-3000) = 3000 + 60 = 3060
+    expect(translatePosition(anchors, 2550, 'oldToNew')).toBe(3060);
+  });
+
+  // SS-TP11: sourceY at 0 with first anchor at 0 → returns anchor target
+  it('handles sourceY=0 when first anchor is at position 0', () => {
+    const anchors: Anchor[] = [
+      { oldY: 0, newY: 50 },
+      { oldY: 500, newY: 600 },
+    ];
+    // sourceY=0 <= sorted[0].oldY=0 → offset: 0 - 0 + 50 = 50
+    expect(translatePosition(anchors, 0, 'oldToNew')).toBe(50);
+  });
+
+  // SS-TP12: Quarter interpolation
+  it('interpolates correctly at 25% between anchors', () => {
+    const anchors: Anchor[] = [
+      { oldY: 0, newY: 0 },
+      { oldY: 400, newY: 800 },
+    ];
+    // sourceY=100, t = 100/400 = 0.25
+    // result = 0 + 0.25 * 800 = 200
+    expect(translatePosition(anchors, 100, 'oldToNew')).toBe(200);
+  });
+
+  // SS-TP13: Non-monotonic newY values (reordered sections)
+  it('handles non-monotonic newY values correctly', () => {
+    const anchors: Anchor[] = [
+      { oldY: 0, newY: 500 },   // section moved down in new
+      { oldY: 500, newY: 0 },   // section moved up in new
+    ];
+    // sourceY=250 between anchors, t = (250-0)/(500-0) = 0.5
+    // result = 500 + 0.5 * (0-500) = 500 - 250 = 250
+    expect(translatePosition(anchors, 250, 'oldToNew')).toBe(250);
+  });
+});
+```
+
+### 2c. `measureElements(panel)` — DOM Position Query (jsdom)
+
+```typescript
+describe('measureElements', () => {
+  // Helper: create a panel with sections and block elements,
+  // mocking getBoundingClientRect for positioning
+  function makePanel(
+    sections: Array<{ id: string; top: number }>,
+    blocks: Array<{ key: string; top: number }>,
+    panelTop = 0,
+    scrollTop = 0,
+  ): HTMLDivElement {
+    const panel = document.createElement('div');
+
+    // Mock panel's getBoundingClientRect and scrollTop
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      top: panelTop, left: 0, right: 800, bottom: 600,
+      width: 800, height: 600, x: 0, y: panelTop, toJSON: () => {},
+    });
+    Object.defineProperty(panel, 'scrollTop', {
+      value: scrollTop, writable: true, configurable: true,
+    });
+
+    for (const { id, top } of sections) {
+      const section = document.createElement('section');
+      section.id = id;
+      vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({
+        top, left: 0, right: 800, bottom: top + 100,
+        width: 800, height: 100, x: 0, y: top, toJSON: () => {},
+      });
+      panel.appendChild(section);
     }
 
-    const rects = getSectionRects(container as HTMLDivElement);
-    expect(rects.map((r) => r.id)).toEqual(['s3', 's1', 's2']); // document order, not sorted by id
+    for (const { key, top } of blocks) {
+      const el = document.createElement('p');
+      el.dataset.blockKey = key;
+      vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+        top, left: 0, right: 800, bottom: top + 20,
+        width: 800, height: 20, x: 0, y: top, toJSON: () => {},
+      });
+      panel.appendChild(el);
+    }
+
+    return panel;
+  }
+
+  // SS-ME1: Panel with sections → returns section keys with positions
+  it('returns section keys with absolute Y positions', () => {
+    const panel = makePanel(
+      [{ id: 'item-1a', top: 100 }, { id: 'item-2', top: 500 }],
+      [],
+      0,   // panelTop
+      0,   // scrollTop
+    );
+    const positions = measureElements(panel);
+    expect(positions.get('section:item-1a')).toBe(100); // 100 - 0 + 0
+    expect(positions.get('section:item-2')).toBe(500);
+  });
+
+  // SS-ME2: Panel with data-block-key elements → returns block keys
+  it('returns block keys with absolute Y positions', () => {
+    const panel = makePanel(
+      [],
+      [{ key: 'item-1a:pd:0', top: 200 }, { key: 'item-1a:pd:1', top: 400 }],
+    );
+    const positions = measureElements(panel);
+    expect(positions.get('item-1a:pd:0')).toBe(200);
+    expect(positions.get('item-1a:pd:1')).toBe(400);
+  });
+
+  // SS-ME3: Empty panel → empty map
+  it('returns empty map for panel with no sections or blocks', () => {
+    const panel = makePanel([], []);
+    const positions = measureElements(panel);
+    expect(positions.size).toBe(0);
+  });
+
+  // SS-ME4: Mixed sections and blocks → all included
+  it('returns both section and block keys', () => {
+    const panel = makePanel(
+      [{ id: 'item-1a', top: 0 }],
+      [{ key: 'item-1a:pd:0', top: 100 }],
+    );
+    const positions = measureElements(panel);
+    expect(positions.has('section:item-1a')).toBe(true);
+    expect(positions.has('item-1a:pd:0')).toBe(true);
+    expect(positions.size).toBe(2);
+  });
+
+  // SS-ME5: Scrolled panel → absolute Y = el.top - panel.top + scrollTop
+  it('computes absolute Y correctly when panel is scrolled', () => {
+    const panel = makePanel(
+      [{ id: 's1', top: -200 }], // scrolled up: viewport-relative top is negative
+      [],
+      0,     // panelTop
+      500,   // scrollTop
+    );
+    const positions = measureElements(panel);
+    // absoluteY = (-200) - 0 + 500 = 300
+    expect(positions.get('section:s1')).toBe(300);
+  });
+
+  // SS-ME6: Sections without id are not included
+  it('ignores <section> elements without an id attribute', () => {
+    const panel = document.createElement('div');
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      top: 0, left: 0, right: 800, bottom: 600,
+      width: 800, height: 600, x: 0, y: 0, toJSON: () => {},
+    });
+    Object.defineProperty(panel, 'scrollTop', { value: 0, writable: true });
+    const s = document.createElement('section'); // no id
+    panel.appendChild(s);
+    const positions = measureElements(panel as HTMLDivElement);
+    expect(positions.size).toBe(0);
+  });
+});
+```
+
+### 2d. `injectBlockKey(blockHtml, key)` — DOM Annotation
+
+```typescript
+import { injectBlockKey } from './highlight-injector';
+
+describe('injectBlockKey', () => {
+  // SS-IB1: Normal HTML tag → attribute inserted before >
+  it('injects data-block-key into a normal HTML tag', () => {
+    const result = injectBlockKey('<p class="text">', 'item-1a:pd:0');
+    expect(result).toBe('<p class="text" data-block-key="item-1a:pd:0">');
+  });
+
+  // SS-IB2: Full element with content
+  it('injects into opening tag of element with content', () => {
+    const result = injectBlockKey('<p>Hello world</p>', 'item-1a:pd:0');
+    expect(result).toBe('<p data-block-key="item-1a:pd:0">Hello world</p>');
+  });
+
+  // SS-IB3: Self-closing tag → attribute inserted before />
+  it('injects into self-closing tag before />', () => {
+    const result = injectBlockKey('<br />', 'item-1a:pd:0');
+    expect(result).toBe('<br data-block-key="item-1a:pd:0" />');
+  });
+
+  // SS-IB4: Raw text (no tag) → wrapped in <span data-block-key="...">
+  it('wraps raw text in a span with data-block-key', () => {
+    const result = injectBlockKey('Just some text', 'item-1a:pd:0');
+    expect(result).toBe('<span data-block-key="item-1a:pd:0">Just some text</span>');
+  });
+
+  // SS-IB5: No closing > → returns unchanged
+  it('returns unchanged when no closing > found', () => {
+    const result = injectBlockKey('<p class="broken', 'item-1a:pd:0');
+    expect(result).toBe('<p class="broken');
+  });
+
+  // SS-IB6: Tag with existing attributes
+  it('injects alongside existing attributes', () => {
+    const result = injectBlockKey(
+      '<div class="highlight" style="color:red">content</div>',
+      'item-7:td:2'
+    );
+    expect(result).toBe(
+      '<div class="highlight" style="color:red" data-block-key="item-7:td:2">content</div>'
+    );
+  });
+
+  // SS-IB7: Leading whitespace before tag
+  it('handles leading whitespace before the tag', () => {
+    const result = injectBlockKey('  <p>text</p>', 'item-1a:pd:0');
+    expect(result).toBe('  <p data-block-key="item-1a:pd:0">text</p>');
+  });
+
+  // SS-IB8: Leading whitespace with no tag → span wrapper
+  it('wraps in span when leading whitespace has no tag', () => {
+    const result = injectBlockKey('  plain text', 'item-1a:pd:0');
+    expect(result).toBe('<span data-block-key="item-1a:pd:0">  plain text</span>');
+  });
+
+  // SS-IB9: Table element
+  it('injects into table element', () => {
+    const result = injectBlockKey('<table class="data">', 'item-7:td:0');
+    expect(result).toBe('<table class="data" data-block-key="item-7:td:0">');
   });
 });
 ```
@@ -408,24 +612,44 @@ function flushRAF(): void {
 }
 
 // --- Container with layout simulation ---
-// jsdom doesn't compute layout, so we mock offsetTop/offsetHeight on sections
-// and scrollTop/clientHeight/scrollHeight on the container.
+// jsdom doesn't compute layout, so we mock getBoundingClientRect on sections
+// and data-block-key elements, plus scrollTop/clientHeight on the container.
 
-function makeContainer(...sectionIds: string[]): HTMLDivElement {
+function makeContainer(
+  sections: string[],
+  blocks: Array<{ key: string; top: number }> = [],
+): HTMLDivElement {
   const container = document.createElement('div');
   let top = 0;
-  for (const id of sectionIds) {
+
+  // Mock container getBoundingClientRect
+  vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+    top: 0, left: 0, right: 800, bottom: 600,
+    width: 800, height: 600, x: 0, y: 0, toJSON: () => {},
+  });
+
+  for (const id of sections) {
     const section = document.createElement('section');
     section.id = id;
-    const height = 500; // default 500px per section
-    // Capture `top` in closure for each section
     const sectionTop = top;
-    Object.defineProperty(section, 'offsetTop', { get: () => sectionTop, configurable: true });
-    Object.defineProperty(section, 'offsetHeight', { get: () => height, configurable: true });
+    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({
+      top: sectionTop, left: 0, right: 800, bottom: sectionTop + 500,
+      width: 800, height: 500, x: 0, y: sectionTop, toJSON: () => {},
+    });
     container.appendChild(section);
-    top += height;
+    top += 500;
   }
-  // Container layout
+
+  for (const { key, top: blockTop } of blocks) {
+    const el = document.createElement('p');
+    el.dataset.blockKey = key;
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      top: blockTop, left: 0, right: 800, bottom: blockTop + 20,
+      width: 800, height: 20, x: 0, y: blockTop, toJSON: () => {},
+    });
+    container.appendChild(el);
+  }
+
   Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
   Object.defineProperty(container, 'scrollHeight', { value: top, configurable: true });
   Object.defineProperty(container, 'scrollTop', { value: 0, writable: true, configurable: true });
@@ -455,7 +679,7 @@ afterEach(() => {
 });
 ```
 
-### Hook Signature (v2)
+### Hook Signature (v3 — unchanged from v2)
 
 ```typescript
 function useSyncedScroll(
@@ -470,8 +694,8 @@ function useSyncedScroll(
 #### SS-U1: Attaches scroll listeners when enabled
 ```typescript
 it('attaches scroll event listeners to both panels when enabled', () => {
-  const containerA = makeContainer('s1', 's2');
-  const containerB = makeContainer('s1', 's2');
+  const containerA = makeContainer(['s1', 's2']);
+  const containerB = makeContainer(['s1', 's2']);
   const spyA = vi.spyOn(containerA, 'addEventListener');
   const spyB = vi.spyOn(containerB, 'addEventListener');
 
@@ -485,8 +709,8 @@ it('attaches scroll event listeners to both panels when enabled', () => {
 #### SS-U2: Does NOT attach listeners when enabled=false
 ```typescript
 it('does not attach scroll event listeners when enabled=false', () => {
-  const containerA = makeContainer('s1', 's2');
-  const containerB = makeContainer('s1', 's2');
+  const containerA = makeContainer(['s1', 's2']);
+  const containerB = makeContainer(['s1', 's2']);
   const spyA = vi.spyOn(containerA, 'addEventListener');
   const spyB = vi.spyOn(containerB, 'addEventListener');
 
@@ -500,8 +724,8 @@ it('does not attach scroll event listeners when enabled=false', () => {
 #### SS-U3: Removes listeners on unmount (cleanup)
 ```typescript
 it('removes scroll event listeners on unmount', () => {
-  const containerA = makeContainer('s1');
-  const containerB = makeContainer('s1');
+  const containerA = makeContainer(['s1']);
+  const containerB = makeContainer(['s1']);
   const spyA = vi.spyOn(containerA, 'removeEventListener');
   const spyB = vi.spyOn(containerB, 'removeEventListener');
 
@@ -518,19 +742,18 @@ it('removes scroll event listeners on unmount', () => {
 #### SS-U4: On scroll, sets scrollTop on other panel (NOT scrollIntoView)
 ```typescript
 it('sets scrollTop on the other panel when one panel scrolls', () => {
-  const containerA = makeContainer('s1', 's2', 's3');
-  const containerB = makeContainer('s1', 's2', 's3');
+  const containerA = makeContainer(['s1', 's2', 's3']);
+  const containerB = makeContainer(['s1', 's2', 's3']);
 
   renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
 
-  // Simulate user scrolling panel A: viewport center lands in s2
-  // scrollTop=500, clientHeight=600, center = 500 + 300 = 800
-  // s2 starts at 500, height 500, so center 800 is at ratio (800-500)/500 = 0.6
+  // Simulate user scrolling panel A
   containerA.scrollTop = 500;
   act(() => { fireScroll(containerA); });
   act(() => { flushRAF(); });
 
   // containerB.scrollTop should have been set (not scrollIntoView)
+  // Exact value depends on anchor positions — key assertion is that it was modified
   expect(containerB.scrollTop).not.toBe(0);
 });
 ```
@@ -538,8 +761,8 @@ it('sets scrollTop on the other panel when one panel scrolls', () => {
 #### SS-U5: Loop prevention — programmatic scroll doesn't trigger reciprocal sync
 ```typescript
 it('does not trigger reciprocal scroll when syncing (prevents infinite loop)', () => {
-  const containerA = makeContainer('s1', 's2');
-  const containerB = makeContainer('s1', 's2');
+  const containerA = makeContainer(['s1', 's2']);
+  const containerB = makeContainer(['s1', 's2']);
 
   renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
 
@@ -562,8 +785,8 @@ it('does not trigger reciprocal scroll when syncing (prevents infinite loop)', (
 #### SS-U6: Uses requestAnimationFrame for debouncing
 ```typescript
 it('uses requestAnimationFrame to debounce scroll handlers', () => {
-  const containerA = makeContainer('s1');
-  const containerB = makeContainer('s1');
+  const containerA = makeContainer(['s1']);
+  const containerB = makeContainer(['s1']);
 
   renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
 
@@ -577,8 +800,8 @@ it('uses requestAnimationFrame to debounce scroll handlers', () => {
 #### SS-U7: Coalesces rapid scroll events via cancelAnimationFrame + rAF
 ```typescript
 it('coalesces rapid scroll events via cancelAnimationFrame', () => {
-  const containerA = makeContainer('s1', 's2');
-  const containerB = makeContainer('s1', 's2');
+  const containerA = makeContainer(['s1', 's2']);
+  const containerB = makeContainer(['s1', 's2']);
   const cancelSpy = vi.fn();
   let count = 0;
   vi.stubGlobal('requestAnimationFrame', vi.fn(() => ++count));
@@ -605,36 +828,18 @@ it('does not throw when both refs are null', () => {
 });
 
 it('does not throw when one ref is null', () => {
-  const container = makeContainer('s1');
+  const container = makeContainer(['s1']);
   expect(() => {
     renderHook(() => useSyncedScroll(makeRef(container), makeRef(null), true));
   }).not.toThrow();
 });
 ```
 
-#### SS-U9: Handles missing section in other panel — silent no-op
-```typescript
-it('does not scroll target panel when section is missing (no-op)', () => {
-  const containerA = makeContainer('s1', 's2', 's3');
-  const containerB = makeContainer('s1', 's3'); // s2 missing
-
-  renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
-
-  // Scroll A so viewport center is in s2 (which doesn't exist in B)
-  containerA.scrollTop = 500;
-  act(() => { fireScroll(containerA); });
-  act(() => { flushRAF(); });
-
-  // B should NOT have scrolled — no matching section, no fallback
-  expect(containerB.scrollTop).toBe(0);
-});
-```
-
-#### SS-U10: Toggling enabled removes/adds listeners dynamically
+#### SS-U9: Toggling enabled removes/adds listeners dynamically
 ```typescript
 it('removes listeners when toggled from enabled to disabled', () => {
-  const containerA = makeContainer('s1');
-  const containerB = makeContainer('s1');
+  const containerA = makeContainer(['s1']);
+  const containerB = makeContainer(['s1']);
   const spyA = vi.spyOn(containerA, 'removeEventListener');
 
   const { rerender } = renderHook(
@@ -648,8 +853,8 @@ it('removes listeners when toggled from enabled to disabled', () => {
 });
 
 it('re-attaches listeners when toggled from disabled to enabled', () => {
-  const containerA = makeContainer('s1');
-  const containerB = makeContainer('s1');
+  const containerA = makeContainer(['s1']);
+  const containerB = makeContainer(['s1']);
   const spyA = vi.spyOn(containerA, 'addEventListener');
 
   const { rerender } = renderHook(
@@ -663,41 +868,11 @@ it('re-attaches listeners when toggled from disabled to enabled', () => {
 });
 ```
 
-#### SS-U11: Sections are queried fresh on each scroll (no stale cache)
+#### SS-U10: No sections or blocks — handler no-ops via passthrough
 ```typescript
-it('queries sections fresh on each scroll event (handles dynamic DOM)', () => {
-  const containerA = makeContainer('s1');
-  const containerB = makeContainer('s1');
-
-  renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
-
-  // Dynamically add a section to both panels
-  const newSectionA = document.createElement('section');
-  newSectionA.id = 's2';
-  Object.defineProperty(newSectionA, 'offsetTop', { get: () => 500 });
-  Object.defineProperty(newSectionA, 'offsetHeight', { get: () => 500 });
-  containerA.appendChild(newSectionA);
-
-  const newSectionB = document.createElement('section');
-  newSectionB.id = 's2';
-  Object.defineProperty(newSectionB, 'offsetTop', { get: () => 500 });
-  Object.defineProperty(newSectionB, 'offsetHeight', { get: () => 500 });
-  containerB.appendChild(newSectionB);
-
-  // Scroll to new section — should work without re-initialization
-  containerA.scrollTop = 700;
-  expect(() => {
-    act(() => { fireScroll(containerA); });
-    act(() => { flushRAF(); });
-  }).not.toThrow();
-});
-```
-
-#### SS-U12: No sections loaded — handler no-ops
-```typescript
-it('does not set scrollTop when no sections exist (empty panels)', () => {
-  const containerA = makeContainer(); // no sections
-  const containerB = makeContainer(); // no sections
+it('passes through sourceY when no sections or blocks exist (empty panels)', () => {
+  const containerA = makeContainer([]); // no sections
+  const containerB = makeContainer([]); // no sections
 
   renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
 
@@ -705,8 +880,37 @@ it('does not set scrollTop when no sections exist (empty panels)', () => {
   act(() => { fireScroll(containerA); });
   act(() => { flushRAF(); });
 
-  // findSectionAtPosition returns null → handler returns early
-  expect(containerB.scrollTop).toBe(0);
+  // computeAnchors returns [] → translatePosition returns sourceY passthrough
+  // containerB.scrollTop = 100 (passthrough)
+  expect(containerB.scrollTop).toBe(100);
+});
+```
+
+#### SS-U11: Sections are queried fresh on each scroll (no stale cache)
+```typescript
+it('queries elements fresh on each scroll event (handles dynamic DOM)', () => {
+  const containerA = makeContainer(['s1']);
+  const containerB = makeContainer(['s1']);
+
+  renderHook(() => useSyncedScroll(makeRef(containerA), makeRef(containerB), true));
+
+  // Dynamically add a section to both panels
+  for (const container of [containerA, containerB]) {
+    const newSection = document.createElement('section');
+    newSection.id = 's2';
+    vi.spyOn(newSection, 'getBoundingClientRect').mockReturnValue({
+      top: 500, left: 0, right: 800, bottom: 1000,
+      width: 800, height: 500, x: 0, y: 500, toJSON: () => {},
+    });
+    container.appendChild(newSection);
+  }
+
+  // Scroll to new section — should work without re-initialization
+  containerA.scrollTop = 700;
+  expect(() => {
+    act(() => { fireScroll(containerA); });
+    act(() => { flushRAF(); });
+  }).not.toThrow();
 });
 ```
 
@@ -765,17 +969,33 @@ Render <App /> with mocked pipeline data.
 Verify a sync scroll toggle button with aria-pressed="true" is in the Header.
 ```
 
-### SS-I2: Two panels sync proportionally via useSyncedScroll
+### SS-I2: Highlight injector produces `data-block-key` on modified paragraphs
 ```
-Render two <FilingPanel> components with shared sections [s1, s2, s3].
-Attach useSyncedScroll to their refs.
-Set scrollTop on panel A to position viewport center in s2 at 60%.
-Fire scroll event on panel A. Flush rAF.
-Assert panel B's scrollTop was set so its viewport center
-is at 60% through its s2.
+Call applyHighlightsToSection with a sectionDiff containing modified paragraphs.
+Verify the output HTML includes data-block-key attributes on modified blocks.
+Verify added-only and removed-only blocks do NOT get data-block-key attributes.
 ```
 
-### SS-I3: Toggle disables/enables sync between panels
+### SS-I2b: Modified paragraph with no highlights on current side still gets `data-block-key`
+```
+Call applyHighlightsToSection on the 'old' side with a modified paragraph
+that has word changes only on the 'new' side (filteredChanges.length === 0 for 'old').
+Verify the output HTML still includes data-block-key on that paragraph,
+even though no <del> highlights are injected.
+This tests the design change where the annotation is injected AFTER the
+highlight logic, regardless of whether highlights were produced.
+```
+
+### SS-I3: Two panels with annotated blocks sync correctly
+```
+Render two panel containers with matching section[id] elements
+and elements annotated with data-block-key attributes.
+Attach useSyncedScroll to their refs.
+Set scrollTop on panel A. Fire scroll event. Flush rAF.
+Assert panel B's scrollTop was set via anchor-based translation.
+```
+
+### SS-I4: Toggle disables/enables sync between panels
 ```
 Render App with sync enabled.
 Click the Header toggle to disable (aria-pressed becomes "false").
@@ -783,25 +1003,16 @@ Scroll panel A.
 Assert panel B's scrollTop was NOT modified.
 Click toggle to re-enable (aria-pressed becomes "true").
 Scroll panel A. Flush rAF.
-Assert panel B's scrollTop WAS set proportionally.
+Assert panel B's scrollTop WAS set via anchor translation.
 ```
 
-### SS-I4: SectionNav click coexists with sync scroll
-```
-Render App with sync enabled.
-Click a section in SectionNav.
-Assert both panels scroll to that section (existing handleSectionClick behavior).
-This verifies that the sync scroll hook and the manual section click coexist
-without interference.
-```
-
-### SS-I5: Sync scroll works with dynamically added sections
+### SS-I5: Sync scroll works with dynamically rendered sections
 ```
 Render App with pipeline in "fetching" state (no sections rendered).
 Transition pipeline to "done" (FilingContent renders <section> elements).
 Scroll panel A.
-Assert panel B syncs correctly (sections queried fresh on each scroll).
-Note: No MutationObserver needed — v2 queries sections via getSectionRects on each scroll event.
+Assert panel B syncs correctly (elements queried fresh on each scroll via
+measureElements → querySelectorAll).
 ```
 
 ---
@@ -817,13 +1028,16 @@ File: `.specs/us-2-11-sync-scroll/uat.md`
 3. Take screenshot showing the toggle in enabled state
 ```
 
-### UAT-2: Proportional sync — scroll through a section
+### UAT-2: Content alignment — scroll to a section, verify corresponding content
 ```
-1. Load two filings with matching sections
-2. Scroll Filing A so that a section is approximately 60% scrolled through
-3. Verify Filing B shows the same section at approximately the same scroll depth
+1. Load two filings with matching sections and changed paragraphs
+2. Scroll Filing A so that a modified paragraph is near the top of the viewport
+3. Verify Filing B shows the SAME modified paragraph near the top
 4. Take screenshot showing both panels with aligned content
-5. KEY CHECK: The alignment should be proportional — not snapped to the top of the section
+5. KEY CHECK: The alignment is content-based — the same paragraph appears at the
+   same relative position in both panels, even if section sizes differ
+6. CONTRAST WITH v2: In v2, proportional mapping would show different paragraphs
+   if the section had different paragraph counts in old vs new
 ```
 
 ### UAT-3: Toggle disables sync
@@ -839,121 +1053,121 @@ File: `.specs/us-2-11-sync-scroll/uat.md`
 1. With sync disabled, scroll panels to different positions
 2. Click the "Sync Scroll" toggle button (ON)
 3. Scroll Filing A slightly to trigger sync
-4. Verify Filing B syncs to match Filing A's position
+4. Verify Filing B syncs to match Filing A's content-aligned position
 5. Take screenshot showing panels re-synchronized
 ```
 
 ### UAT-5: Bidirectional sync
 ```
 1. With sync enabled, scroll Filing B
-2. Verify Filing A follows proportionally
+2. Verify Filing A follows at corresponding content positions
 3. Then scroll Filing A
-4. Verify Filing B follows proportionally
+4. Verify Filing B follows at corresponding content positions
 5. Take screenshot of each direction
 ```
 
-### UAT-6: No huge jumps — smooth tracking (KEY TEST: v1 failure mode)
+### UAT-6: NO HUGE JUMPS — smooth tracking
 ```
 1. Load two filings with sections of different sizes
 2. Slowly scroll Filing A from top to bottom
-3. Observe Filing B tracking — it should move smoothly and proportionally
+3. Observe Filing B tracking — it should move smoothly
 4. KEY CHECK: No sudden jumps where the panel snaps to a section top
-5. KEY CHECK: When scrolling within a large section, the other panel tracks
-   proportionally within the same section (not stuck until the next section)
-6. Take screenshot at multiple points during the scroll to verify smooth tracking
+5. KEY CHECK: Content around modified paragraphs aligns precisely
+6. KEY CHECK: Scroll through a section with many added paragraphs in the new filing —
+   the old panel should track smoothly without jerky behavior
+7. Take screenshots at multiple points during the scroll to verify smooth tracking
 ```
 
 ---
 
-## 7. Boundary Conditions
+## 7. Boundary & Error Conditions
+
+### Boundary Conditions
 
 | ID | Condition | Expected Behavior |
 |----|-----------|-------------------|
-| SS-B1 | 0 sections (empty filing, refs valid) | Listeners attached but `findSectionAtPosition` returns null → handler no-ops. No errors. |
-| SS-B2 | 1 section in both panels | Proportional sync within the single section; scrolling A maps ratio to B's section |
-| SS-B3 | 20+ sections in both panels | Binary search efficiently finds the correct section among many; sync works for any section |
-| SS-B4 | Very large section (> 3 viewports tall) | Proportional ratio mapping tracks smoothly through the section — no jumps |
-| SS-B5 | Very small section (< 50px) | Binary search detects it when viewport center passes through; ratio computed correctly |
-| SS-B6 | Mismatched section counts (A has 10, B has 7) | Matching IDs sync proportionally; non-matching sections silently skipped (no-op) |
-| SS-B7 | Both panels at the same section already | scrollTop is set to computed value — proportional mapping naturally produces correct position |
-| SS-B8 | scrollTop would be negative | `computeTargetScrollTop` clamps to 0 via `Math.max(0, ...)` |
-| SS-B9 | scrollTop would exceed scrollHeight - clientHeight | Browser clamps `scrollTop` to max on assignment (pure function does not clamp upper bound) |
-| SS-B10 | Gap between sections (preamble, padding) | `findSectionAtPosition` binary search fallback snaps to nearest section |
+| SS-B1 | No anchors (completely different content, no matching sections or blocks) | `translatePosition` returns sourceY passthrough — panels scroll independently at 1:1 ratio |
+| SS-B2 | One anchor only | Offset translation from the single anchor — scroll difference = anchor offset applied everywhere |
+| SS-B3 | Many anchors (100+) | Binary search O(log n) efficiently finds bracket; ~7 comparisons for 100 anchors |
+| SS-B4 | Added/removed sections (no match in other panel) | No anchor for that section; position interpolated between surrounding anchors |
+| SS-B5 | Preamble area (before first section) | First anchor provides offset for positions before it; if preamble section exists in both panels, it's an anchor |
+| SS-B6 | One panel much longer than the other | After-last-anchor offset translation extends naturally; scrollTop may exceed content (browser clamps) |
+| SS-B7 | Reordered sections (moved between panels) | Non-monotonic newY values — panel B may jump backwards; correct behavior per content correspondence |
+| SS-B8 | Zero-height section (adjacent anchors at same Y) | `srcSpan === 0` guard in `translatePosition` returns first bracket target |
+| SS-B9 | Sections load asynchronously (pipeline states) | `measureElements` returns empty map → empty anchors → passthrough; sync starts when content renders |
+| SS-B10 | Toggle during active scroll / in-flight rAF | `useEffect` cleanup removes listeners; in-flight rAF fires harmlessly (one extra scrollTop assignment) |
+| SS-B11 | Negative computed scrollTop (before-first offset) | Browser clamps `scrollTop` to 0 on assignment |
+| SS-B12 | scrollTop exceeds scrollHeight - clientHeight | Browser clamps `scrollTop` to max on assignment |
 
----
-
-## 8. Error Conditions
+### Error Conditions
 
 | ID | Condition | Expected Behavior |
 |----|-----------|-------------------|
 | SS-ERR1 | Both panel refs null (not mounted) | Hook early-returns (`if (!panelA \|\| !panelB \|\| !enabled) return`); no listeners attached |
 | SS-ERR2 | One panel ref null | Hook early-returns; no listeners attached |
-| SS-ERR3 | Section exists in panel A but not panel B | No-op: `targetSections.find()` returns undefined → handler skips sync; no error |
-| SS-ERR4 | Sections load asynchronously (pipeline states) | No issue — `getSectionRects` queries `querySelectorAll('section[id]')` fresh each scroll; returns `[]` during loading |
-| SS-ERR5 | Panel unmounted mid-scroll (race condition) | useEffect cleanup removes listeners; in-flight rAF may fire but harmlessly sets scrollTop on still-mounted target |
-| SS-ERR6 | Toggle disable during active rAF | useEffect cleanup removes listeners; pending rAF callback may fire one last time (harmless) |
-| SS-ERR7 | Zero-height section | `computeRatio` guard returns 0; no division by zero |
+| SS-ERR3 | Panel unmounted mid-scroll (race condition) | `useEffect` cleanup removes listeners; in-flight rAF may fire but harmlessly sets scrollTop on stale ref |
+| SS-ERR4 | Toggle disable during active rAF | `useEffect` cleanup removes listeners; pending rAF callback fires once (harmless) |
+| SS-ERR5 | No `data-block-key` elements (feature not injected yet) | `measureElements` only finds sections → section-level anchors still work |
+| SS-ERR6 | Rapid scroll producing many rAF callbacks | `cancelAnimationFrame` discards stale frames; at most one rAF executes per scroll burst |
+| SS-ERR7 | `getBoundingClientRect` returns zero for elements (collapsed/hidden) | Anchors at Y=0 are valid; degenerate srcSpan handled by guard |
 
 ---
 
-## 9. Performance Criteria
+## 8. Performance Criteria
 
 | Criterion | Target | How to Verify |
 |-----------|--------|---------------|
 | Scroll handler latency | < 16ms (one frame budget) | rAF debouncing ensures at most one handler per frame |
-| No dropped frames | 0 dropped frames during normal sync | Chrome DevTools Performance panel; UAT-6 visual check |
-| rAF debouncing | One pending rAF per panel at a time | `cancelAnimationFrame` on stale frames; verified by SS-U7 |
-| No IntersectionObserver overhead | Zero observers | v2 uses binary search over `offsetTop` instead |
-| No MutationObserver overhead | Zero observers | v2 queries sections fresh each scroll via `getSectionRects` |
-| Loop prevention | Single boolean flag | `isProgrammaticScrollRef` checked BEFORE rAF; no timeout needed |
-| Binary search efficiency | O(log n) per scroll event | Pure function with sorted sections; verified by SS-PF7 with 25 sections |
+| Anchor map build cost | < 1ms for ~120 elements | `querySelectorAll` + `getBoundingClientRect` batched; no reflow |
+| Binary search efficiency | O(log n) per scroll event | ~7 comparisons for 120 anchors; verified by SS-TP10 |
+| No dropped frames | 0 during normal sync | Chrome DevTools Performance panel; UAT-6 visual check |
+| rAF debouncing | One pending rAF per panel | `cancelAnimationFrame` on stale frames; verified by SS-U7 |
+| No forced reflows | All reads before write | `getBoundingClientRect` reads before single `scrollTop` write |
+| Loop prevention | Single boolean flag | `isProgrammaticScrollRef` checked BEFORE rAF; verified by SS-U5 |
+| `newToOld` re-sort | < 0.1ms | Copy + sort of ~120 anchors; negligible |
 | Memory | No leaks | SS-U3 verifies cleanup of scroll listeners on unmount |
 
 ---
 
-## 10. Test Data & Fixtures
+## 9. Test Data & Fixtures
 
-### Container Factory (v2 — with layout properties)
-
-```typescript
-function makeContainer(...sectionIds: string[]): HTMLDivElement {
-  const container = document.createElement('div');
-  let top = 0;
-  for (const id of sectionIds) {
-    const section = document.createElement('section');
-    section.id = id;
-    const height = 500;
-    const sectionTop = top; // capture for closure
-    Object.defineProperty(section, 'offsetTop', { get: () => sectionTop, configurable: true });
-    Object.defineProperty(section, 'offsetHeight', { get: () => height, configurable: true });
-    container.appendChild(section);
-    top += height;
-  }
-  Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
-  Object.defineProperty(container, 'scrollHeight', { value: top, configurable: true });
-  Object.defineProperty(container, 'scrollTop', { value: 0, writable: true, configurable: true });
-  return container;
-}
-```
-
-### Custom Layout Container
+### Container Factory (v3 — with anchor support)
 
 ```typescript
-// For tests needing specific section sizes
-function makeCustomContainer(
-  specs: Array<{ id: string; height: number }>
+function makeContainer(
+  sections: string[],
+  blocks: Array<{ key: string; top: number }> = [],
 ): HTMLDivElement {
   const container = document.createElement('div');
   let top = 0;
-  for (const { id, height } of specs) {
+
+  vi.spyOn(container, 'getBoundingClientRect').mockReturnValue({
+    top: 0, left: 0, right: 800, bottom: 600,
+    width: 800, height: 600, x: 0, y: 0, toJSON: () => {},
+  });
+
+  for (const id of sections) {
     const section = document.createElement('section');
     section.id = id;
     const sectionTop = top;
-    Object.defineProperty(section, 'offsetTop', { get: () => sectionTop, configurable: true });
-    Object.defineProperty(section, 'offsetHeight', { get: () => height, configurable: true });
+    vi.spyOn(section, 'getBoundingClientRect').mockReturnValue({
+      top: sectionTop, left: 0, right: 800, bottom: sectionTop + 500,
+      width: 800, height: 500, x: 0, y: sectionTop, toJSON: () => {},
+    });
     container.appendChild(section);
-    top += height;
+    top += 500;
   }
+
+  for (const { key, top: blockTop } of blocks) {
+    const el = document.createElement('p');
+    el.dataset.blockKey = key;
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      top: blockTop, left: 0, right: 800, bottom: blockTop + 20,
+      width: 800, height: 20, x: 0, y: blockTop, toJSON: () => {},
+    });
+    container.appendChild(el);
+  }
+
   Object.defineProperty(container, 'clientHeight', { value: 600, configurable: true });
   Object.defineProperty(container, 'scrollHeight', { value: top, configurable: true });
   Object.defineProperty(container, 'scrollTop', { value: 0, writable: true, configurable: true });
@@ -983,12 +1197,18 @@ function flushRAF(): void {
 ```
 
 ### Standard Test Fixtures
-- **Two panels, matching sections**: `makeContainer('s1', 's2', 's3')` x2
+
+- **Two panels, matching sections**: `makeContainer(['s1', 's2', 's3'])` x2
+- **Panels with blocks**: `makeContainer(['s1'], [{ key: 's1:pd:0', top: 100 }])` x2
+- **Empty panels**: `makeContainer([])` (no section or block children)
+- **Single section**: `makeContainer(['s1'])` x2
+- **Many sections**: `makeContainer(Array.from({length: 25}, (_, i) => 's' + (i+1)))` x2
 - **Mismatched sections**: A = `['s1', 's2', 's3']`, B = `['s1', 's3']`
-- **Empty panels**: `makeContainer()` (no section children)
-- **Single section**: `makeContainer('s1')` x2
-- **Many sections**: `makeContainer(...Array.from({length: 25}, (_, i) => 's' + (i+1)))` x2
-- **Different heights**: `makeCustomContainer([{id:'s1',height:2000}, {id:'s2',height:100}])` for proportional tests
+- **Anchor arrays for pure function tests**:
+  - Empty: `[]`
+  - Single: `[{ oldY: 100, newY: 200 }]`
+  - Two anchors: `[{ oldY: 0, newY: 0 }, { oldY: 1000, newY: 500 }]`
+  - Many: `Array.from({ length: 50 }, (_, i) => ({ oldY: i*100, newY: i*120 }))`
 
 ---
 
@@ -996,30 +1216,41 @@ function flushRAF(): void {
 
 | ID | Type | Description |
 |----|------|-------------|
-| SS-PF1 | Pure fn | `findSectionAtPosition` — empty array returns null |
-| SS-PF2 | Pure fn | `findSectionAtPosition` — position before first section |
-| SS-PF3 | Pure fn | `findSectionAtPosition` — position in middle of section |
-| SS-PF4 | Pure fn | `findSectionAtPosition` — position at exact boundary |
-| SS-PF5 | Pure fn | `findSectionAtPosition` — position after last section |
-| SS-PF6 | Pure fn | `findSectionAtPosition` — single section |
-| SS-PF7 | Pure fn | `findSectionAtPosition` — binary search with 25 sections |
-| SS-PF8 | Pure fn | `findSectionAtPosition` — gap between sections |
-| SS-PF9 | Pure fn | `computeRatio` — section start → 0 |
-| SS-PF10 | Pure fn | `computeRatio` — section end → 1 |
-| SS-PF11 | Pure fn | `computeRatio` — section midpoint → 0.5 |
-| SS-PF12 | Pure fn | `computeRatio` — arbitrary position |
-| SS-PF13 | Pure fn | `computeRatio` — zero-height section guard |
-| SS-PF14 | Pure fn | `computeRatio` — clamp below 0 |
-| SS-PF15 | Pure fn | `computeRatio` — clamp above 1 |
-| SS-PF16 | Pure fn | `computeTargetScrollTop` — ratio 0 |
-| SS-PF17 | Pure fn | `computeTargetScrollTop` — ratio 1 |
-| SS-PF18 | Pure fn | `computeTargetScrollTop` — ratio 0.5 |
-| SS-PF19 | Pure fn | `computeTargetScrollTop` — clamps negative to 0 |
-| SS-PF20 | Pure fn | `computeTargetScrollTop` — ratio 0.75 |
-| SS-PF21 | Pure fn | `getSectionRects` — no sections returns empty array |
-| SS-PF22 | Pure fn | `getSectionRects` — returns correct SectionRect values |
-| SS-PF23 | Pure fn | `getSectionRects` — ignores sections without id |
-| SS-PF24 | Pure fn | `getSectionRects` — returns in document order |
+| SS-CA1 | Pure fn | `computeAnchors` — empty maps → empty anchors |
+| SS-CA2 | Pure fn | `computeAnchors` — no matching keys → empty anchors |
+| SS-CA3 | Pure fn | `computeAnchors` — all keys match → sorted anchors |
+| SS-CA4 | Pure fn | `computeAnchors` — partial matches → only matched |
+| SS-CA5 | Pure fn | `computeAnchors` — unsorted input → sorted output |
+| SS-CA6 | Pure fn | `computeAnchors` — duplicate oldY values |
+| SS-CA7 | Pure fn | `computeAnchors` — 100+ matching keys |
+| SS-TP1 | Pure fn | `translatePosition` — empty anchors → passthrough |
+| SS-TP2 | Pure fn | `translatePosition` — single anchor → offset |
+| SS-TP3 | Pure fn | `translatePosition` — before first → offset from first |
+| SS-TP4 | Pure fn | `translatePosition` — after last → offset from last |
+| SS-TP5 | Pure fn | `translatePosition` — between anchors → interpolation |
+| SS-TP6 | Pure fn | `translatePosition` — exact match on anchor |
+| SS-TP7 | Pure fn | `translatePosition` — duplicate oldY at start (before-first) |
+| SS-TP8 | Pure fn | `translatePosition` — oldToNew direction |
+| SS-TP9 | Pure fn | `translatePosition` — newToOld direction |
+| SS-TP10 | Pure fn | `translatePosition` — 50 anchors binary search |
+| SS-TP11 | Pure fn | `translatePosition` — sourceY=0 at first anchor=0 |
+| SS-TP12 | Pure fn | `translatePosition` — 25% interpolation |
+| SS-TP13 | Pure fn | `translatePosition` — non-monotonic newY |
+| SS-ME1 | Pure fn | `measureElements` — sections → keyed positions |
+| SS-ME2 | Pure fn | `measureElements` — block-key elements → positions |
+| SS-ME3 | Pure fn | `measureElements` — empty panel → empty map |
+| SS-ME4 | Pure fn | `measureElements` — mixed sections and blocks |
+| SS-ME5 | Pure fn | `measureElements` — scrolled panel absolute Y |
+| SS-ME6 | Pure fn | `measureElements` — ignores sections without id |
+| SS-IB1 | Pure fn | `injectBlockKey` — normal tag → attribute inserted |
+| SS-IB2 | Pure fn | `injectBlockKey` — element with content |
+| SS-IB3 | Pure fn | `injectBlockKey` — self-closing tag |
+| SS-IB4 | Pure fn | `injectBlockKey` — raw text → span wrapper |
+| SS-IB5 | Pure fn | `injectBlockKey` — no closing > → unchanged |
+| SS-IB6 | Pure fn | `injectBlockKey` — tag with existing attributes |
+| SS-IB7 | Pure fn | `injectBlockKey` — leading whitespace |
+| SS-IB8 | Pure fn | `injectBlockKey` — whitespace + no tag → span |
+| SS-IB9 | Pure fn | `injectBlockKey` — table element |
 | SS-U1 | Unit | Attaches scroll listeners with `{ passive: true }` when enabled |
 | SS-U2 | Unit | Does not attach listeners when disabled |
 | SS-U3 | Unit | Removes listeners on unmount |
@@ -1028,24 +1259,24 @@ function flushRAF(): void {
 | SS-U6 | Unit | Uses requestAnimationFrame for debouncing |
 | SS-U7 | Unit | Coalesces rapid scroll events via cancelAnimationFrame |
 | SS-U8 | Unit | Handles null refs (early return) |
-| SS-U9 | Unit | Missing section in target panel — silent no-op |
-| SS-U10 | Unit | Toggle removes/adds listeners dynamically |
-| SS-U11 | Unit | Sections queried fresh on each scroll (dynamic DOM) |
-| SS-U12 | Unit | No sections loaded — handler no-ops |
+| SS-U9 | Unit | Toggle removes/adds listeners dynamically |
+| SS-U10 | Unit | No sections/blocks — passthrough sync |
+| SS-U11 | Unit | Elements queried fresh on each scroll (dynamic DOM) |
 | SS-H1 | Unit | Header renders toggle with aria-pressed=true |
 | SS-H2 | Unit | Header renders toggle with aria-pressed=false |
 | SS-H3 | Unit | Header toggle click calls onSyncToggle |
 | SS-H4 | Unit | Header omits toggle when props not provided |
 | SS-I1 | Integration | App renders Header with sync toggle |
-| SS-I2 | Integration | Two panels sync proportionally via hook |
-| SS-I3 | Integration | Toggle disables/enables sync |
-| SS-I4 | Integration | SectionNav click coexists with sync |
-| SS-I5 | Integration | Sync works with dynamically added sections |
+| SS-I2 | Integration | Highlight injector produces data-block-key |
+| SS-I2b | Integration | No-highlight modified paragraph still gets data-block-key |
+| SS-I3 | Integration | Two annotated panels sync via anchor map |
+| SS-I4 | Integration | Toggle disables/enables sync |
+| SS-I5 | Integration | Sync works with dynamically rendered sections |
 | UAT-1 | UAT | Toggle visibility |
-| UAT-2 | UAT | Proportional sync through a section |
+| UAT-2 | UAT | Content alignment at modified paragraphs |
 | UAT-3 | UAT | Toggle disables sync |
 | UAT-4 | UAT | Toggle re-enables sync |
 | UAT-5 | UAT | Bidirectional sync |
-| UAT-6 | UAT | No huge jumps — smooth tracking (v1 failure mode) |
-| SS-B1–B10 | Boundary | Edge cases (empty, small, large, mismatched, clamping, gaps) |
-| SS-ERR1–ERR7 | Error | Error conditions |
+| UAT-6 | UAT | No huge jumps — smooth tracking |
+| SS-B1–B12 | Boundary | Edge cases (empty, single, many, preamble, reorder, clamp) |
+| SS-ERR1–ERR7 | Error | Error conditions (null refs, unmount, toggle race, no blocks) |
