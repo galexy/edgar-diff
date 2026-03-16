@@ -1,34 +1,23 @@
 {
+  "enabledPlugins": {
+    "metapowers@metapowers": true
+  },
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "BEADS_DIR": "/workspace/.beads",
     "FEATURE_MEMORY": "true",
     "NX_OUTPUT_STYLE": "stream"
   },
-  "permissions": {
-    "deny": [
-      "Read(./.entire/metadata/**)"
-    ]
-  },
   "hooks": {
-    "WorktreeCreate": [
+    "PostToolUse": [
       {
         "hooks": [
           {
-            "type": "command",
-            "command": "bash -c 'NAME=$(cat | jq -r .name); DIR=\"/tmp/claude-worktrees/$NAME\"; mkdir -p /tmp/claude-worktrees && git worktree add \"$DIR\" -b \"worktree-$NAME\" >&2 && echo \"$DIR\"'"
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook PostToolUse 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
+            "type": "command"
           }
-        ]
-      }
-    ],
-    "WorktreeRemove": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash -c 'WTPATH=$(cat | jq -r .worktree_path); git worktree remove \"$WTPATH\" 2>/dev/null; rm -rf \"$WTPATH\" 2>/dev/null; exit 0'"
-          }
-        ]
+        ],
+        "matcher": ""
       }
     ],
     "PreCompact": [
@@ -36,6 +25,21 @@
         "hooks": [
           {
             "command": "bd prime",
+            "type": "command"
+          },
+          {
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook PreCompact 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook SessionEnd 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
             "type": "command"
           }
         ],
@@ -48,14 +52,64 @@
           {
             "command": "bd prime",
             "type": "command"
+          },
+          {
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook SessionStart 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook Stop 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "command": "if command -v ox \u003e/dev/null 2\u003e\u00261; then AGENT_ENV=claude-code ox agent hook UserPromptSubmit 2\u003e\u00261 || true; else echo 'This repo uses SageOx: install https://github.com/sageox/ox for optimized team context.'; fi",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "command": "bash -c 'NAME=$(cat | jq -r .name); DIR=\"/tmp/claude-worktrees/$NAME\"; mkdir -p /tmp/claude-worktrees \u0026\u0026 git worktree add \"$DIR\" -b \"worktree-$NAME\" \u003e\u00262 \u0026\u0026 echo \"$DIR\"'",
+            "type": "command"
+          }
+        ],
+        "matcher": ""
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "command": "bash -c 'WTPATH=$(cat | jq -r .worktree_path); git worktree remove \"$WTPATH\" 2\u003e/dev/null; rm -rf \"$WTPATH\" 2\u003e/dev/null; exit 0'",
+            "type": "command"
           }
         ],
         "matcher": ""
       }
     ]
-   },
-  "enabledPlugins": {
-    "metapowers@metapowers": true
+  },
+  "permissions": {
+    "deny": [
+      "Read(./.entire/metadata/**)"
+    ]
   },
   "skipDangerousModePermissionPrompt": true
 }
