@@ -14,6 +14,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { diffWords } from 'diff';
+import jaroWinkler from 'jaro-winkler';
 import { diffParagraphs } from '../../../src/diff/paragraph-differ.js';
 import { makeParagraph, makeSection } from '../../helpers/diff-fixtures.js';
 import { assertDefined } from '../../helpers/assert-defined.js';
@@ -535,5 +536,53 @@ describe('D: Integration via diffParagraphs() (FAIL before fix, PASS after)', ()
     // Third paragraph: minor edit → word diff preserved
     assertDefined(modified[2].wordChanges);
     expect(modified[2].wordChanges.length).toBeGreaterThan(0);
+  });
+
+  // D4: Moved paragraph with text changes — detectMoves() caller path
+  //     Tests the second call site of computeWordChanges() at paragraph-differ.ts:280
+  it('D4: moved paragraph with high-coverage text changes triggers quality gate via detectMoves', () => {
+    // Strategy: change one character in the MIDDLE of each content word.
+    // - Character-level JW stays high (~0.96) because positions barely shift
+    // - Word-level diffWords sees every modified word as a different token → high removedCoverage
+    // - Text kept under 100 chars normalized to bypass word-overlap pre-filter
+    const movedOld =
+      'The company reported strong revenue growth and management believes these results.';
+    const movedNew =
+      'The compeny reperted strung revonue gruwth and manogement bolieves thuse rosults.';
+
+    // Sanity checks on crafted text
+    const coverage = rawRemovedCoverage(movedOld, movedNew);
+    expect(coverage).toBeGreaterThan(0.70);
+
+    const normalizedOld = movedOld.replace(/\s+/g, ' ').trim();
+    const normalizedNew = movedNew.replace(/\s+/g, ' ').trim();
+    expect(normalizedOld.length).toBeLessThan(100); // bypass word-overlap pre-filter
+
+    const jwSim = jaroWinkler(normalizedOld, normalizedNew);
+    expect(jwSim).toBeGreaterThanOrEqual(0.9);
+
+    // Section structure forces detectMoves path:
+    // Old: [MovedPara_old, UniqueA] → New: [UniqueB, MovedPara_new]
+    // diffArrays: removed(M_old), removed(A), added(B), added(M_new)
+    // pairRemovedAdded pairs A+B as modified, leaving M_old and M_new unpaired
+    // detectMoves matches them via JW >= 0.9
+    const oldSec = makeSection('s', 'S', [
+      makeParagraph(movedOld, 100),
+      makeParagraph('Unique alpha paragraph with completely distinct original content here.', 300),
+    ]);
+    const newSec = makeSection('s', 'S', [
+      makeParagraph('Different beta paragraph containing entirely separate replacement text.', 100),
+      makeParagraph(movedNew, 300),
+    ]);
+
+    const diffs = diffParagraphs(matchSections(oldSec, newSec));
+    const moved = diffs.filter(d => d.changeType === 'moved');
+    expect(moved.length).toBeGreaterThanOrEqual(1);
+
+    // The moved paragraph has text changes → computeWordChanges called via detectMoves
+    // Quality gate triggers (removedCoverage > 70%) → wordChanges should be empty
+    const movedWithChanges = moved.find(m => m.wordChanges !== undefined);
+    assertDefined(movedWithChanges, 'Expected a moved paragraph with wordChanges from detectMoves');
+    expect(movedWithChanges.wordChanges).toEqual([]);
   });
 });
