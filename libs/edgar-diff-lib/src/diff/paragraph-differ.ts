@@ -11,32 +11,253 @@ interface InternalParagraphDiff extends ParagraphDiff {
 }
 
 const MOVE_THRESHOLD = 0.9;
+const SENTENCE_MATCH_THRESHOLD = 0.7;
+const QUALITY_GATE_THRESHOLD = 0.70;
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function computeWordChanges(oldText: string, newText: string): WordChange[] {
-  const changes = diffWords(oldText, newText);
-  const result: WordChange[] = [];
+// ── Sentence-level helpers (two-pass diffing) ───────────────────────
+
+interface Sentence {
+  text: string;   // trimmed sentence text
+  start: number;  // offset of text within the parent string
+}
+
+const ABBREVIATIONS = new Set([
+  'mr', 'mrs', 'ms', 'dr', 'prof', 'sr', 'jr',
+  'inc', 'corp', 'ltd', 'co', 'llc',
+  'vs', 'etc', 'no', 'vol', 'dept', 'est', 'approx',
+  'govt', 'st', 'ave', 'blvd', 'rd',
+  'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+  'gen', 'gov', 'rep', 'sen',
+]);
+
+/** Split text into sentences with their character offsets in the original string. */
+function splitSentences(text: string): Sentence[] {
+  if (text.trim().length === 0) return [];
+
+  const boundaries: number[] = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '.' && ch !== '!' && ch !== '?') continue;
+
+    // Must be followed by whitespace or end of string
+    if (i < text.length - 1 && !/\s/.test(text[i + 1])) continue;
+
+    if (ch === '.') {
+      // Find the alphabetic word immediately before the dot
+      let wordStart = i - 1;
+      while (wordStart >= 0 && /[a-zA-Z]/.test(text[wordStart])) wordStart--;
+      wordStart++;
+
+      if (wordStart < i) {
+        const word = text.slice(wordStart, i).toLowerCase();
+        // Single letter abbreviation (e.g., "U." in "U.S.")
+        if (word.length === 1) continue;
+        // Known abbreviation
+        if (ABBREVIATIONS.has(word)) continue;
+      }
+    }
+
+    boundaries.push(i);
+  }
+
+  if (boundaries.length === 0) {
+    const trimmed = text.trim();
+    const leadingWs = text.length - text.trimStart().length;
+    return [{ text: trimmed, start: leadingWs }];
+  }
+
+  const sentences: Sentence[] = [];
+  let segStart = 0;
+
+  for (const bPos of boundaries) {
+    const raw = text.slice(segStart, bPos + 1);
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const leadingWs = raw.length - raw.trimStart().length;
+      sentences.push({ text: trimmed, start: segStart + leadingWs });
+    }
+    // Next segment starts after the punctuation + any whitespace
+    let next = bPos + 1;
+    while (next < text.length && /\s/.test(text[next])) next++;
+    segStart = next;
+  }
+
+  // Remaining text after last boundary
+  if (segStart < text.length) {
+    const raw = text.slice(segStart);
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const leadingWs = raw.length - raw.trimStart().length;
+      sentences.push({ text: trimmed, start: segStart + leadingWs });
+    }
+  }
+
+  return sentences;
+}
+
+interface SentenceMatchResult {
+  matched: Array<{ oldSent: Sentence; newSent: Sentence }>;
+  unmatchedOld: Sentence[];
+  unmatchedNew: Sentence[];
+}
+
+/** Greedy-match old and new sentences by Jaro-Winkler similarity. */
+function matchSentences(oldSentences: Sentence[], newSentences: Sentence[]): SentenceMatchResult {
+  const pairs: Array<{ oi: number; ni: number; sim: number }> = [];
+
+  for (let oi = 0; oi < oldSentences.length; oi++) {
+    for (let ni = 0; ni < newSentences.length; ni++) {
+      const sim = jaroWinkler(oldSentences[oi].text, newSentences[ni].text);
+      if (sim >= SENTENCE_MATCH_THRESHOLD) {
+        pairs.push({ oi, ni, sim });
+      }
+    }
+  }
+
+  pairs.sort((a, b) => b.sim - a.sim);
+
+  const usedOld = new Set<number>();
+  const usedNew = new Set<number>();
+  const matched: Array<{ oldSent: Sentence; newSent: Sentence }> = [];
+
+  for (const { oi, ni } of pairs) {
+    if (usedOld.has(oi) || usedNew.has(ni)) continue;
+    usedOld.add(oi);
+    usedNew.add(ni);
+    matched.push({ oldSent: oldSentences[oi], newSent: newSentences[ni] });
+  }
+
+  const unmatchedOld = oldSentences.filter((_, i) => !usedOld.has(i));
+  const unmatchedNew = newSentences.filter((_, i) => !usedNew.has(i));
+
+  return { matched, unmatchedOld, unmatchedNew };
+}
+
+// ── Word-change computation ─────────────────────────────────────────
+
+interface DiffResult {
+  changes: WordChange[];
+  removedChars: number;
+}
+
+/** Build word changes using direct single-pass diffWords (no quality gate). */
+function buildDirectResult(oldText: string, newText: string): DiffResult {
+  const raw = diffWords(oldText, newText);
+  const changes: WordChange[] = [];
   let oldPos = 0;
   let newPos = 0;
+  let removedChars = 0;
 
-  for (const c of changes) {
+  for (const c of raw) {
     const len = c.value.length;
     if (c.added) {
-      result.push({ type: 'added', start: newPos, end: newPos + len });
+      changes.push({ type: 'added', start: newPos, end: newPos + len });
       newPos += len;
     } else if (c.removed) {
-      result.push({ type: 'removed', start: oldPos, end: oldPos + len });
+      changes.push({ type: 'removed', start: oldPos, end: oldPos + len });
       oldPos += len;
+      removedChars += len;
     } else {
       oldPos += len;
       newPos += len;
     }
   }
 
-  return result;
+  return { changes, removedChars };
+}
+
+/** Build word changes using two-pass sentence-then-word approach (no quality gate). */
+function buildTwoPassResult(oldSentences: Sentence[], newSentences: Sentence[]): DiffResult {
+  const { matched, unmatchedOld, unmatchedNew } = matchSentences(oldSentences, newSentences);
+  const changes: WordChange[] = [];
+  let removedChars = 0;
+
+  // Unmatched old sentences → fully removed
+  for (const sent of unmatchedOld) {
+    const len = sent.text.length;
+    changes.push({ type: 'removed', start: sent.start, end: sent.start + len });
+    removedChars += len;
+  }
+
+  // Unmatched new sentences → fully added
+  for (const sent of unmatchedNew) {
+    changes.push({ type: 'added', start: sent.start, end: sent.start + sent.text.length });
+  }
+
+  // Matched sentence pairs → word-level diff within each pair
+  for (const { oldSent, newSent } of matched) {
+    const raw = diffWords(oldSent.text, newSent.text);
+    let oldPos = 0;
+    let newPos = 0;
+
+    for (const c of raw) {
+      const len = c.value.length;
+      if (c.added) {
+        changes.push({
+          type: 'added',
+          start: newSent.start + newPos,
+          end: newSent.start + newPos + len,
+        });
+        newPos += len;
+      } else if (c.removed) {
+        changes.push({
+          type: 'removed',
+          start: oldSent.start + oldPos,
+          end: oldSent.start + oldPos + len,
+        });
+        oldPos += len;
+        removedChars += len;
+      } else {
+        oldPos += len;
+        newPos += len;
+      }
+    }
+  }
+
+  return { changes, removedChars };
+}
+
+/**
+ * Two-pass sentence-then-word diffing with best-of-both fallback.
+ *
+ * Pass 1: Split into sentences and match by Jaro-Winkler similarity.
+ * Pass 2: Run diffWords within each matched sentence pair.
+ *
+ * Compares the two-pass result against direct diffWords and picks whichever
+ * has lower removedCoverage. This ensures the two-pass approach never
+ * produces worse results than the baseline.
+ *
+ * Quality gate still applies as a safety net.
+ */
+function computeWordChanges(oldText: string, newText: string): WordChange[] {
+  const oldSentences = splitSentences(oldText);
+  const newSentences = splitSentences(newText);
+
+  // Single-sentence (or no-sentence) on both sides → direct diffWords only
+  if (oldSentences.length <= 1 && newSentences.length <= 1) {
+    const { changes, removedChars } = buildDirectResult(oldText, newText);
+    if (oldText.length > 0 && removedChars / oldText.length > QUALITY_GATE_THRESHOLD) {
+      return [];
+    }
+    return changes;
+  }
+
+  // Try both approaches, pick the one with lower removedCoverage
+  const direct = buildDirectResult(oldText, newText);
+  const twoPass = buildTwoPassResult(oldSentences, newSentences);
+  const best = twoPass.removedChars <= direct.removedChars ? twoPass : direct;
+
+  // Quality gate safety net
+  if (oldText.length > 0 && best.removedChars / oldText.length > QUALITY_GATE_THRESHOLD) {
+    return [];
+  }
+
+  return best.changes;
 }
 
 function extractParagraphs(blocks: ContentBlock[]): Paragraph[] {
@@ -99,31 +320,93 @@ function diffParagraphPair(
   return detectMoves(paired);
 }
 
+const PAIR_SIMILARITY_THRESHOLD = 0.7;
+
 function pairRemovedAdded(changes: InternalParagraphDiff[]): InternalParagraphDiff[] {
   const result: InternalParagraphDiff[] = [];
   let i = 0;
   while (i < changes.length) {
-    if (
-      changes[i].changeType === 'removed' &&
-      i + 1 < changes.length &&
-      changes[i + 1].changeType === 'added'
-    ) {
-      const oldPara = changes[i]._oldParagraph;
-      const newPara = changes[i + 1]._newParagraph;
-      if (!oldPara || !newPara) { i++; continue; }
-      const oldText = oldPara.text;
-      const newText = newPara.text;
-      result.push({
-        changeType: 'modified',
-        _oldParagraph: oldPara,
-        _newParagraph: newPara,
-        wordChanges: computeWordChanges(oldText, newText),
-        sourceMapping: {
-          old: changes[i].sourceMapping.old,
-          new: changes[i + 1].sourceMapping.new,
-        },
-      });
-      i += 2;
+    // Collect a contiguous block of removed entries
+    if (changes[i].changeType === 'removed') {
+      const removedStart = i;
+      while (i < changes.length && changes[i].changeType === 'removed') i++;
+      // Collect any immediately following added entries
+      const addedStart = i;
+      while (i < changes.length && changes[i].changeType === 'added') i++;
+
+      const removedBlock = changes.slice(removedStart, addedStart);
+      const addedBlock = changes.slice(addedStart, i);
+
+      if (addedBlock.length === 0) {
+        // No added entries to pair with — all stay removed
+        for (const r of removedBlock) result.push(r);
+        continue;
+      }
+
+      // Single removed + single added: always pair (no ambiguity)
+      if (removedBlock.length === 1 && addedBlock.length === 1) {
+        const oldPara = removedBlock[0]._oldParagraph;
+        const newPara = addedBlock[0]._newParagraph;
+        if (oldPara && newPara) {
+          result.push({
+            changeType: 'modified',
+            _oldParagraph: oldPara,
+            _newParagraph: newPara,
+            wordChanges: computeWordChanges(oldPara.text, newPara.text),
+            sourceMapping: {
+              old: removedBlock[0].sourceMapping.old,
+              new: addedBlock[0].sourceMapping.new,
+            },
+          });
+          continue;
+        }
+      }
+
+      // Multi-paragraph block: match removed↔added by Jaro-Winkler similarity
+      const candidates: { ri: number; ai: number; sim: number }[] = [];
+      for (let ri = 0; ri < removedBlock.length; ri++) {
+        const oldPara = removedBlock[ri]._oldParagraph;
+        if (!oldPara) continue;
+        const oldNorm = normalizeText(oldPara.text);
+        for (let ai = 0; ai < addedBlock.length; ai++) {
+          const newPara = addedBlock[ai]._newParagraph;
+          if (!newPara) continue;
+          const sim = jaroWinkler(oldNorm, normalizeText(newPara.text));
+          if (sim >= PAIR_SIMILARITY_THRESHOLD) {
+            candidates.push({ ri, ai, sim });
+          }
+        }
+      }
+
+      candidates.sort((a, b) => b.sim - a.sim);
+      const usedR = new Set<number>();
+      const usedA = new Set<number>();
+
+      for (const { ri, ai } of candidates) {
+        if (usedR.has(ri) || usedA.has(ai)) continue;
+        usedR.add(ri);
+        usedA.add(ai);
+        const oldPara = removedBlock[ri]._oldParagraph!;
+        const newPara = addedBlock[ai]._newParagraph!;
+        result.push({
+          changeType: 'modified',
+          _oldParagraph: oldPara,
+          _newParagraph: newPara,
+          wordChanges: computeWordChanges(oldPara.text, newPara.text),
+          sourceMapping: {
+            old: removedBlock[ri].sourceMapping.old,
+            new: addedBlock[ai].sourceMapping.new,
+          },
+        });
+      }
+
+      // Leftovers: unpaired removed then added
+      for (let ri = 0; ri < removedBlock.length; ri++) {
+        if (!usedR.has(ri)) result.push(removedBlock[ri]);
+      }
+      for (let ai = 0; ai < addedBlock.length; ai++) {
+        if (!usedA.has(ai)) result.push(addedBlock[ai]);
+      }
     } else {
       result.push(changes[i]);
       i++;
