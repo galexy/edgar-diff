@@ -11,43 +11,253 @@ interface InternalParagraphDiff extends ParagraphDiff {
 }
 
 const MOVE_THRESHOLD = 0.9;
+const SENTENCE_MATCH_THRESHOLD = 0.7;
+const QUALITY_GATE_THRESHOLD = 0.70;
 
 function normalizeText(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
 }
 
-function computeWordChanges(oldText: string, newText: string): WordChange[] {
-  const changes = diffWords(oldText, newText);
-  const result: WordChange[] = [];
+// ── Sentence-level helpers (two-pass diffing) ───────────────────────
+
+interface Sentence {
+  text: string;   // trimmed sentence text
+  start: number;  // offset of text within the parent string
+}
+
+const ABBREVIATIONS = new Set([
+  'mr', 'mrs', 'ms', 'dr', 'prof', 'sr', 'jr',
+  'inc', 'corp', 'ltd', 'co', 'llc',
+  'vs', 'etc', 'no', 'vol', 'dept', 'est', 'approx',
+  'govt', 'st', 'ave', 'blvd', 'rd',
+  'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+  'gen', 'gov', 'rep', 'sen',
+]);
+
+/** Split text into sentences with their character offsets in the original string. */
+function splitSentences(text: string): Sentence[] {
+  if (text.trim().length === 0) return [];
+
+  const boundaries: number[] = [];
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch !== '.' && ch !== '!' && ch !== '?') continue;
+
+    // Must be followed by whitespace or end of string
+    if (i < text.length - 1 && !/\s/.test(text[i + 1])) continue;
+
+    if (ch === '.') {
+      // Find the alphabetic word immediately before the dot
+      let wordStart = i - 1;
+      while (wordStart >= 0 && /[a-zA-Z]/.test(text[wordStart])) wordStart--;
+      wordStart++;
+
+      if (wordStart < i) {
+        const word = text.slice(wordStart, i).toLowerCase();
+        // Single letter abbreviation (e.g., "U." in "U.S.")
+        if (word.length === 1) continue;
+        // Known abbreviation
+        if (ABBREVIATIONS.has(word)) continue;
+      }
+    }
+
+    boundaries.push(i);
+  }
+
+  if (boundaries.length === 0) {
+    const trimmed = text.trim();
+    const leadingWs = text.length - text.trimStart().length;
+    return [{ text: trimmed, start: leadingWs }];
+  }
+
+  const sentences: Sentence[] = [];
+  let segStart = 0;
+
+  for (const bPos of boundaries) {
+    const raw = text.slice(segStart, bPos + 1);
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const leadingWs = raw.length - raw.trimStart().length;
+      sentences.push({ text: trimmed, start: segStart + leadingWs });
+    }
+    // Next segment starts after the punctuation + any whitespace
+    let next = bPos + 1;
+    while (next < text.length && /\s/.test(text[next])) next++;
+    segStart = next;
+  }
+
+  // Remaining text after last boundary
+  if (segStart < text.length) {
+    const raw = text.slice(segStart);
+    const trimmed = raw.trim();
+    if (trimmed.length > 0) {
+      const leadingWs = raw.length - raw.trimStart().length;
+      sentences.push({ text: trimmed, start: segStart + leadingWs });
+    }
+  }
+
+  return sentences;
+}
+
+interface SentenceMatchResult {
+  matched: Array<{ oldSent: Sentence; newSent: Sentence }>;
+  unmatchedOld: Sentence[];
+  unmatchedNew: Sentence[];
+}
+
+/** Greedy-match old and new sentences by Jaro-Winkler similarity. */
+function matchSentences(oldSentences: Sentence[], newSentences: Sentence[]): SentenceMatchResult {
+  const pairs: Array<{ oi: number; ni: number; sim: number }> = [];
+
+  for (let oi = 0; oi < oldSentences.length; oi++) {
+    for (let ni = 0; ni < newSentences.length; ni++) {
+      const sim = jaroWinkler(oldSentences[oi].text, newSentences[ni].text);
+      if (sim >= SENTENCE_MATCH_THRESHOLD) {
+        pairs.push({ oi, ni, sim });
+      }
+    }
+  }
+
+  pairs.sort((a, b) => b.sim - a.sim);
+
+  const usedOld = new Set<number>();
+  const usedNew = new Set<number>();
+  const matched: Array<{ oldSent: Sentence; newSent: Sentence }> = [];
+
+  for (const { oi, ni } of pairs) {
+    if (usedOld.has(oi) || usedNew.has(ni)) continue;
+    usedOld.add(oi);
+    usedNew.add(ni);
+    matched.push({ oldSent: oldSentences[oi], newSent: newSentences[ni] });
+  }
+
+  const unmatchedOld = oldSentences.filter((_, i) => !usedOld.has(i));
+  const unmatchedNew = newSentences.filter((_, i) => !usedNew.has(i));
+
+  return { matched, unmatchedOld, unmatchedNew };
+}
+
+// ── Word-change computation ─────────────────────────────────────────
+
+interface DiffResult {
+  changes: WordChange[];
+  removedChars: number;
+}
+
+/** Build word changes using direct single-pass diffWords (no quality gate). */
+function buildDirectResult(oldText: string, newText: string): DiffResult {
+  const raw = diffWords(oldText, newText);
+  const changes: WordChange[] = [];
   let oldPos = 0;
   let newPos = 0;
+  let removedChars = 0;
 
-  for (const c of changes) {
+  for (const c of raw) {
     const len = c.value.length;
     if (c.added) {
-      result.push({ type: 'added', start: newPos, end: newPos + len });
+      changes.push({ type: 'added', start: newPos, end: newPos + len });
       newPos += len;
     } else if (c.removed) {
-      result.push({ type: 'removed', start: oldPos, end: oldPos + len });
+      changes.push({ type: 'removed', start: oldPos, end: oldPos + len });
       oldPos += len;
+      removedChars += len;
     } else {
       oldPos += len;
       newPos += len;
     }
   }
 
-  // Quality gate: if diffWords marked >70% of old text as removed, the alignment
-  // is too poor to be useful — fall back to paragraph-level diff.
-  if (oldText.length > 0) {
-    const removedChars = result
-      .filter(w => w.type === 'removed')
-      .reduce((sum, w) => sum + (w.end - w.start), 0);
-    if (removedChars / oldText.length > 0.70) {
-      return [];
+  return { changes, removedChars };
+}
+
+/** Build word changes using two-pass sentence-then-word approach (no quality gate). */
+function buildTwoPassResult(oldSentences: Sentence[], newSentences: Sentence[]): DiffResult {
+  const { matched, unmatchedOld, unmatchedNew } = matchSentences(oldSentences, newSentences);
+  const changes: WordChange[] = [];
+  let removedChars = 0;
+
+  // Unmatched old sentences → fully removed
+  for (const sent of unmatchedOld) {
+    const len = sent.text.length;
+    changes.push({ type: 'removed', start: sent.start, end: sent.start + len });
+    removedChars += len;
+  }
+
+  // Unmatched new sentences → fully added
+  for (const sent of unmatchedNew) {
+    changes.push({ type: 'added', start: sent.start, end: sent.start + sent.text.length });
+  }
+
+  // Matched sentence pairs → word-level diff within each pair
+  for (const { oldSent, newSent } of matched) {
+    const raw = diffWords(oldSent.text, newSent.text);
+    let oldPos = 0;
+    let newPos = 0;
+
+    for (const c of raw) {
+      const len = c.value.length;
+      if (c.added) {
+        changes.push({
+          type: 'added',
+          start: newSent.start + newPos,
+          end: newSent.start + newPos + len,
+        });
+        newPos += len;
+      } else if (c.removed) {
+        changes.push({
+          type: 'removed',
+          start: oldSent.start + oldPos,
+          end: oldSent.start + oldPos + len,
+        });
+        oldPos += len;
+        removedChars += len;
+      } else {
+        oldPos += len;
+        newPos += len;
+      }
     }
   }
 
-  return result;
+  return { changes, removedChars };
+}
+
+/**
+ * Two-pass sentence-then-word diffing with best-of-both fallback.
+ *
+ * Pass 1: Split into sentences and match by Jaro-Winkler similarity.
+ * Pass 2: Run diffWords within each matched sentence pair.
+ *
+ * Compares the two-pass result against direct diffWords and picks whichever
+ * has lower removedCoverage. This ensures the two-pass approach never
+ * produces worse results than the baseline.
+ *
+ * Quality gate still applies as a safety net.
+ */
+function computeWordChanges(oldText: string, newText: string): WordChange[] {
+  const oldSentences = splitSentences(oldText);
+  const newSentences = splitSentences(newText);
+
+  // Single-sentence (or no-sentence) on both sides → direct diffWords only
+  if (oldSentences.length <= 1 && newSentences.length <= 1) {
+    const { changes, removedChars } = buildDirectResult(oldText, newText);
+    if (oldText.length > 0 && removedChars / oldText.length > QUALITY_GATE_THRESHOLD) {
+      return [];
+    }
+    return changes;
+  }
+
+  // Try both approaches, pick the one with lower removedCoverage
+  const direct = buildDirectResult(oldText, newText);
+  const twoPass = buildTwoPassResult(oldSentences, newSentences);
+  const best = twoPass.removedChars <= direct.removedChars ? twoPass : direct;
+
+  // Quality gate safety net
+  if (oldText.length > 0 && best.removedChars / oldText.length > QUALITY_GATE_THRESHOLD) {
+    return [];
+  }
+
+  return best.changes;
 }
 
 function extractParagraphs(blocks: ContentBlock[]): Paragraph[] {
