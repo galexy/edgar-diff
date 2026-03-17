@@ -44,13 +44,12 @@ describe('diff type contracts', () => {
     }
   });
 
-  // DT-U7: modified entries always have wordChanges
+  // DT-U7: modified entries always have wordChanges defined (may be empty when quality gate triggers)
   it('DT-U7: modified entries always have wordChanges populated', () => {
     const modified = changes.filter(c => c.changeType === 'modified');
     for (const c of modified) {
       expect(c.wordChanges).toBeDefined();
-      assertDefined(c.wordChanges);
-      expect(c.wordChanges.length).toBeGreaterThan(0);
+      expect(Array.isArray(c.wordChanges)).toBe(true);
     }
   });
 

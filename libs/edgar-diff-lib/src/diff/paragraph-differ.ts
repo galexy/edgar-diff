@@ -320,31 +320,93 @@ function diffParagraphPair(
   return detectMoves(paired);
 }
 
+const PAIR_SIMILARITY_THRESHOLD = 0.7;
+
 function pairRemovedAdded(changes: InternalParagraphDiff[]): InternalParagraphDiff[] {
   const result: InternalParagraphDiff[] = [];
   let i = 0;
   while (i < changes.length) {
-    if (
-      changes[i].changeType === 'removed' &&
-      i + 1 < changes.length &&
-      changes[i + 1].changeType === 'added'
-    ) {
-      const oldPara = changes[i]._oldParagraph;
-      const newPara = changes[i + 1]._newParagraph;
-      if (!oldPara || !newPara) { i++; continue; }
-      const oldText = oldPara.text;
-      const newText = newPara.text;
-      result.push({
-        changeType: 'modified',
-        _oldParagraph: oldPara,
-        _newParagraph: newPara,
-        wordChanges: computeWordChanges(oldText, newText),
-        sourceMapping: {
-          old: changes[i].sourceMapping.old,
-          new: changes[i + 1].sourceMapping.new,
-        },
-      });
-      i += 2;
+    // Collect a contiguous block of removed entries
+    if (changes[i].changeType === 'removed') {
+      const removedStart = i;
+      while (i < changes.length && changes[i].changeType === 'removed') i++;
+      // Collect any immediately following added entries
+      const addedStart = i;
+      while (i < changes.length && changes[i].changeType === 'added') i++;
+
+      const removedBlock = changes.slice(removedStart, addedStart);
+      const addedBlock = changes.slice(addedStart, i);
+
+      if (addedBlock.length === 0) {
+        // No added entries to pair with — all stay removed
+        for (const r of removedBlock) result.push(r);
+        continue;
+      }
+
+      // Single removed + single added: always pair (no ambiguity)
+      if (removedBlock.length === 1 && addedBlock.length === 1) {
+        const oldPara = removedBlock[0]._oldParagraph;
+        const newPara = addedBlock[0]._newParagraph;
+        if (oldPara && newPara) {
+          result.push({
+            changeType: 'modified',
+            _oldParagraph: oldPara,
+            _newParagraph: newPara,
+            wordChanges: computeWordChanges(oldPara.text, newPara.text),
+            sourceMapping: {
+              old: removedBlock[0].sourceMapping.old,
+              new: addedBlock[0].sourceMapping.new,
+            },
+          });
+          continue;
+        }
+      }
+
+      // Multi-paragraph block: match removed↔added by Jaro-Winkler similarity
+      const candidates: { ri: number; ai: number; sim: number }[] = [];
+      for (let ri = 0; ri < removedBlock.length; ri++) {
+        const oldPara = removedBlock[ri]._oldParagraph;
+        if (!oldPara) continue;
+        const oldNorm = normalizeText(oldPara.text);
+        for (let ai = 0; ai < addedBlock.length; ai++) {
+          const newPara = addedBlock[ai]._newParagraph;
+          if (!newPara) continue;
+          const sim = jaroWinkler(oldNorm, normalizeText(newPara.text));
+          if (sim >= PAIR_SIMILARITY_THRESHOLD) {
+            candidates.push({ ri, ai, sim });
+          }
+        }
+      }
+
+      candidates.sort((a, b) => b.sim - a.sim);
+      const usedR = new Set<number>();
+      const usedA = new Set<number>();
+
+      for (const { ri, ai } of candidates) {
+        if (usedR.has(ri) || usedA.has(ai)) continue;
+        usedR.add(ri);
+        usedA.add(ai);
+        const oldPara = removedBlock[ri]._oldParagraph!;
+        const newPara = addedBlock[ai]._newParagraph!;
+        result.push({
+          changeType: 'modified',
+          _oldParagraph: oldPara,
+          _newParagraph: newPara,
+          wordChanges: computeWordChanges(oldPara.text, newPara.text),
+          sourceMapping: {
+            old: removedBlock[ri].sourceMapping.old,
+            new: addedBlock[ai].sourceMapping.new,
+          },
+        });
+      }
+
+      // Leftovers: unpaired removed then added
+      for (let ri = 0; ri < removedBlock.length; ri++) {
+        if (!usedR.has(ri)) result.push(removedBlock[ri]);
+      }
+      for (let ai = 0; ai < addedBlock.length; ai++) {
+        if (!usedA.has(ai)) result.push(addedBlock[ai]);
+      }
     } else {
       result.push(changes[i]);
       i++;
