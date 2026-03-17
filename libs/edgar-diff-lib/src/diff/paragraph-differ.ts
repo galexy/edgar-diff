@@ -36,6 +36,17 @@ function computeWordChanges(oldText: string, newText: string): WordChange[] {
     }
   }
 
+  // Quality gate: if diffWords marked >70% of old text as removed, the alignment
+  // is too poor to be useful — fall back to paragraph-level diff.
+  if (oldText.length > 0) {
+    const removedChars = result
+      .filter(w => w.type === 'removed')
+      .reduce((sum, w) => sum + (w.end - w.start), 0);
+    if (removedChars / oldText.length > 0.70) {
+      return [];
+    }
+  }
+
   return result;
 }
 
