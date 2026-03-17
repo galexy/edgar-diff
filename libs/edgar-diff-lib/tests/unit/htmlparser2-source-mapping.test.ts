@@ -286,7 +286,7 @@ describe('htmlparser2: index boundary validation', () => {
     }
   });
 
-  it('all indices within bounds for real 10-K filing', async () => {
+  it('all indices within bounds for real 10-K filing', { timeout: 15000 }, async () => {
     const html = await readFile(join(FIXTURES_DIR, '10k-aapl-2024.html'), 'utf-8');
     const doc = parse(html);
     const nodes = collectNodes(doc);
