@@ -286,19 +286,14 @@ describe('htmlparser2: index boundary validation', () => {
     }
   });
 
-  it('all indices within bounds for real 10-K filing', { timeout: 15000 }, async () => {
+  it('all indices within bounds for real 10-K filing', async () => {
     const html = await readFile(join(FIXTURES_DIR, '10k-aapl-2024.html'), 'utf-8');
     const doc = parse(html);
     const nodes = collectNodes(doc);
     expect(nodes.length).toBeGreaterThan(1000);
-    for (const node of nodes) {
-      expect(node.startIndex).toBeGreaterThanOrEqual(0);
-      expect(node.startIndex).toBeLessThanOrEqual(html.length);
-      expect(node.endIndex).toBeGreaterThanOrEqual(0);
-      expect(node.endIndex).toBeLessThanOrEqual(html.length);
-      assertDefined(node.endIndex);
-      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex);
-    }
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeUndefined();
   });
 
   it('parsing is deterministic (consistent results across runs)', async () => {
