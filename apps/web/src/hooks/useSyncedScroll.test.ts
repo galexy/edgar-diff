@@ -378,4 +378,60 @@ describe('useSyncedScroll', () => {
     // Sync should have run — scrollTop should have been modified
     expect(typeof containerB.scrollTop).toBe('number');
   });
+
+  // SS-U16: Rapid section clicks — second suppress must not be cancelled by first timeout
+  // Regression test for edgar-diff-k8rv: rapid clicks caused the first setTimeout
+  // to clear suppressSyncRef while the second smooth-scroll was still animating.
+  // The fix clears the previous timeout before starting a new one.
+  it('stays suppressed during rapid clicks when previous timeout is cleared', () => {
+    vi.useFakeTimers();
+
+    const containerA = makeContainer([
+      { sourceStart: 100, top: -100 },
+      { sourceStart: 500, top: 100 },
+    ], 200);
+    const containerB = makeContainer([
+      { sourceStart: 100, top: 50 },
+      { sourceStart: 600, top: 400 },
+    ]);
+
+    const { result } = renderHook(() => useSyncedScroll(
+      makeRef(containerA), makeRef(containerB), true, makeSimpleSectionDiffs(),
+    ));
+
+    // --- First click: suppress + schedule auto-clear at 1000ms ---
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    result.current.suppressSyncRef.current = true;
+    timeoutId = setTimeout(() => { result.current.suppressSyncRef.current = false; }, 1000);
+
+    // Fire scroll at t=0 — should be suppressed
+    const scrollTopBefore = containerB.scrollTop;
+    containerA.scrollTop = 200;
+    act(() => { fireScroll(containerA); });
+    act(() => { flushRAF(); });
+    expect(containerB.scrollTop).toBe(scrollTopBefore);
+
+    // --- Second click at t=500ms: clear first timeout, re-suppress, new timeout ---
+    vi.advanceTimersByTime(500);
+    clearTimeout(timeoutId);
+    result.current.suppressSyncRef.current = true;
+    timeoutId = setTimeout(() => { result.current.suppressSyncRef.current = false; }, 1000);
+
+    // Advance to t=1000ms — first timeout WOULD have fired here
+    vi.advanceTimersByTime(500);
+
+    // Sync must STILL be suppressed (second timeout expires at t=1500ms)
+    expect(result.current.suppressSyncRef.current).toBe(true);
+
+    containerA.scrollTop = 300;
+    act(() => { fireScroll(containerA); });
+    act(() => { flushRAF(); });
+    expect(containerB.scrollTop).toBe(scrollTopBefore);
+
+    // Advance to t=1500ms — second timeout fires, sync resumes
+    vi.advanceTimersByTime(500);
+    expect(result.current.suppressSyncRef.current).toBe(false);
+
+    vi.useRealTimers();
+  });
 });
