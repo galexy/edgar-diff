@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, type RefObject } from 'react';
+import React, { useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { SectionDiff } from '@edgar-diff/lib';
 import {
   buildOffsetTable,
@@ -20,8 +20,9 @@ export function useSyncedScroll(
   panelBRef: RefObject<HTMLDivElement | null>,
   enabled: boolean,
   sectionDiffs?: SectionDiff[],
-): void {
+): { suppressSyncRef: React.MutableRefObject<boolean> } {
   const isProgrammaticScrollRef = useRef(false);
+  const suppressSyncRef = useRef(false);
 
   // Build offset table once when diff data changes
   const offsetTable = useMemo(
@@ -41,6 +42,7 @@ export function useSyncedScroll(
     ) => {
       let rafId = 0;
       return () => {
+        if (suppressSyncRef.current) return;
         if (isProgrammaticScrollRef.current) {
           isProgrammaticScrollRef.current = false;
           return;
@@ -78,4 +80,6 @@ export function useSyncedScroll(
       isProgrammaticScrollRef.current = false;
     };
   }, [panelARef, panelBRef, enabled, offsetTable]);
+
+  return { suppressSyncRef };
 }
