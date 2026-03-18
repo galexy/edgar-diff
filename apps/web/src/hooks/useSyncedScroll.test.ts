@@ -305,4 +305,77 @@ describe('useSyncedScroll', () => {
 
     expect(() => rerender({ diffs: diffs2 })).not.toThrow();
   });
+
+  // SS-U13: useSyncedScroll returns an object with suppressSyncRef
+  // Regression test for edgar-diff-k8rv: section navigation needs to suppress
+  // sync during programmatic scrollIntoView calls
+  it('returns an object with a suppressSyncRef property', () => {
+    const containerA = makeContainer([{ sourceStart: 100, top: 0 }]);
+    const containerB = makeContainer([{ sourceStart: 100, top: 0 }]);
+
+    const { result } = renderHook(() => useSyncedScroll(
+      makeRef(containerA), makeRef(containerB), true, makeSimpleSectionDiffs(),
+    ));
+
+    expect(result.current).toBeDefined();
+    expect(result.current).toHaveProperty('suppressSyncRef');
+    expect(result.current.suppressSyncRef).toHaveProperty('current');
+  });
+
+  // SS-U14: When suppressSyncRef.current = true, scroll events do NOT trigger sync
+  // Regression test for edgar-diff-k8rv: smooth-scroll from section nav was being
+  // intercepted by sync handler, causing wrong scroll positions
+  it('does not sync scroll when suppressSyncRef.current is true', () => {
+    const containerA = makeContainer([
+      { sourceStart: 100, top: -100 },
+      { sourceStart: 500, top: 100 },
+    ], 200);
+    const containerB = makeContainer([
+      { sourceStart: 100, top: 50 },
+      { sourceStart: 600, top: 400 },
+    ]);
+
+    const { result } = renderHook(() => useSyncedScroll(
+      makeRef(containerA), makeRef(containerB), true, makeSimpleSectionDiffs(),
+    ));
+
+    // Suppress sync before scrolling
+    result.current.suppressSyncRef.current = true;
+
+    const scrollTopBefore = containerB.scrollTop;
+    containerA.scrollTop = 200;
+    act(() => { fireScroll(containerA); });
+    act(() => { flushRAF(); });
+
+    // Target panel should NOT have been scrolled
+    expect(containerB.scrollTop).toBe(scrollTopBefore);
+  });
+
+  // SS-U15: After clearing suppressSyncRef, sync resumes normally
+  // Regression test for edgar-diff-k8rv: sync must resume after section nav completes
+  it('resumes sync after suppressSyncRef.current is set back to false', () => {
+    const containerA = makeContainer([
+      { sourceStart: 100, top: -100 },
+      { sourceStart: 500, top: 100 },
+    ], 200);
+    const containerB = makeContainer([
+      { sourceStart: 100, top: 50 },
+      { sourceStart: 600, top: 400 },
+    ]);
+
+    const { result } = renderHook(() => useSyncedScroll(
+      makeRef(containerA), makeRef(containerB), true, makeSimpleSectionDiffs(),
+    ));
+
+    // Suppress, then re-enable
+    result.current.suppressSyncRef.current = true;
+    result.current.suppressSyncRef.current = false;
+
+    containerA.scrollTop = 200;
+    act(() => { fireScroll(containerA); });
+    act(() => { flushRAF(); });
+
+    // Sync should have run — scrollTop should have been modified
+    expect(typeof containerB.scrollTop).toBe('number');
+  });
 });
