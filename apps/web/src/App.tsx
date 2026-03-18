@@ -75,7 +75,7 @@ export function App() {
   const newPanelRef = useRef<HTMLDivElement>(null);
 
   const [syncEnabled, setSyncEnabled] = useState(true);
-  useSyncedScroll(oldPanelRef, newPanelRef, syncEnabled, diff?.sectionDiffs);
+  const { suppressSyncRef } = useSyncedScroll(oldPanelRef, newPanelRef, syncEnabled, diff?.sectionDiffs);
 
   const handleSyncToggle = useCallback(() => {
     setSyncEnabled((prev) => !prev);
@@ -84,13 +84,15 @@ export function App() {
   const activeSectionId = useActiveSection(oldPanelRef);
 
   const handleSectionClick = useCallback((sectionId: string) => {
+    suppressSyncRef.current = true;
     for (const ref of [oldPanelRef, newPanelRef]) {
       const container = ref.current;
       if (!container) continue;
       const target = container.querySelector(`#${CSS.escape(sectionId)}`);
       target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-  }, []);
+    setTimeout(() => { suppressSyncRef.current = false; }, 1000);
+  }, [suppressSyncRef]);
 
   return (
     <div className="h-screen flex flex-col bg-gray-50">
