@@ -82,8 +82,10 @@ export function App() {
   }, []);
 
   const activeSectionId = useActiveSection(oldPanelRef);
+  const suppressTimeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const handleSectionClick = useCallback((sectionId: string) => {
+    clearTimeout(suppressTimeoutRef.current);
     suppressSyncRef.current = true;
     for (const ref of [oldPanelRef, newPanelRef]) {
       const container = ref.current;
@@ -91,7 +93,7 @@ export function App() {
       const target = container.querySelector(`#${CSS.escape(sectionId)}`);
       target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
-    setTimeout(() => { suppressSyncRef.current = false; }, 1000);
+    suppressTimeoutRef.current = setTimeout(() => { suppressSyncRef.current = false; }, 1000);
   }, [suppressSyncRef]);
 
   return (
