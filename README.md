@@ -20,10 +20,10 @@ edgar-diff pulls full-text filings from the SEC EDGAR database and produces stru
 
 ## What It Does
 
-- **Side-by-side diff view** — Additions, deletions, and modifications highlighted inline, organized by filing section (Risk Factors, MD&A, Financial Statements, etc.)
-- **Structured parsing** — Filings are parsed into semantic sections, not treated as raw text blobs. A renamed section won't show up as a full delete + add.
-- **Direct EDGAR integration** — Pulls filings straight from SEC EDGAR. No third-party data dependency.
-- **Reusable diff library** — The core engine (`@edgar-diff/lib`) is decoupled from the UI and can be embedded in pipelines, monitors, or other tools.
+- 🔍 **Side-by-side diff view** — Additions, deletions, and modifications highlighted inline, organized by filing section (Risk Factors, MD&A, Financial Statements, etc.)
+- 🧩 **Structured parsing** — Filings are parsed into semantic sections, not treated as raw text blobs. A renamed section won't show up as a full delete + add.
+- 📡 **Direct EDGAR integration** — Pulls filings straight from SEC EDGAR. No third-party data dependency.
+- 🔧 **Reusable diff library** — The core engine (`@edgar-diff/lib`) is decoupled from the UI and can be embedded in pipelines, monitors, or other tools.
 
 ## Project Structure
 
