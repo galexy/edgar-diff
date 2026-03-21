@@ -78,6 +78,18 @@ pnpm nx run-many --target=test
 pnpm nx dev web
 ```
 
+Once the dev server is running:
+
+1. Open your browser at [http://localhost:5173](http://localhost:5173)
+2. Search for a company by name or ticker symbol (e.g. "AAPL" or "Apple")
+3. Select two recent SEC filings to compare (e.g. two consecutive 10-K annual reports)
+4. View the structured, section-by-section diff with additions, deletions, and modifications highlighted
+
+<!-- TODO: Add screenshot of the app in action -->
+<p align="center">
+  <img src="assets/app-screenshot.png" alt="edgar-diff app screenshot showing a side-by-side filing comparison" width="800" />
+</p>
+
 ### Running Tests
 
 ```bash
