@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/hero.png" alt="edgar-diff — side-by-side SEC filing comparison showing additions, deletions, and modifications" width="800" />
+</p>
+
 # edgar-diff
 
 **Compare SEC filings side-by-side. See exactly what changed.**
