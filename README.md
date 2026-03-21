@@ -87,7 +87,7 @@ Once the dev server is running:
 
 <!-- TODO: Add screenshot of the app in action -->
 <p align="center">
-  <img src="assets/app-screenshot.png" alt="edgar-diff app screenshot showing a side-by-side filing comparison" width="800" />
+  <img src="assets/screenshot.webp" alt="edgar-diff app screenshot showing a side-by-side filing comparison" width="800" />
 </p>
 
 ### Running Tests
