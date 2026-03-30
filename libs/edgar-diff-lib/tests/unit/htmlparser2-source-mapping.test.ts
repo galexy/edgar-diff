@@ -286,19 +286,14 @@ describe('htmlparser2: index boundary validation', () => {
     }
   });
 
-  it('all indices within bounds for real 10-K filing', { timeout: 15000 }, async () => {
+  it('all indices within bounds for real 10-K filing', async () => {
     const html = await readFile(join(FIXTURES_DIR, '10k-aapl-2024.html'), 'utf-8');
     const doc = parse(html);
     const nodes = collectNodes(doc);
     expect(nodes.length).toBeGreaterThan(1000);
-    for (const node of nodes) {
-      expect(node.startIndex).toBeGreaterThanOrEqual(0);
-      expect(node.startIndex).toBeLessThanOrEqual(html.length);
-      expect(node.endIndex).toBeGreaterThanOrEqual(0);
-      expect(node.endIndex).toBeLessThanOrEqual(html.length);
-      assertDefined(node.endIndex);
-      expect(node.startIndex).toBeLessThanOrEqual(node.endIndex);
-    }
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeUndefined();
   });
 
   it('parsing is deterministic (consistent results across runs)', async () => {
@@ -313,5 +308,137 @@ describe('htmlparser2: index boundary validation', () => {
       expect(nodes1[i]!.startIndex).toBe(nodes2[i]!.startIndex);
       expect(nodes1[i]!.endIndex).toBe(nodes2[i]!.endIndex);
     }
+  });
+});
+
+// ── Bulk validation helper & regression tests (edgar-diff-lyb2) ─────
+
+/**
+ * Validates that all nodes have indices within bounds.
+ * Returns the first violating node, or undefined if all are valid.
+ *
+ * This replaces the per-node expect() loop pattern which generates ~101k
+ * expect() calls on the AAPL 10-K fixture and times out on CI.
+ */
+function findBoundViolation(
+  nodes: ChildNode[],
+  htmlLength: number,
+): ChildNode | undefined {
+  return nodes.find(
+    (node) =>
+      node.startIndex == null ||
+      node.endIndex == null ||
+      node.startIndex < 0 ||
+      node.startIndex > htmlLength ||
+      node.endIndex < 0 ||
+      node.endIndex > htmlLength ||
+      node.startIndex > node.endIndex,
+  );
+}
+
+describe('htmlparser2: bulk bound validation (edgar-diff-lyb2)', () => {
+  it('detects negative startIndex violation', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    expect(nodes.length).toBeGreaterThan(0);
+
+    // Corrupt first node's startIndex
+    (nodes[0] as unknown as { startIndex: number }).startIndex = -1;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+    expect(violation).toBe(nodes[0]);
+  });
+
+  it('detects startIndex exceeding html length', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    (nodes[0] as unknown as { startIndex: number }).startIndex = html.length + 1;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('detects negative endIndex violation', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    (nodes[0] as unknown as { endIndex: number }).endIndex = -1;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('detects endIndex exceeding html length', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    (nodes[0] as unknown as { endIndex: number }).endIndex = html.length + 1;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('detects startIndex > endIndex violation', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    // Swap start and end to create violation
+    const origStart = nodes[0]!.startIndex!;
+    const origEnd = nodes[0]!.endIndex!;
+    (nodes[0] as unknown as { startIndex: number }).startIndex = origEnd;
+    (nodes[0] as unknown as { endIndex: number }).endIndex = origStart;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('detects null startIndex violation', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    (nodes[0] as unknown as { startIndex: null }).startIndex = null;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('detects null endIndex violation', () => {
+    const html = '<p>hello</p>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+
+    (nodes[0] as unknown as { endIndex: null }).endIndex = null;
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeDefined();
+  });
+
+  it('returns undefined when all nodes are valid', () => {
+    const html = '<div><p>hello</p><span>world</span></div>';
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    expect(nodes.length).toBeGreaterThan(0);
+
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeUndefined();
+  });
+
+  it('validates all AAPL 10-K nodes without timeout override', async () => {
+    const html = await readFile(join(FIXTURES_DIR, '10k-aapl-2024.html'), 'utf-8');
+    const doc = parse(html);
+    const nodes = collectNodes(doc);
+    expect(nodes.length).toBeGreaterThan(1000);
+
+    // Bulk validation completes well within default 5s timeout
+    const violation = findBoundViolation(nodes, html.length);
+    expect(violation).toBeUndefined();
   });
 });
